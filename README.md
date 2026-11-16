@@ -2,7 +2,7 @@
 
 Konwledge is a local-first toolkit for managing the full lifecycle of knowledge used by AI applications. The project will track where knowledge came from, how it changed, when it became stale, and whether a change improved or degraded retrieval quality.
 
-> 状态：**v0.1.0 已准备、未发布（alpha）**。U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 已提供只读管理 API；前端已授权恢复 B2，V3 生命周期与变更视图已实现，原 V2 静态演示保留。下一批 B3 补 V4 评测导览，B4 写交互／B5 MCP 未实现。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。完整 Python 回归与真实浏览器最短导航已通过，详见 [本机只读工作台](docs/live-workbench.md)。
+> 状态：**v0.1.0 已准备、未发布（alpha）**。U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，原 V2 静态演示保留。B3 完整回归、隔离副本 HTTP／jsdom UI 联调及两页页面渲染检查均通过，验收范围见 [评测工作台](docs/evaluation-workbench.md#回归命令与验收记录)。下一批 B4 受控写交互另行设计，B5 MCP 未实现，不自动开工。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
 
 ## Implemented increments
 
@@ -32,8 +32,9 @@ Konwledge is a local-first toolkit for managing the full lifecycle of knowledge 
 | U20 | Unreleased | SQLite/PostgreSQL 只读 schema 捕获、不可变版本历史、检索物化、导出和 schema diff（无版本提升） |
 | B1 | Unreleased | 明确启用的只读管理 API、任务与历史证据导航、真实库 HTTP 验收 |
 | V3（B2） | Unreleased | 保留 V2 静态演示，新增本机实时生命周期与变更视图、严格 dev proxy 和启动器 |
+| V4（B3） | Unreleased | 只读评测对照、手动阶段导览与有界轮询；前端 179 passed／1 skipped、Python 1325 passed／3 skipped，隔离 HTTP／jsdom UI 联调及两页页面渲染检查通过 |
 
-Each increment builds on the preceding implementation. 当前分支包含 U01～U20、V1／V2、B1 和 V3（B2）。`U` 扩展核心库，`V` 扩展展示；V4（B3）评测导览延后，下一批开发。公开部署仍需另行明确授权。
+Each increment builds on the preceding implementation. 当前分支包含 U01～U20、V1／V2、B1、V3（B2）和 V4（B3）开发。`U` 扩展核心库，`V` 扩展展示；B4 受控写交互下一批另行设计，不自动启动。公开部署仍需另行明确授权。
 
 ## Why this project
 
@@ -121,9 +122,9 @@ uv run python scripts/real_knowledge_acceptance.py \
 
 每次运行建立独立 SQLite 和文档副本，证据保存在输出根目录下的唯一运行目录，不覆盖旧报告，也不改原始文档。详见 [真实文档变更验收](docs/real-knowledge-acceptance.md)。
 
-B1 已提供只读管理契约；B2 已完成 V3 生命周期与变更视图，并保留现有静态演示。下一批 B3 补 V4 可比结果、用例级诊断与导览，之后再安排 B4 受控写交互和 B5 U22 MCP。Snapshot V1 和现有上下文 API 保持兼容，当前没有公开 live 部署。详见 [前后端一体化演示路线](docs/integrated-demo-roadmap.md)。
+B1 已提供只读管理契约，B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 评测对照与手动导览开发；现有静态演示保留。B3 使用同源 GET，人工选择参考／候选，先核对 dataset pin、config fingerprint 和报告完整性，再展示聚合 delta，不重算 gate、不接受 baseline。B1 没有 case-level query／cases，页面不造逐用例失败诊断。下一批 B4 受控写交互另行设计，B5 U22 MCP 未实现，不自动开工。Snapshot V1 和现有上下文 API 保持兼容，没有公开 live 部署。详见 [前后端一体化演示路线](docs/integrated-demo-roadmap.md)。
 
-## 本机只读工作台（B2，Unreleased）
+## 本机只读工作台（B2／B3，Unreleased）
 
 首次运行先执行 `uv sync --locked --dev` 和 `(cd web && pnpm install --frozen-lockfile)`。从仓库根目录运行上面的真实文档验收脚本，确认成功后，将其输出 `report.json` 的实际父目录替换到下面命令中：
 
@@ -135,7 +136,26 @@ uv run python scripts/live_workbench.py \
 
 启动器使用已有库，自动生成临时 key，先等待 backend health，再启动 web；打开 [本机任务列表](http://127.0.0.1:5175/#lifecycle/jobs)，`Ctrl+C` 只清理自己的子进程。backend 启动可能执行已有 schema／FTS 初始化，HTTP 读取只读，页面不新增 evaluation 或更新 baseline。密钥仅留在 backend 与 Vite Node 进程，浏览器同源 GET 不带 key；dev proxy 默认无配置返回 503，preview／dist 不提供该代理，不自动回退 fixture。
 
-实时页面提供任务过滤、分页刷新，以及 revision／document／lineage／Diff／exact evidence 的 hash 导航。任务详情已有初步 metrics／checks，`null` 不当作零；单元状态是持久化当前缓存，不是任务 as-of。安全边界、漂移检查与真实浏览器联调结果见 [本机只读工作台](docs/live-workbench.md)。
+实时生命周期页面提供任务过滤、分页刷新，以及 revision／document／lineage／Diff／exact evidence 的 hash 导航。B3 新增 [评测对照](http://127.0.0.1:5175/#evaluation) 和 [手动导览](http://127.0.0.1:5175/#guide)：选择跨页保留，比例 delta 按百分点显示，null 为未评估。评测页手动刷新与有界观察共用刷新逻辑，刷新前记录列表头部，再重读当前页及按原 ID 选中的参考／候选；列表或选中任务读取中均视为 busy，不切换选择。导览刷新也重读当前页及已选的正常／故障／恢复任务。
+
+无答案空检索和引用覆盖不证明 LLM 答案正确；单元状态是持久化当前缓存，stale_hits 不用它重算。观察由用户主动开启，每 10 秒刷新，最多 5 分钟／30 次；busy 跳过不延长窗口，隐藏、page key 变化、读取错误或卸载后停止，不自动恢复。停止仅阻止后续 tick，不承诺取消已发 HTTP，手动刷新仍可用。
+
+### B3 最终验收
+
+从仓库根目录跑 B3 隔离验收：
+
+```bash
+uv run python scripts/workbench_evaluation_acceptance.py
+```
+
+报告保存在 `.konwledge/workbench-evaluation-acceptance/<run-id>/report.json`，每次使用唯一目录，不改原始 docs 或用户库。2026-11-16 最后一次运行 `20261116T042018921245Z-951ad2f7` 通过：真实前端 client／DTO／comparison engine／jsdom UI 经 HTTP dev proxy 联调，mean Recall 为 `1 → 0.666667 → 1`。副本 CLI import 后新增 passed 任务，UI 提示、原选择与失败记录保留，`children_stopped=true`。
+
+- 前端 `pnpm verify`：179 passed、1 skipped（10 files passed、1 skipped），typecheck、Snapshot 类型漂移、management 类型漂移与 build 通过；`pnpm install --frozen-lockfile` 通过。默认跳过的 1 项真实 HTTP integration 已由隔离验收另行运行通过，不计入普通回归通过数量。
+- Python 完整回归：1325 passed、3 skipped；ruff check／format、mypy 169 个源文件及 Snapshot／schema 漂移检查通过。
+- 页面渲染检查：评测对照与导览两页通过，控制台为空，内容无外溢。首屏结果位置已修正并复查，评测页先显示 Recall 100% → 66.67%、−33.33 个百分点，导览先显示阶段判定及对照链接。
+- 构建隔离检查：用临时测试密钥执行真实 build，dist 扫描不含该密钥或测试后端地址；约 552 kB 的 chunk 体积警告非阻断。
+
+本次云端浏览器无法直达 loopback，真实 HTTP／jsdom UI 联调与页面渲染检查各有范围，不代表浏览器整链点击验收。B3 对照条件与完整结果见 [评测工作台](docs/evaluation-workbench.md#回归命令与验收记录)，启动安全与 B2 历史验收见 [本机只读工作台](docs/live-workbench.md)。
 
 ## 工作台只读管理 API（B1，Unreleased）
 
@@ -248,17 +268,16 @@ The demo site has its own CI job:
 ```bash
 cd web
 pnpm install --frozen-lockfile
-pnpm verify        # typecheck → schema sync → Vitest → production build
+pnpm verify        # typecheck → Snapshot 类型漂移 → management 类型漂移 → Vitest → build
 ```
 
-仓库保留独立站点验证 job 和 Pages workflow，均运行 `pnpm verify`。management 契约另外从仓库根目录执行两条漂移检查：
+仓库保留独立站点验证 job 和 Pages workflow，均运行 `pnpm verify`，其中 `check:management` 已检查前端管理类型漂移。Python management schema 仍从仓库根目录单独检查：
 
 ```bash
 uv run python scripts/export_management_schema.py --check
-node web/scripts/gen-management-types.mjs --check
 ```
 
-前端已授权恢复 B2 并实现 V3；Pages 配置仍不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。Vitest 覆盖静态演示、实时 adapter／路由／请求状态和 dev proxy，但不代替浏览器交互或视觉验收。
+前端 B2／V3 与 B3／V4 只读开发及 B3 最终验收已完成；Pages 配置不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。Vitest 覆盖静态演示、实时 adapter／路由／请求状态、评测对照与有界轮询，但不代替浏览器交互或页面渲染检查。普通测试不启动真实联调，未设置 acceptance 环境时 live integration 显式 skip；该项已由隔离验收另行运行通过，完整数量见 [B3 最终验收](#b3-最终验收)。
 
 The optional LanceDB adapter has its own CI job. Run it locally with:
 
@@ -369,7 +388,7 @@ KNOWLEDGE_TEST_POSTGRES_DSN='postgresql+psycopg://konwledge_test:konwledge_test@
 │   ├── architecture.md
 │   └── releasing.md
 ├── tests/
-├── web/                     # V2 静态演示与 V3（B2）本机只读工作台
+├── web/                     # V2 静态演示与 B2／B3 本机只读工作台
 │   ├── scripts/gen-types.mjs
 │   └── src/
 │       ├── lib/             # snapshot views, code-point slicing, formatting (+ Vitest)
@@ -402,7 +421,7 @@ packet = library.build_context("deployment", max_units=3)
 
 The wheel and source distribution include a PEP 561 `py.typed` marker so installed consumers can use the inline type annotations.
 
-The established typed models and evaluation helpers remain importable from `konwledge.domain` and `konwledge.evaluation`. Subpackages such as `storage`, `ingestion`, `indexing`, `retrieval`, and `context` expose lower-level composition points used by the facade and tests. At alpha, those lower-level boundaries—and even the core APIs as capabilities are added—may change between minor releases; v0.1.0 does not promise complete backward compatibility.
+The established typed models and evaluation helpers remain importable from `konwledge.domain` and `konwledge.evaluation`. Subpackages such as `storage`, `ingestion`, `indexing`, `retrieval`, and `context` expose lower-level composition points used by the facade and tests. At alpha, those lower-level boundaries (and even the core APIs as capabilities are added) may change between minor releases; v0.1.0 does not promise complete backward compatibility.
 
 For design and project workflow details, see:
 
@@ -968,7 +987,7 @@ Reports are read-only and contain the dataset/hash, full retrieval results, per-
 macro aggregates. Recall, MRR, and nDCG use binary lineage matches; duplicate ranked slots do not
 inflate credit. Precision@k always divides by `k`. Answerable aggregates exclude no-answer cases,
 and no-answer accuracy excludes answerable cases, so unavailable aggregates are `null` in JSON
-and `n/a` in human output. A no-answer success means retrieval returned no hits—it does not mean an
+and `n/a` in human output. A no-answer success means retrieval returned no hits; it does not mean an
 LLM generated a refusal. Lineage matching measures whether the intended knowledge was retrieved;
 it does not prove that an edited fact is correct or that a generated answer is faithful. Gold labels
 still need human review. Reproducible comparisons require the same dataset version, query scopes,
@@ -1026,8 +1045,8 @@ differ so monitoring can observe corpus changes; fixed case-level `at` anchors r
 `require_same_time` in a policy when all effective times must match. For reproducible CI, run both
 sides at a common explicit time such as `--at 2026-11-10T00:00:00Z`.
 
-The default policy covers all six metrics—recall, precision, MRR, nDCG, hit rate, and no-answer
-accuracy—at both aggregate and case scopes with zero allowed absolute drop. Thus an average gain
+The default policy covers all six metrics (recall, precision, MRR, nDCG, hit rate, and no-answer
+accuracy) at both aggregate and case scopes with zero allowed absolute drop. Thus an average gain
 cannot hide one bad case. Rules may set an inclusive `min_value`, `max_abs_drop`, and/or
 `max_relative_drop`; all configured numeric checks are conjunctive with an epsilon of `1e-12`.
 Relative thresholds are unit fractions (`0.01` means 1%). Relative drop from a zero baseline is zero,
@@ -1058,7 +1077,7 @@ or production embedding quality.
 
 ## Demo snapshot
 
-V2 静态演示继续读取 CLI 导出的 JSON snapshot，V1 提供这条数据管线。V3（B2）的本机实时视图另用独立 management schema，不修改 Snapshot V1 或 demo golden；V4（B3）评测导览仍延后。
+V2 静态演示继续读取 CLI 导出的 JSON snapshot，V1 提供这条数据管线。B2／B3 本机实时视图另用独立 management schema，B3 评测对照与导览不修改 Snapshot V1 或 demo golden。
 
 ```bash
 uv run knowledge demo build            # plays the story into .konwledge/demo/
@@ -1105,7 +1124,7 @@ See [demo/README.md](demo/README.md) for the snapshot layout.
 
 ## Demo site
 
-`web/` 保留 Vite + React + TypeScript + Tailwind 静态演示，仍在构建时打包 `demo/snapshot.json`，不自行实现生命周期规则。下面三页使用 Snapshot；新增“实时工作台／只读”入口通过本机 B1 API 展示真实历史，接线见 [本机只读工作台](docs/live-workbench.md)。
+`web/` 保留 Vite + React + TypeScript + Tailwind 静态演示，仍在构建时打包 `demo/snapshot.json`，不自行实现生命周期规则。下面三页使用 Snapshot；实时工作台通过本机 B1 API 展示真实历史、评测对照和手动导览，接线见 [本机只读工作台](docs/live-workbench.md)，B3 边界见 [评测工作台](docs/evaluation-workbench.md)。
 
 | Page | Shows | Backed by |
 | --- | --- | --- |
@@ -1127,7 +1146,7 @@ pnpm gen:types     # regenerate src/types/snapshot.gen.ts after a schema change
   the segments tile each document exactly.
 - **Deployment is deferred.** `.github/workflows/deploy-demo.yml` contains a GitHub Pages build configuration, but U17 did not trigger or verify a public deployment. Treat site publication as a separate, explicitly approved maintainer action.
 
-<!-- B2 文稿复核：使用 dedicated grep 扫描，中文半角标点、中文长破折号、编号／量词标题、元话语及对比句式均为 0。事实回读统一状态、增量表、启动说明和展示章节：B2／V3 已实现，V2 静态演示保留，B3／V4 下一批，B4／B5 未实现；HTTP 只读与启动初始化分开，实际验收目录不固定，密钥不交给浏览器，无公开 live 部署。完整 Python 与云端最短导航已通过，已知未验证范围见工作台说明；无关英文内容格式未调整。 -->
+<!-- 文稿复核：已回读事实、行文和节奏。机械扫描中文半角标点 0、长破折号 0、编号／量词标题 0、对比句式 0、元话语 0。事实账本：前端 179／1（文件 10／1）、Python 1325／3、mypy 169 与 B3 最终验收一致，HTTP 联调与页面渲染分别记录；泛化命令、Snapshot V1、密钥、baseline、B4 依赖与未发布边界不变。 -->
 
 ## License
 

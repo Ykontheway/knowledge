@@ -14,7 +14,8 @@
     "gen:types": "node scripts/gen-types.mjs",
     "gen:management": "node scripts/gen-management-types.mjs",
     "check:types": "node scripts/gen-types.mjs --check",
-    "verify": "pnpm typecheck && pnpm check:types && pnpm test && pnpm build"
+    "check:management": "node scripts/gen-management-types.mjs --check",
+    "verify": "pnpm typecheck && pnpm check:types && pnpm check:management && pnpm test && pnpm build"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

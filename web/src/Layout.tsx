@@ -6,14 +6,16 @@ import {
   CodeIcon,
   GitCompare,
   History,
+  Map,
   RadioTower,
+  Scale,
   Zap,
 } from "lucide-react";
 
 import { REPO_URL, snapshot } from "./data";
 import { formatMoment } from "./lib/format";
 
-export type View = "overview" | "trace" | "diff" | "lifecycle";
+export type View = "overview" | "trace" | "diff" | "lifecycle" | "evaluation" | "guide";
 
 interface LayoutProps {
   readonly currentView: View;
@@ -58,6 +60,20 @@ export const Layout: React.FC<LayoutProps> = ({
             icon={<History size={18} />}
             label="生命周期工作台"
             onClick={() => onViewChange("lifecycle")}
+          />
+          <NavItem
+            active={currentView === "evaluation"}
+            badge="Live"
+            icon={<Scale size={18} />}
+            label="评测对照"
+            onClick={() => onViewChange("evaluation")}
+          />
+          <NavItem
+            active={currentView === "guide"}
+            badge="Live"
+            icon={<Map size={18} />}
+            label="演示导览"
+            onClick={() => onViewChange("guide")}
           />
           <div className="rounded-xl border border-[#2d3b5a] bg-[#1a243b] p-3 text-xs leading-5 text-[#a0aec0]">
             <div className="flex items-center gap-2 font-semibold text-[#f4efe6]">

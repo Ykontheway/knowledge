@@ -69,7 +69,7 @@ export const LifecyclePage: React.FC<LifecyclePageProps> = ({ route, navigate })
     case "invalid":
       return (
         <ResourceState
-          description={`当前 hash 为 ${route.requestedHash || "(空)"}。链接包含未知路径、非法 UUID 或不受支持的查询参数，因此页面停在安全页，不发起任何管理请求。`}
+          description="链接包含未知路径、非法 UUID 或不受支持的查询参数，因此页面停在安全页，不发起任何管理请求。为避免泄露凭证或本机路径，这里不会回显原始 hash。"
           kind="invalid-route"
         />
       );

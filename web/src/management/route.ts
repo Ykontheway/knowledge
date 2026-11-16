@@ -1,20 +1,15 @@
 import type { JobStatus } from "./types";
 
 export type DemoView = "overview" | "trace" | "diff";
-export type View = DemoView | "lifecycle";
+export type View = DemoView | "lifecycle" | "evaluation" | "guide";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INTEGER_PATTERN = /^(0|[1-9]\d*)$/;
 const MAX_OFFSET = 100_000;
-const JOB_STATUSES: readonly JobStatus[] = [
-  "queued",
-  "running",
-  "passed",
-  "failed",
-  "blocked",
-  "superseded",
-];
+const JOB_STATUSES: readonly JobStatus[] = ["queued", "running", "passed", "failed", "blocked", "superseded"];
 const JOB_STATUS_SET = new Set<string>(JOB_STATUSES);
+
+type InvalidReason = "unknown" | "invalid_id" | "invalid_query";
 
 export interface DemoRoute {
   readonly view: DemoView;
@@ -70,7 +65,38 @@ export interface LifecycleEvidenceRoute {
 export interface LifecycleInvalidRoute {
   readonly view: "lifecycle";
   readonly kind: "invalid";
-  readonly reason: "unknown" | "invalid_id" | "invalid_query";
+  readonly reason: InvalidReason;
+  readonly requestedHash: string;
+}
+
+export interface EvaluationCompareRoute {
+  readonly view: "evaluation";
+  readonly kind: "compare";
+  readonly reference?: string;
+  readonly candidate?: string;
+  readonly offset: number;
+}
+
+export interface EvaluationInvalidRoute {
+  readonly view: "evaluation";
+  readonly kind: "invalid";
+  readonly reason: InvalidReason;
+  readonly requestedHash: string;
+}
+
+export interface GuideCompareRoute {
+  readonly view: "guide";
+  readonly kind: "steps";
+  readonly normal?: string;
+  readonly fault?: string;
+  readonly restore?: string;
+  readonly offset: number;
+}
+
+export interface GuideInvalidRoute {
+  readonly view: "guide";
+  readonly kind: "invalid";
+  readonly reason: InvalidReason;
   readonly requestedHash: string;
 }
 
@@ -83,8 +109,9 @@ export type LifecycleRoute =
   | LifecycleLineageRoute
   | LifecycleEvidenceRoute
   | LifecycleInvalidRoute;
-
-export type HashRoute = DemoRoute | LifecycleRoute;
+export type EvaluationRoute = EvaluationCompareRoute | EvaluationInvalidRoute;
+export type GuideRoute = GuideCompareRoute | GuideInvalidRoute;
+export type HashRoute = DemoRoute | LifecycleRoute | EvaluationRoute | GuideRoute;
 
 export interface BreadcrumbMeta {
   readonly section: string;
@@ -111,28 +138,48 @@ function decodeSegment(value: string): string | null {
   }
 }
 
-function invalid(
-  hash: string,
-  reason: LifecycleInvalidRoute["reason"],
-): LifecycleInvalidRoute {
+function invalid(hash: string, reason: InvalidReason): LifecycleInvalidRoute {
   return { view: "lifecycle", kind: "invalid", reason, requestedHash: hash };
 }
 
-function parseJobsRoute(query: URLSearchParams, rawHash: string): LifecycleRoute {
-  const allowed = new Set(["status", "offset"]);
+function evaluationInvalid(hash: string, reason: InvalidReason): EvaluationInvalidRoute {
+  return { view: "evaluation", kind: "invalid", reason, requestedHash: hash };
+}
+
+function guideInvalid(hash: string, reason: InvalidReason): GuideInvalidRoute {
+  return { view: "guide", kind: "invalid", reason, requestedHash: hash };
+}
+
+function hasDuplicateKeys(query: URLSearchParams): boolean {
+  const seen = new Set<string>();
   for (const key of query.keys()) {
-    if (!allowed.has(key)) return invalid(rawHash, "invalid_query");
+    if (seen.has(key)) return true;
+    seen.add(key);
   }
+  return false;
+}
+
+function hasOnlyKeys(query: URLSearchParams, allowed: ReadonlySet<string>): boolean {
+  if (hasDuplicateKeys(query)) return false;
+  for (const key of query.keys()) {
+    if (!allowed.has(key)) return false;
+  }
+  return true;
+}
+
+function parseOptionalUuid(query: URLSearchParams, key: string): string | undefined | null {
+  const value = query.get(key);
+  if (value === null || value === "") return undefined;
+  return isUuid(value) ? value : null;
+}
+
+function parseJobsRoute(query: URLSearchParams, rawHash: string): LifecycleRoute {
+  if (!hasOnlyKeys(query, new Set(["status", "offset"]))) return invalid(rawHash, "invalid_query");
   const status = query.get("status");
   const offset = parseOffset(query.get("offset"));
   if (offset === null) return invalid(rawHash, "invalid_query");
   if (status !== null && !JOB_STATUS_SET.has(status)) return invalid(rawHash, "invalid_query");
-  return {
-    view: "lifecycle",
-    kind: "jobs",
-    status: status === null ? undefined : (status as JobStatus),
-    offset,
-  };
+  return { view: "lifecycle", kind: "jobs", status: status === null ? undefined : (status as JobStatus), offset };
 }
 
 function parsePagedIdRoute(
@@ -141,21 +188,44 @@ function parsePagedIdRoute(
   query: URLSearchParams,
   rawHash: string,
 ): LifecycleRoute {
-  const allowed = new Set(["offset"]);
-  for (const key of query.keys()) {
-    if (!allowed.has(key)) return invalid(rawHash, "invalid_query");
-  }
+  if (!hasOnlyKeys(query, new Set(["offset"]))) return invalid(rawHash, "invalid_query");
   const offset = parseOffset(query.get("offset"));
   if (!isUuid(id)) return invalid(rawHash, "invalid_id");
   if (offset === null) return invalid(rawHash, "invalid_query");
   return { view: "lifecycle", kind, id, offset };
 }
 
+function parseEvaluationRoute(query: URLSearchParams, rawHash: string): EvaluationRoute {
+  if (!hasOnlyKeys(query, new Set(["reference", "candidate", "offset"]))) return evaluationInvalid(rawHash, "invalid_query");
+  const offset = parseOffset(query.get("offset"));
+  const reference = parseOptionalUuid(query, "reference");
+  const candidate = parseOptionalUuid(query, "candidate");
+  if (offset === null || reference === null || candidate === null) return evaluationInvalid(rawHash, "invalid_query");
+  return { view: "evaluation", kind: "compare", reference, candidate, offset };
+}
+
+function parseGuideRoute(query: URLSearchParams, rawHash: string): GuideRoute {
+  if (!hasOnlyKeys(query, new Set(["normal", "fault", "restore", "offset"]))) return guideInvalid(rawHash, "invalid_query");
+  const offset = parseOffset(query.get("offset"));
+  const normal = parseOptionalUuid(query, "normal");
+  const fault = parseOptionalUuid(query, "fault");
+  const restore = parseOptionalUuid(query, "restore");
+  if (offset === null || normal === null || fault === null || restore === null) return guideInvalid(rawHash, "invalid_query");
+  return { view: "guide", kind: "steps", normal, fault, restore, offset };
+}
+
 export function parseHashRoute(rawHash: string): HashRoute {
   const normalized = rawHash.replace(/^#/, "").trim();
   if (!normalized || normalized === "/") return { view: "overview" };
+  if ((normalized.match(/\?/g) ?? []).length > 1) {
+    const firstPath = normalized.split("?", 1)[0]?.replace(/^\/+|\/+$/g, "");
+    if (firstPath === "evaluation") return evaluationInvalid(rawHash, "invalid_query");
+    if (firstPath === "guide") return guideInvalid(rawHash, "invalid_query");
+    return invalid(rawHash, "invalid_query");
+  }
 
   const [rawPathPart = "", searchPart = ""] = normalized.split("?", 2);
+  if (/%2f|%5c/i.test(rawPathPart)) return invalid(rawHash, "invalid_query");
   const decodedPath = decodeSegment(rawPathPart.replace(/^\/+|\/+$/g, ""));
   if (decodedPath === null) return invalid(rawHash, "invalid_query");
   if (!decodedPath) return { view: "overview" };
@@ -170,6 +240,11 @@ export function parseHashRoute(rawHash: string): HashRoute {
     if ([...query.keys()].length > 0) return invalid(rawHash, "invalid_query");
     return { view: segments[0] as DemoView };
   }
+
+  if (segments.length === 1 && segments[0] === "evaluation") return parseEvaluationRoute(query, rawHash);
+  if (segments.length === 1 && segments[0] === "guide") return parseGuideRoute(query, rawHash);
+  if (segments[0] === "evaluation") return evaluationInvalid(rawHash, "unknown");
+  if (segments[0] === "guide") return guideInvalid(rawHash, "unknown");
 
   if (segments[0] !== "lifecycle") return { view: "overview" };
 
@@ -192,12 +267,9 @@ export function parseHashRoute(rawHash: string): HashRoute {
     if (segments.length === 3 && third) return parsePagedIdRoute("document", third, query, rawHash);
     if (segments.length === 4 && fourth === "diff" && third) {
       if (!isUuid(third)) return invalid(rawHash, "invalid_id");
+      if (!hasOnlyKeys(query, new Set(["old", "offset"]))) return invalid(rawHash, "invalid_query");
       const oldId = query.get("old");
       const offset = parseOffset(query.get("offset"));
-      const allowed = new Set(["old", "offset"]);
-      for (const key of query.keys()) {
-        if (!allowed.has(key)) return invalid(rawHash, "invalid_query");
-      }
       if (!oldId || !isUuid(oldId) || offset === null) return invalid(rawHash, "invalid_query");
       return { view: "lifecycle", kind: "diff", newId: third, oldId, offset };
     }
@@ -232,10 +304,7 @@ export function demoHash(view: DemoView): string {
 }
 
 export function lifecycleJobsHash(options: { status?: JobStatus; offset?: number } = {}): string {
-  return buildHash("lifecycle/jobs", {
-    status: options.status,
-    offset: options.offset && options.offset > 0 ? options.offset : undefined,
-  });
+  return buildHash("lifecycle/jobs", { status: options.status, offset: options.offset && options.offset > 0 ? options.offset : undefined });
 }
 
 export function lifecycleJobHash(id: string): string {
@@ -251,10 +320,7 @@ export function lifecycleDocumentHash(id: string, offset = 0): string {
 }
 
 export function lifecycleDiffHash(newId: string, oldId: string, offset = 0): string {
-  return buildHash(`lifecycle/documents/${newId}/diff`, {
-    old: oldId,
-    offset: offset > 0 ? offset : undefined,
-  });
+  return buildHash(`lifecycle/documents/${newId}/diff`, { old: oldId, offset: offset > 0 ? offset : undefined });
 }
 
 export function lifecycleLineageHash(id: string, offset = 0): string {
@@ -269,6 +335,23 @@ export function lifecycleEntryHash(): string {
   return lifecycleJobsHash();
 }
 
+export function evaluationHash(options: { reference?: string; candidate?: string; offset?: number } = {}): string {
+  return buildHash("evaluation", {
+    reference: options.reference,
+    candidate: options.candidate,
+    offset: options.offset && options.offset > 0 ? options.offset : undefined,
+  });
+}
+
+export function guideHash(options: { normal?: string; fault?: string; restore?: string; offset?: number } = {}): string {
+  return buildHash("guide", {
+    normal: options.normal,
+    fault: options.fault,
+    restore: options.restore,
+    offset: options.offset && options.offset > 0 ? options.offset : undefined,
+  });
+}
+
 export function getBreadcrumbMeta(route: HashRoute): BreadcrumbMeta {
   switch (route.view) {
     case "overview":
@@ -277,6 +360,10 @@ export function getBreadcrumbMeta(route: HashRoute): BreadcrumbMeta {
       return { section: "静态演示", title: "原文溯源", tone: "demo" };
     case "diff":
       return { section: "静态演示", title: "版本 Diff", tone: "demo" };
+    case "evaluation":
+      return { section: "实时工作台 / 只读", title: route.kind === "invalid" ? "安全提示" : "评测对照", tone: "live" };
+    case "guide":
+      return { section: "实时工作台 / 只读", title: route.kind === "invalid" ? "安全提示" : "演示导览", tone: "live" };
     case "lifecycle":
       switch (route.kind) {
         case "jobs":
@@ -301,4 +388,12 @@ export function getBreadcrumbMeta(route: HashRoute): BreadcrumbMeta {
 
 export function isLifecycleRoute(route: HashRoute): route is LifecycleRoute {
   return route.view === "lifecycle";
+}
+
+export function isEvaluationRoute(route: HashRoute): route is EvaluationRoute {
+  return route.view === "evaluation";
+}
+
+export function isGuideRoute(route: HashRoute): route is GuideRoute {
+  return route.view === "guide";
 }

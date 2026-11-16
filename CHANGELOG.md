@@ -4,7 +4,20 @@ All notable changes to Konwledge are documented in this file.
 
 The project is in alpha. Minor releases may refine public and lower-level APIs as capabilities are added; v0.1.0 does not provide a complete backward-compatibility guarantee.
 
-## Unreleased — U14-U16 acceptance and U18-U20
+## Unreleased - U14-U16 acceptance, U18-U20 and B1-B3
+
+### B3 评测对照与手动导览
+
+- V4 只读开发与验收已完成，新增 `#evaluation` 参考／候选对照与 `#guide` 手动正常／故障／恢复导览，仍使用 B1 同源 GET。严格检查角色 UUID、分页偏移、未知／重复 query 和未知子路由，非法链接不请求数据、不回显原始 hash；选择保存在 URL，跨页保留，刷新新任务不替换选择。
+- 聚合 metrics／checks 按 dataset id／version／hash、config fingerprint、完整 passed／质量门禁 failed 报告、8 项默认 checks 集合及 threshold 核对。top_k actual 必须是两侧一致的正整数；degraded、非质量终态、配置不同或 case_count=null 不输出 delta。报告 null 保留为未评估，比例差为百分点，不重算 U16 gate、不接受 baseline，不从指纹逆推检索 mode。
+- 导览检查角色状态、时间顺序、相邻知识指纹变化、两组可比性与 trigger revision，再链接 B2 job → revision → Diff → evidence。阶段通过仍须核验 CLI 实操，不把 pass／fail／pass 自动当成真实故障注入或因果证明。没有 case-level query／cases，不造失败问题列表；无答案空检索与引用覆盖不证明 LLM 答案正确，stale_hits 不用当前 unit.status 重算。
+- 新增用户主动开启的有界观察，每 10 秒刷新，最多 5 分钟／30 次。手动刷新与观察共用刷新逻辑，刷新前记录列表头部，再重读当前页与按原 ID 选中的参考／候选；列表或选中任务读取中均视为 busy，跳过不延长窗口。导览刷新也重读当前页及已选三阶段任务。隐藏、page key 变化、读取错误或卸载后停止观察，不自动 resume；停止只阻止后续 tick，不承诺取消已发 HTTP，手动刷新仍可用。
+- 新增 `scripts/workbench_evaluation_acceptance.py` 隔离验收。2026-11-16 最后一次 run `20261116T042018921245Z-951ad2f7` 通过，真实前端 client／DTO／comparison engine／jsdom UI 经 HTTP dev proxy 联调，mean Recall 为 `1 → 0.666667 → 1`。副本 CLI import 后新增 passed 任务，UI 提示可见，选择与失败记录保留，`children_stopped=true`。临时 secret 仅留服务子进程环境，报告只记 stdout／stderr hash，不改原始 docs 或用户库。
+- 前端 `pnpm verify` 为 179 passed、1 skipped（10 files passed、1 skipped），typecheck、Snapshot 类型漂移、management 类型漂移与 build 通过；锁定安装通过。默认跳过的真实 HTTP integration 已由隔离验收单独运行通过，不计入普通回归通过数量。Python 完整回归为 1325 passed、3 skipped，ruff check／format、mypy 169 个源文件及 Snapshot／schema 漂移检查均通过。专项测试不另行相加，Snapshot V1 不变。
+- 两页页面渲染检查通过，控制台为空，内容无外溢。首屏结果位置已修正并复查，评测对照先显示 Recall 100% → 66.67%、−33.33 个百分点，导览先显示阶段判定和对照链接。以临时测试密钥执行真实 build，dist 扫描无该密钥或测试后端地址；约 552 kB 的 chunk 体积警告非阻断。本次云端浏览器无法直达 loopback，HTTP／jsdom UI 联调与页面渲染检查各有范围，不代表浏览器整链点击验收。命令与记录见 [评测工作台](docs/evaluation-workbench.md#回归命令与验收记录)。
+- B4 受控写交互下一批另设计真实身份／权限、幂等与操作确认，不自动启动；U22 MCP、release、PR／main、tag、PyPI 和部署授权不变。B3 没有新增写接口、LLM 答案评分或生产自治。
+
+以下旧条目中的“本次”“本轮”“下一批”均指各自增量完成时的范围，保留历史说明。B2 的 126／1320／3 是历史验收数量，不作为 B3 全量结果。
 
 ### B2 本机只读工作台
 
@@ -15,8 +28,6 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 - 增加 `scripts/live_workbench.py`：使用已有验收库、随机临时 key，先等待 backend health 再启动 web，退出只清理自己的子进程。backend 沿用已有 additive schema／FTS 启动初始化，HTTP 读取只读，不新增 evaluation 或更新 baseline。启动步骤见 [本机只读工作台](docs/live-workbench.md)。
 - 前端 126 tests、类型检查／构建与管理契约漂移检查通过；Python 1320 passed、3 skipped，ruff／格式／mypy 通过。云端浏览器走通失败任务到旧版本证据，任务列表、失败详情、Diff 和证据页静态检查无控制台错误。管理验收确认读取前后 19 张表、137 行及内容摘要不变。
 - 任务详情的初步 metrics／checks 不代替 B3 可比结果、用例级诊断与导览；B3 下一批，V4 延后，B4 写交互／B5 MCP 未实现。v0.1.0 仍为 prepared，未创建 tag、PR、main 合并、PyPI 发布或公开部署。
-
-以下旧条目中的“本次”“本轮”均指各自增量完成时的范围，保留历史说明。
 
 ### B1 工作台只读管理 API
 
@@ -100,7 +111,7 @@ This release candidate closes local readiness for the first Knowledge CI workflo
 - Reproducible reports require callers to control corpus versions, evaluation times, retrieval settings, and provider/index identity. Evaluation does not freeze the entire corpus, vector backend, or embedding provider/model.
 - Regression gates cannot be bypassed by an average improvement: the committed strict policy checks aggregate and per-case metrics, blocks degraded candidates, and fails closed on invalid or uncovered evidence.
 - Raw evaluation reports may include source text, locators, IDs, and local paths. Compact baselines omit hit quotes, source locators, document/unit IDs, and absolute corpus paths, but still contain dataset-authored queries and identifiers.
-- v0.1.0 prepared 当时沿用 2026-11-06 的范围决定，前端停在 V2。后续 B2 已获授权恢复并实现 V3，V4（B3）仍延后；公开 live 部署未执行，workflow 配置不代表站点已上线。
+- v0.1.0 prepared 当时沿用 2026-11-06 的范围决定，前端停在 V2。后续 B2 已获授权恢复并实现 V3，B3 已完成 V4 只读对照与手动导览，完整回归、隔离 HTTP／jsdom UI 联调及两页页面渲染检查通过；本次云端浏览器无法直达 loopback，未完成浏览器整链点击验收。B4 写接口与 B5 MCP 未实现，公开 live 部署未执行，workflow 配置不代表站点已上线。
 - No v0.1.0 tag, GitHub Release, PyPI package publication, or public-site deployment is part of this prepared candidate.
 
-<!-- B2 文稿复核：使用 dedicated grep 扫描，中文半角标点 0、中文长破折号 0、元话语 0、对比句式 0；标题模式命中 1，原有 0.1.0 版本索引标题豁免，不改英文格式。事实回读保留旧条目的“本次”范围，核对 B2／V3 已实现、B3／V4 下一批、B4／B5 未实现、126／85／29／4 已知结果，以及无 tag／PR／main 合并／发布／公开部署；完整 Python 1320／3 与云端最短导航已通过，不写成公开部署或全部人工点验。主线是追加 B2 记录，不否认历史范围。 -->
+<!-- 文稿复核：已回读事实、行文和节奏。机械扫描中文半角标点 0、长破折号 0、编号／量词标题 1（0.1.0 版本索引豁免）、对比句式 0、元话语 0。事实账本：前端 179／1、Python 1325／3 与 B3 最终验收一致，B2 的 126／1320／3 保留为历史数量；HTTP 联调、页面渲染与浏览器交互范围分开，baseline、B4 与未发布边界不变。 -->

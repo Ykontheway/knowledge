@@ -4,10 +4,16 @@ import { Layout, type View } from "./Layout";
 import { OverviewPage } from "./OverviewPage";
 import { TraceabilityPage } from "./TraceabilityPage";
 import { VersionDiffPage } from "./VersionDiffPage";
+import { EvaluationPage } from "./evaluation/EvaluationPage";
+import { GuidePage } from "./evaluation/GuidePage";
 import { LifecyclePage } from "./management/LifecyclePage";
 import {
   demoHash,
+  evaluationHash,
   getBreadcrumbMeta,
+  guideHash,
+  isEvaluationRoute,
+  isGuideRoute,
   isLifecycleRoute,
   lifecycleEntryHash,
   parseHashRoute,
@@ -34,7 +40,10 @@ const App: React.FC = () => {
 
   const handleViewChange = (view: View) => {
     if (typeof window === "undefined") return;
-    window.location.hash = view === "lifecycle" ? lifecycleEntryHash() : demoHash(view);
+    if (view === "lifecycle") window.location.hash = lifecycleEntryHash();
+    else if (view === "evaluation") window.location.hash = evaluationHash();
+    else if (view === "guide") window.location.hash = guideHash();
+    else window.location.hash = demoHash(view);
   };
 
   const navigate = (hash: string) => {
@@ -44,6 +53,10 @@ const App: React.FC = () => {
 
   const content = isLifecycleRoute(route) ? (
     <LifecyclePage navigate={navigate} route={route} />
+  ) : isEvaluationRoute(route) ? (
+    <EvaluationPage navigate={navigate} route={route} />
+  ) : isGuideRoute(route) ? (
+    <GuidePage navigate={navigate} route={route} />
   ) : route.view === "trace" ? (
     <TraceabilityPage />
   ) : route.view === "diff" ? (

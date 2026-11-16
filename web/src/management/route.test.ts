@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  evaluationHash,
   getBreadcrumbMeta,
+  guideHash,
   lifecycleDiffHash,
   lifecycleDocumentHash,
   lifecycleEntryHash,
@@ -69,6 +71,29 @@ describe("management hash routes", () => {
       view: "lifecycle",
       kind: "invalid",
     });
+  });
+
+  it("parses evaluation and guide routes without weakening validation", () => {
+    expect(parseHashRoute(evaluationHash({ reference: jobId, candidate: revisionId, offset: 40 }))).toEqual({
+      view: "evaluation",
+      kind: "compare",
+      reference: jobId,
+      candidate: revisionId,
+      offset: 40,
+    });
+    expect(parseHashRoute(guideHash({ normal: jobId, fault: revisionId, restore: documentId, offset: 20 }))).toEqual({
+      view: "guide",
+      kind: "steps",
+      normal: jobId,
+      fault: revisionId,
+      restore: documentId,
+      offset: 20,
+    });
+    expect(parseHashRoute("#evaluation?reference=not-a-uuid")).toMatchObject({ view: "evaluation", kind: "invalid", reason: "invalid_query" });
+    expect(parseHashRoute(`#guide?normal=${jobId}&normal=${revisionId}`)).toMatchObject({ view: "guide", kind: "invalid", reason: "invalid_query" });
+    expect(parseHashRoute(`#evaluation?reference=${jobId}&secret=token`)).toMatchObject({ view: "evaluation", kind: "invalid", reason: "invalid_query" });
+    expect(parseHashRoute(`#guide%2Fanything?normal=${jobId}`)).toMatchObject({ kind: "invalid", reason: "invalid_query" });
+    expect(parseHashRoute(`#evaluation?reference=${jobId}?candidate=${revisionId}`)).toMatchObject({ kind: "invalid", reason: "invalid_query" });
   });
 
   it("keeps demo routes stable and exposes breadcrumb labels", () => {
