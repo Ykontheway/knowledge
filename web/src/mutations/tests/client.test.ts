@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MutationHttpClient } from "../client";
-import { serializeRequest, textMetrics, validateMutation, MAX_TEXT_BYTES } from "../validation";
+import { serializeRequest, textMetrics, validateMutation, MAX_TEXT_BYTES, MAX_RESPONSE_BYTES } from "../validation";
+import { MutationError } from "../types";
 import { command, document, hashA, ids, json, makePreview, previewRequest, session } from "./fixtures";
 
 afterEach(() => vi.useRealTimers());
@@ -53,9 +54,14 @@ describe("independent mutation validation and transport", () => {
   it.each([[401, "unauthorized"], [403, "unauthorized"], [404, "not_found"], [409, "conflict"], [410, "expired"], [413, "too_large"], [415, "unsupported_media"], [422, "invalid_request"], [503, "unavailable"], [302, "invalid_response"], [501, "invalid_response"]])("maps status %i to safe enum without reading errors", async (status, kind) => {
     const response = new Response("RAW_SECRET_ERROR", { status: status as number });
     const read = vi.spyOn(response, "arrayBuffer");
+    const body = vi.spyOn(response, "body", "get");
+    const text = vi.spyOn(response, "text");
     const client = new MutationHttpClient(vi.fn().mockResolvedValue(response));
     await expect(client.getSession()).rejects.toMatchObject({ kind, status });
     expect(read).not.toHaveBeenCalled();
+    expect(body).not.toHaveBeenCalled();
+    expect(text).not.toHaveBeenCalled();
+    expect(response.bodyUsed).toBe(false);
   });
   it("bounds response bytes, rejects HTML, malformed UTF-8, bad JSON and nonfinite values", async () => {
     for (const response of [new Response("<script>secret</script>"), new Response("bad", { headers: { "Content-Type": "application/json" } }),
@@ -94,4 +100,131 @@ it("aborted input is rejected before any fetch and streamed bytes cannot bypass 
   const response = new Response(stream, { headers: { "Content-Type": "application/json", "Content-Length": "0" } });
   await expect(new MutationHttpClient(vi.fn().mockResolvedValue(response)).getSession()).rejects.toMatchObject({ kind: "invalid_response" });
   expect(cancel).toHaveBeenCalled();
+});
+
+
+describe("B4 bounded-byte extraction regressions", () => {
+  it.each(["not-a-number", "-1", "0"])("still reads valid JSON for content-length %s", async (length) => {
+    const response = new Response(JSON.stringify(session), {
+      headers: { "content-type": "Application/JSON; charset=utf-8", "content-length": length },
+    });
+    await expect(new MutationHttpClient(async () => response).getSession()).resolves.toEqual(session);
+  });
+
+  it.each([String(MAX_RESPONSE_BYTES + 1), "Infinity", "1e309"])(
+    "rejects declared length %s before body access with the original safe error", async (length) => {
+      const response = new Response("secret", { headers: { "content-type": "application/json", "content-length": length } });
+      const body = vi.spyOn(response, "body", "get");
+      const buffer = vi.spyOn(response, "arrayBuffer");
+      const error = await new MutationHttpClient(async () => response).getSession().catch((value: unknown) => value);
+      expect(error).toBeInstanceOf(MutationError);
+      expect(error).toMatchObject({ kind: "invalid_response", status: undefined, message: "invalid_response" });
+      expect(error).not.toHaveProperty("cause");
+      expect(body).not.toHaveBeenCalled();
+      expect(buffer).not.toHaveBeenCalled();
+    },
+  );
+
+  it("checks redirect and JSON media type before any body access", async () => {
+    for (const [contentType, redirected] of [["application/json", true], ["text/plain", false], ["application/jsonp", false], ["", false]] as const) {
+      const response = new Response(JSON.stringify(session), { headers: { "content-type": contentType } });
+      if (redirected) Object.defineProperty(response, "redirected", { value: true });
+      const body = vi.spyOn(response, "body", "get");
+      const buffer = vi.spyOn(response, "arrayBuffer");
+      await expect(new MutationHttpClient(async () => response).getSession()).rejects.toMatchObject({ kind: "invalid_response" });
+      expect(body).not.toHaveBeenCalled();
+      expect(buffer).not.toHaveBeenCalled();
+    }
+  });
+
+  it("decodes split UTF-8 only after merging and rejects invalid UTF-8 inside otherwise valid JSON", async () => {
+    const bytes = new TextEncoder().encode(JSON.stringify(document));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
+        controller.close();
+      },
+    });
+    await expect(new MutationHttpClient(async () => new Response(stream, { headers: { "content-type": "application/json" } }))
+      .getDocument(ids.document)).resolves.toEqual(document);
+    const invalid = new TextEncoder().encode(JSON.stringify({ ...document, text: "?" }));
+    invalid[invalid.indexOf(63)] = 255;
+    await expect(new MutationHttpClient(async () => new Response(invalid, { headers: { "content-type": "application/json" } }))
+      .getDocument(ids.document)).rejects.toMatchObject({ kind: "invalid_response", status: undefined });
+    expect(stream.locked).toBe(false);
+  });
+
+  it("maps cumulative overflow with rejecting cancel without attaching status or raw cause", async () => {
+    const cancel = vi.fn(() => Promise.reject(new Error("cancel secret")));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_RESPONSE_BYTES));
+        controller.enqueue(new Uint8Array([1]));
+      },
+      cancel,
+    });
+    const response = new Response(stream, { headers: { "content-type": "application/json", "content-length": "0" } });
+    const error = await new MutationHttpClient(async () => response).getSession().catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(MutationError);
+    expect(error).toMatchObject({ kind: "invalid_response", status: undefined, message: "invalid_response" });
+    expect(error).not.toHaveProperty("cause");
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(stream.locked).toBe(false);
+  });
+
+  it("keeps bounded arrayBuffer fallback and never reads text", async () => {
+    for (const oversized of [false, true]) {
+      const response = new Response(null, { headers: { "content-type": "application/json" } });
+      const bytes = oversized ? new Uint8Array(MAX_RESPONSE_BYTES + 1) : new TextEncoder().encode(JSON.stringify(session));
+      const buffer = vi.spyOn(response, "arrayBuffer").mockResolvedValue(bytes.buffer);
+      const text = vi.spyOn(response, "text");
+      const client = new MutationHttpClient(async () => response);
+      if (oversized) await expect(client.getSession()).rejects.toMatchObject({ kind: "invalid_response", status: undefined });
+      else await expect(client.getSession()).resolves.toEqual(session);
+      expect(buffer).toHaveBeenCalledTimes(1);
+      expect(text).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([[new Error("stream secret"), "network"], [new DOMException("abort secret", "AbortError"), "aborted"],
+    [new DOMException("timeout secret", "TimeoutError"), "timeout"]] as const)(
+    "keeps stream error mapping without raw causes or retries: %s", async (error, kind) => {
+      const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.error(error); } });
+      const fetcher = vi.fn(async () => new Response(stream, { headers: { "content-type": "application/json" } }));
+      const result = await new MutationHttpClient(fetcher).getSession().catch((value: unknown) => value);
+      expect(result).toMatchObject({ kind, message: kind });
+      expect(result).not.toHaveProperty("cause");
+      expect(stream.locked).toBe(false);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("timeout/abort still interrupt a stalled write body; recovery is an explicit GET, never a POST retry", async () => {
+    vi.useFakeTimers();
+    for (const kind of ["timeout", "aborted"] as const) {
+      let streamController!: ReadableStreamDefaultController<Uint8Array>;
+      const stream = new ReadableStream<Uint8Array>({ start(controller) { streamController = controller; } });
+      const fetcher = vi.fn(async (_path: string, init: RequestInit) => {
+        if (init.method === "GET") return json(command);
+        init.signal!.addEventListener("abort", () => streamController.error(new DOMException("aborted", "AbortError")), { once: true });
+        return new Response(stream, { headers: { "content-type": "application/json" } });
+      });
+      const controller = new AbortController();
+      const client = new MutationHttpClient(fetcher, 20);
+      const request = { preview_id: ids.preview, confirmation_token: "s".repeat(43), idempotency_key: ids.key, confirmed: true as const };
+      const writing = client.applyCommand(request, controller.signal);
+      const assertion = expect(writing).rejects.toMatchObject({ kind });
+      // Let readBoundedBytes acquire its reader before interruption.
+      await Promise.resolve();
+      if (kind === "timeout") await vi.advanceTimersByTimeAsync(21);
+      else controller.abort();
+      await assertion;
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher.mock.calls[0]![1].signal!.aborted).toBe(true);
+      await expect(client.getCommand(ids.command)).resolves.toEqual(command);
+      expect(fetcher.mock.calls.map(([, init]) => init.method)).toEqual(["POST", "GET"]);
+      expect(fetcher.mock.calls[1]![0]).toBe(`/v1/mutations/commands/${ids.command}`);
+      expect(stream.locked).toBe(false);
+    }
+  });
 });

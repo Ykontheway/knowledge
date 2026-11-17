@@ -2,7 +2,13 @@
 
 Konwledge is a local-first toolkit for managing the full lifecycle of knowledge used by AI applications. The project will track where knowledge came from, how it changed, when it became stale, and whether a change improved or degraded retrieval quality.
 
-> 状态：**v0.1.0 已准备、未发布（alpha）**。U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，B4 在当前 feature 分支完成受控变更交互并通过隔离验收，原 V2 静态演示保留。本轮收尾校验已完成：ruff check、ruff format --check（208 files）、mypy（183 sources）、management／mutation schema --check、Python 回归（1495 passed、3 skipped）、前端 `pnpm verify`（含 mutationtypecheck 与 check:mutations，352 passed、2 skipped）、B4 driver 与发行包隔离 smoke 均通过。B4 范围与恢复链路见 [受控变更工作台](docs/controlled-mutations.md)。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
+> 状态：**v0.1.0 已准备、未发布（alpha）；B-R1 已完成并验证。** U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，B4 在当前 feature 分支完成受控变更交互并通过隔离验收，原 V2 静态演示保留。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
+
+本轮 B-R1 最终验证：`ruff check .` 通过，`ruff format --check .` 为 210 files，`mypy src tests scripts` 为 185 sources success；management／mutation schema `--check` 通过，两份输出逐字节不变；Python **1515 passed、3 skipped**，前端 `pnpm verify` **430 passed、2 skipped**。两个 live test 常规需联调环境，默认 skip；真实 B4 HTTP／jsdom driver 另跑通过，不表示两个 skipped 都已运行。新发行验证 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) 的 wheel／sdist 隔离 smoke 通过，未发布；生产 build 的 584.38 kB chunk 提醒非阻断。旧 B4 的 1495／352 是历史通过数量，不与本轮相加。
+
+B 系列唯一主计划见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。B-R1 已收敛 `web/src/shared/readBoundedBytes.ts`、`web/src/shared/validation.ts` 和 `scripts/schema_utils.py`；`SCHEMA_SDIST_FILES` 已纳入共享脚本及 `tests/test_schema_utils.py`，缺文件拒绝检查通过。后续顺序为 **B-R2 统一演示／验收入口与报告汇总 → B5／U22 只读 MCP → B6 候选受控命令**，均仍是规划；生产阶段单独评审，不改 B1～B4 职责、B5 编号或不合并边界。
+
+<!-- 事实／术语／数字核对一致：Python 1515 passed／3 skipped，前端 430 passed／2 skipped。中文机械扫描：半角标点 0、长破折号 0、编号／量词标题 0、对比句式 0、元话语 0。 -->
 
 ## Implemented increments
 
@@ -33,9 +39,10 @@ Konwledge is a local-first toolkit for managing the full lifecycle of knowledge 
 | B1 | Unreleased | 明确启用的只读管理 API、任务与历史证据导航、真实库 HTTP 验收 |
 | V3（B2） | Unreleased | 保留 V2 静态演示，新增本机实时生命周期与变更视图、严格 dev proxy 和启动器 |
 | V4（B3） | Unreleased | 只读评测对照、手动阶段导览与有界轮询；前端 179 passed／1 skipped、Python 1325 passed／3 skipped，隔离 HTTP／jsdom UI 联调及两页页面渲染检查通过 |
-| B4 | Unreleased | 默认关闭的受控变更 demo：独立 bearer mutation key、server 绑定 mutation actor、manifest allowlist 当前正文更新、`#changes` 预览／确认提交／GET 恢复；scope `b239f388-6ef5-401f-879b-e43cf59fb68e` 隔离验收通过 |
+| B4 | Unreleased | 默认关闭的受控变更 demo：独立 bearer mutation key、server 绑定 mutation actor、manifest allowlist 当前正文更新、`#changes` 预览／确认提交／GET 恢复；本轮 scope `c2c9b890-e706-4362-a7fe-e4675edef052` 隔离验收通过 |
+| B-R1 | Unreleased | 已完成并验证 shared reader／validation 与 schema 工具收敛；最终回归、B4 driver 与 wheel／sdist 隔离 smoke 通过，提交记录以 Git 历史为准 |
 
-Each increment builds on the preceding implementation. 当前分支包含 U01～U20、V1／V2、B1、V3（B2）、V4（B3）和 B4 开发。`U` 扩展核心库，`V` 扩展展示；B4 默认关闭，B5 MCP 未实现，不自动启动。公开部署仍需另行明确授权。
+Each increment builds on the preceding implementation. 当前分支包含 U01～U20、V1／V2、B1、V3（B2）、V4（B3）、B4 和 B-R1。`U` 扩展核心库，`V` 扩展展示；B4 默认关闭，B5 MCP 未实现，不自动启动。公开部署仍需另行明确授权。
 
 ## Why this project
 
@@ -123,7 +130,7 @@ uv run python scripts/real_knowledge_acceptance.py \
 
 每次运行建立独立 SQLite 和文档副本，证据保存在输出根目录下的唯一运行目录，不覆盖旧报告，也不改原始文档。详见 [真实文档变更验收](docs/real-knowledge-acceptance.md)。
 
-B1 已提供只读管理契约，B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 评测对照与手动导览开发；现有静态演示保留。当前 feature 分支的 B4 已完成受控变更交互：`/v1/mutations` 默认关闭，需独立写密钥、manifest 和 actor 显式启用，只允许隔离 demo 库内 allowlist source 的当前正文修改，并保留幂等命令与评测审计。B1 没有 case-level query／cases，页面不造逐用例失败诊断。B5 U22 MCP 未实现，不自动开工。Snapshot V1 和现有上下文 API 保持兼容，没有公开 live 部署。详见 [前后端一体化演示路线](docs/integrated-demo-roadmap.md) 和 [受控变更工作台](docs/controlled-mutations.md)。
+B1 已提供只读管理契约，B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 评测对照与手动导览开发；现有静态演示保留。当前 feature 分支的 B4 已完成受控变更交互：`/v1/mutations` 默认关闭，需独立写密钥、manifest 和 actor 显式启用，只允许隔离 demo 库内 allowlist source 的当前正文修改，并保留幂等命令与评测审计。B1 没有 case-level query／cases，页面不造逐用例失败诊断。B5 U22 MCP 未实现，不自动开工。Snapshot V1 和现有上下文 API 保持兼容，没有公开 live 部署。详见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 和 [受控变更工作台](docs/controlled-mutations.md)。
 
 ## 本机只读工作台（B2／B3，Unreleased）
 
@@ -154,7 +161,7 @@ uv run python scripts/workbench_evaluation_acceptance.py
 - 前端 `pnpm verify`：179 passed、1 skipped（10 files passed、1 skipped），typecheck、Snapshot 类型漂移、management 类型漂移与 build 通过；`pnpm install --frozen-lockfile` 通过。默认跳过的 1 项真实 HTTP integration 已由隔离验收另行运行通过，不计入普通回归通过数量。
 - Python 完整回归：1325 passed、3 skipped；ruff check／format、mypy 169 个源文件及 Snapshot／schema 漂移检查通过。
 - 页面渲染检查：评测对照与导览两页通过，控制台为空，内容无外溢。首屏结果位置已修正并复查，评测页先显示 Recall 100% → 66.67%、−33.33 个百分点，导览先显示阶段判定及对照链接。
-- 构建隔离检查：用临时测试密钥执行真实 build，dist 扫描不含该密钥或测试后端地址；B4 收尾 build 仍有 584.87 kB chunk 体积提醒，属非阻断优化项，不是功能失败。
+- 构建隔离检查：用临时测试密钥执行真实 build，dist 扫描不含该密钥或测试后端地址；历史 B4 收尾 build 有 584.87 kB chunk 体积提醒，属非阻断优化项，不是功能失败。
 
 本次云端浏览器无法直达 loopback，真实 HTTP／jsdom UI 联调与页面渲染检查各有范围，不代表浏览器整链点击验收。B3 对照条件与完整结果见 [评测工作台](docs/evaluation-workbench.md#回归命令与验收记录)，启动安全与 B2 历史验收见 [本机只读工作台](docs/live-workbench.md)。
 
@@ -173,7 +180,7 @@ uv run python scripts/live_workbench.py \
 
 启动器会为本次进程生成独立读／写 bearer key，浏览器继续只发同源请求；`#changes` 页面让用户选择允许的来源、编辑正文、查看完整 Diff、勾选确认后提交，`#changes?command=<id>` 仅按幂等标识做 GET 恢复。preview 绑定 source／当前 document／old checksum／new checksum／actor／scope／TTL／confirmation token；command 在 `BEGIN IMMEDIATE` 后校验并把命令、revision 与 auto-evaluation outbox 一并写入事务，评测失败不回滚已提交知识，不自动重试不确定写请求。
 
-最新完整 B4 driver scope 为 `b239f388-6ef5-401f-879b-e43cf59fb68e`，报告位于 [`.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json`](.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json)。全部 checks 为 true，frontend_update 与 frontend_recovery 均通过，三次变更产生的 command 和 jobs 各为 3，任务链路为 `passed → failed → passed`，mean Recall 为 `1 → 0.6666667 → 1`；driver 另跑也已通过且 `children_stopped=true`。详见 [受控变更工作台](docs/controlled-mutations.md) 和 [本机工作台](docs/live-workbench.md)。
+本轮完整 B4 HTTP／jsdom driver 通过，`children_stopped=true`，scope 为 `c2c9b890-e706-4362-a7fe-e4675edef052`，报告位于 [`.konwledge/mutation-demo/c2c9b890-e706-4362-a7fe-e4675edef052/b4-acceptance-report.json`](.konwledge/mutation-demo/c2c9b890-e706-4362-a7fe-e4675edef052/b4-acceptance-report.json)。三次变更产生的 command 和 jobs 各为 3，任务链路仍为 `passed → failed → passed`，mean Recall 为 `1 → 2/3 → 1`；提交后响应丢失只做 GET 恢复、不重复写，重启后历史失败／Diff／证据仍可回查。契约见 [受控变更工作台](docs/controlled-mutations.md)，本轮记录见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。
 
 ## 工作台只读管理 API（B1，Unreleased）
 
@@ -296,7 +303,7 @@ uv run python scripts/export_management_schema.py --check
 uv run python scripts/export_mutation_schema.py --check
 ```
 
-前端 B2／V3、B3／V4 只读开发及 B4 受控变更交互已完成；Pages 配置不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。`pnpm verify` 已包含 mutationtypecheck、Snapshot／management／mutation 类型漂移、测试和构建。Vitest 覆盖静态演示、实时 adapter／路由／请求状态、评测对照、有界轮询与受控变更状态，但不代替浏览器交互或页面渲染检查。普通测试不启动真实联调，未设置 acceptance 环境时两个 live acceptance 显式 skip；这两个需要联调服务环境，已由 B4 完整 driver 覆盖，不是假失败。
+前端 B2／V3、B3／V4 只读开发及 B4 受控变更交互已完成；Pages 配置不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。`pnpm verify` 已包含 mutationtypecheck、Snapshot／management／mutation 类型漂移、测试和构建。Vitest 覆盖静态演示、实时 adapter／路由／请求状态、评测对照、有界轮询与受控变更状态，但不代替浏览器交互或页面渲染检查。普通测试不启动真实联调，未设置 acceptance 环境时两个 live test 默认 skip；本轮真实 B4 HTTP／jsdom driver 另跑通过，不表示两个 skipped 都已运行。
 
 The optional LanceDB adapter has its own CI job. Run it locally with:
 
@@ -1167,8 +1174,6 @@ pnpm gen:types     # regenerate src/types/snapshot.gen.ts after a schema change
   point, not UTF-16 unit; Vitest checks that every unit's range reproduces its stored text and that
   the segments tile each document exactly.
 - **Deployment is deferred.** `.github/workflows/deploy-demo.yml` contains a GitHub Pages build configuration, but U17 did not trigger or verify a public deployment. Treat site publication as a separate, explicitly approved maintainer action.
-
-<!-- 文稿复核：已回读事实、行文和节奏。机械扫描中文半角标点 0（排除 URL／路径／inline code 命中）、长破折号 0、编号／量词标题 0、对比句式 0、元话语 0。事实账本：回填本轮 B4 最终验收 scope b239f388-6ef5-401f-879b-e43cf59fb68e、1495／3 Python、352／2 前端、mypy 183 sources、208 files formatted、schema 检查、发行包隔离 smoke、静态渲染和 584.87 kB 非阻断提醒；未写入密钥、正文或内部技能内容。 -->
 
 ## License
 

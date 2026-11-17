@@ -2,12 +2,12 @@ import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
 import schema from "./schema.json";
 import { MutationError, type CommandDTO, type SessionDTO } from "./types";
 import type { CommandRequest, DocumentDTO, PreviewDTO, PreviewRequest } from "./types";
+import { HASH_PATTERN, UUID_PATTERN, validUnicode } from "../shared/validation";
 
 export const MAX_TEXT_BYTES = 64 * 1024;
 export const MAX_REQUEST_BYTES = 128 * 1024;
 export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const HASH_PATTERN = /^[0-9a-f]{64}$/;
+export { UUID_PATTERN, validUnicode } from "../shared/validation";
 export type SchemaMap = {
   SessionDTO: SessionDTO; DocumentDTO: DocumentDTO; PreviewDTO: PreviewDTO;
   CommandDTO: CommandDTO; PreviewRequest: PreviewRequest; CommandRequest: CommandRequest;
@@ -21,16 +21,6 @@ const validators = new Map<keyof SchemaMap, ValidateFunction>();
 export function assertUuid(id: string): string {
   if (typeof id !== "string" || !UUID_PATTERN.test(id)) throw new MutationError("invalid_request");
   return id;
-}
-export function validUnicode(text: string): boolean {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code >= 0xd800 && code <= 0xdbff) {
-      const next = text.charCodeAt(++i);
-      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
-    } else if (code >= 0xdc00 && code <= 0xdfff) return false;
-  }
-  return true;
 }
 export function textMetrics(text: string) {
   return { characters: Array.from(text).length, bytes: new TextEncoder().encode(text).byteLength,

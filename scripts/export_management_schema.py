@@ -4,11 +4,9 @@
 from __future__ import annotations
 
 import argparse
-import json
-import sys
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from konwledge.api.management_models import (
     DiffItem,
@@ -24,6 +22,11 @@ from konwledge.api.management_models import (
     RevisionDTO,
     UnitDTO,
 )
+
+if TYPE_CHECKING or __package__:
+    from .schema_utils import check_or_write, dump_json, insert_definition_strict
+else:
+    from schema_utils import check_or_write, dump_json, insert_definition_strict
 
 SCHEMA_ID = "https://github.com/Ykontheway/konwledge/blob/main/web/src/management/schema.json"
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "web" / "src" / "management" / "schema.json"
@@ -58,12 +61,8 @@ def build_management_schema() -> dict[str, Any]:
     for name, schema in _schema_sources():
         body, nested_defs = _fragment(schema)
         for nested_name, nested_schema in nested_defs.items():
-            if nested_name in defs and defs[nested_name] != nested_schema:
-                raise ValueError(f"conflicting schema definition: {nested_name}")
-            defs.setdefault(nested_name, nested_schema)
-        if name in defs and defs[name] != body:
-            raise ValueError(f"conflicting schema fragment: {name}")
-        defs[name] = body
+            insert_definition_strict(defs, nested_name, nested_schema)
+        insert_definition_strict(defs, name, body, conflict_message="conflicting schema fragment")
 
     defs["GetJobResponse"] = {"$ref": "#/$defs/JobDTO"}
     defs["GetRevisionResponse"] = {"$ref": "#/$defs/RevisionDTO"}
@@ -88,7 +87,7 @@ def build_management_schema() -> dict[str, Any]:
 
 
 def dump_management_schema() -> str:
-    return json.dumps(build_management_schema(), ensure_ascii=False, indent=2) + "\n"
+    return dump_json(build_management_schema())
 
 
 def _parse_args() -> argparse.Namespace:
@@ -113,21 +112,15 @@ def main() -> int:
     args = _parse_args()
     output = args.output.resolve()
     rendered = dump_management_schema()
-    if args.check:
-        current = output.read_text(encoding="utf-8") if output.exists() else ""
-        if current != rendered:
-            print(
-                f"{output} is out of date; run `python scripts/export_management_schema.py`.",
-                file=sys.stderr,
-            )
-            return 1
-        print(f"Management schema is up to date: {output}")
-        return 0
-
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(rendered, encoding="utf-8")
-    print(f"Wrote {output}")
-    return 0
+    return check_or_write(
+        output,
+        rendered,
+        check=args.check,
+        up_to_date_message=f"Management schema is up to date: {output}",
+        out_of_date_message=(
+            f"{output} is out of date; run `python scripts/export_management_schema.py`."
+        ),
+    )
 
 
 if __name__ == "__main__":

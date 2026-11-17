@@ -43,6 +43,10 @@ MUTATION_MODULES = tuple(
     f"konwledge/mutations/{name}.py"
     for name in ("__init__", "models", "tables", "safety", "service", "router")
 )
+SCHEMA_SDIST_FILES = (
+    "scripts/schema_utils.py",
+    "tests/test_schema_utils.py",
+)
 MUTATION_SDIST_FILES = (
     "scripts/prepare_mutation_demo.py",
     "scripts/export_mutation_schema.py",
@@ -320,6 +324,7 @@ def inspect_sdist(
             *(f"{root}/src/{module}" for module in API_MODULES),
             *(f"{root}/src/{module}" for module in MUTATION_MODULES),
             *(f"{root}/{filename}" for filename in MUTATION_SDIST_FILES),
+            *(f"{root}/{filename}" for filename in SCHEMA_SDIST_FILES),
             *(f"{root}/src/{module}" for module in DATABASE_SCHEMA_MODULES),
             *(f"{root}/src/{module}" for module in QUALITY_MODULES),
             *(f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES),

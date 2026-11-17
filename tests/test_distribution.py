@@ -14,6 +14,7 @@ from scripts.verify_distribution import (
     MUTATION_MODULES,
     MUTATION_SDIST_FILES,
     QUALITY_MODULES,
+    SCHEMA_SDIST_FILES,
     TOKEN_MODULES,
     Inspection,
     inspect_sdist,
@@ -77,6 +78,7 @@ def write_sdist(
         **dict.fromkeys((f"{root}/src/{module}" for module in API_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in MUTATION_MODULES), ""),
         **dict.fromkeys((f"{root}/{filename}" for filename in MUTATION_SDIST_FILES), ""),
+        **dict.fromkeys((f"{root}/{filename}" for filename in SCHEMA_SDIST_FILES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in DATABASE_SCHEMA_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in QUALITY_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES), ""),
@@ -180,7 +182,7 @@ def test_inspect_sdist_allows_source_tests_with_narrow_warning(tmp_path: Path) -
     result = inspect_sdist(sdist, NAME, VERSION)
 
     assert result.format == "sdist"
-    assert result.file_count == 51
+    assert result.file_count == 51 + len(SCHEMA_SDIST_FILES)
     assert len(result.warnings) == 1
     assert "source tests" in result.warnings[0]
 
@@ -395,3 +397,12 @@ def test_wheel_rejects_unlisted_mutation_module(tmp_path: Path) -> None:
     write_wheel(wheel, overrides={"konwledge/mutations/unlisted.py": ""})
     with pytest.raises(ValueError, match="mutation module collection mismatch"):
         inspect_wheel(wheel, NAME, VERSION, (RESOURCE,))
+
+
+@pytest.mark.parametrize("filename", SCHEMA_SDIST_FILES)
+def test_sdist_requires_shared_schema_dependencies(tmp_path: Path, filename: str) -> None:
+    sdist = tmp_path / "missing-schema-helper.tar.gz"
+    write_sdist(sdist, omit=(f"konwledge-0.1.0/{filename}",))
+
+    with pytest.raises(ValueError, match="missing source file"):
+        inspect_sdist(sdist, NAME, VERSION)

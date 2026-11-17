@@ -4,7 +4,17 @@ All notable changes to Konwledge are documented in this file.
 
 The project is in alpha. Minor releases may refine public and lower-level APIs as capabilities are added; v0.1.0 does not provide a complete backward-compatibility guarantee.
 
-## Unreleased - U14-U20 and B1-B4
+## Unreleased - U14-U20 and B1-B4, B-R1
+
+### Refactor：B-R1 已验证
+
+- **B-R1 已完成并验证。** frontend shared 收敛为 `web/src/shared/readBoundedBytes.ts` 与 `web/src/shared/validation.ts`，共用有界字节 reader 和 UUID／hash／Unicode 纯函数；`scripts/schema_utils.py` 共用 JSON dump、`$defs` 冲突检查和 check／write 文件处理。两个领域调用方保留 error、headers、UTF-8、DTO、limits 与 GET／写边界；不合并 Auth／session／StorageBase、B4 hooks、B3 比较算法或真实验收 driver。
+- `SCHEMA_SDIST_FILES` 已纳入 `scripts/schema_utils.py` 与 `tests/test_schema_utils.py`，缺文件拒绝检查通过，避免 sdist 遗漏共享依赖。新发行验证 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) 的 wheel／sdist 隔离 smoke 通过，未发布。
+- 最终检查：`ruff check .` passed；`ruff format --check .` 为 210 files；`mypy src tests scripts` 为 185 sources success；management／mutation schema `--check` 通过，两份输出逐字节不变。Python `pytest` 为 **1515 passed、3 skipped**，前端 `pnpm verify` 为 **430 passed、2 skipped**；两个 live test 常规需联调环境、默认 skip。生产 build 的 584.38 kB chunk 提醒非阻断。
+- 完整 B4 HTTP／jsdom driver 另跑通过，`children_stopped=true`，scope 为 `c2c9b890-e706-4362-a7fe-e4675edef052`，见 [本轮 B4 验收报告](.konwledge/mutation-demo/c2c9b890-e706-4362-a7fe-e4675edef052/b4-acceptance-report.json)。command／jobs 各 3，任务仍为 `passed → failed → passed`，mean Recall 为 `1 → 2/3 → 1`；GET 恢复不重复写，历史失败／Diff／证据保留。这不表示普通回归的两个 skipped 都已运行。
+- [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 保留 B1～B4 职责、ID、依赖和不合并边界。下一项为 B-R2 统一入口／可复现报告，再接 B5／U22 只读 MCP、B6 候选受控命令，均仍是规划；生产 SSO／RBAC、部署与回滚另设阶段门禁。下列 B4 的 1495／352 等数量及旧条目的“本轮／本次”仍指历史验收，不与本轮相加。
+
+<!-- 事实／术语／数字核对一致：Python 1515 passed／3 skipped，前端 430 passed／2 skipped。中文机械扫描：半角标点 0、长破折号 0、编号／量词标题 1（0.1.0 版本索引豁免）、对比句式 0、元话语 0。 -->
 
 ### B4 受控变更交互
 
@@ -13,8 +23,8 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 - 新增 `scripts/live_workbench.py --mutation-manifest --mutation-actor` 显式启用路径。`#changes` 页面支持选择允许的 source、编辑正文、查看完整 Diff、勾选确认后提交；`#changes?command=<id>` 只做命令结果恢复，不自动补发新的写请求。
 - preview 绑定 source、当前 document、旧 checksum、新正文 hash、actor、scope、TTL 和 confirmation token。command 用幂等键与请求指纹绑定，在 `BEGIN IMMEDIATE` 后先校验，再把 command、revisions 和 auto-evaluation outbox 一并写入事务。after_commit 阶段即使评测失败，也不回滚已提交知识。
 - 明确拒绝浏览器文件路径、数据库路径、SQL 凭据、DSN 和任意写目标；不自动写、不自动重试不确定请求。只读 GET 不能创建 mutation 表，也不能启动评测。结果不确定时，只支持按身份隔离的 GET 恢复命令，或用原 payload 重试同一幂等键。
-- 最新完整 B4 driver scope `b239f388-6ef5-401f-879b-e43cf59fb68e` 的隔离验收报告 [`.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json`](.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json) 全部通过：全部 checks 为 true，frontend_update 与 frontend_recovery 均为 passed，三次变更产生的 command 与 jobs 恰好各 3，任务链路为 `passed → failed → passed`，mean Recall 为 `1 → 0.6666667 → 1`。真实前端验收覆盖 commit 后响应丢失、GET 恢复不重复写、凭据不持久化，以及重启后历史失败／Diff／证据回查；driver 另跑已通过且 `children_stopped=true`。
-- 本轮收尾校验已完成：`ruff check .` 通过，`ruff format --check .` 显示 208 files already formatted，`mypy src tests scripts` 通过 183 sources，management_schema／mutation_schema `--check` 通过，`uv run pytest -q` 为 1495 passed、3 skipped。前端 `pnpm verify` 现已包含 mutationtypecheck 和 check:mutations，typecheck、类型漂移、测试和 build 全通过，结果为 352 passed、2 skipped；两个 skipped 是需要联调服务环境的 live acceptance 默认跳过，不是假失败。发行验证 `scripts/verify_distribution.py --output-dir .konwledge/b4-final-distribution-verified` 已通过 wheel／sdist 隔离安装 smoke，但本次没有发布、推送或公开部署动作。
+- 历史完整 B4 driver scope `b239f388-6ef5-401f-879b-e43cf59fb68e` 的隔离验收报告 [`.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json`](.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json) 全部通过：全部 checks 为 true，frontend_update 与 frontend_recovery 均为 passed，三次变更产生的 command 与 jobs 恰好各 3，任务链路为 `passed → failed → passed`，mean Recall 为 `1 → 0.6666667 → 1`。真实前端验收覆盖 commit 后响应丢失、GET 恢复不重复写、凭据不持久化，以及重启后历史失败／Diff／证据回查；driver 另跑已通过且 `children_stopped=true`。
+- B4 历史收尾校验已完成：`ruff check .` 通过，`ruff format --check .` 显示 208 files already formatted，`mypy src tests scripts` 通过 183 sources，management_schema／mutation_schema `--check` 通过，`uv run pytest -q` 为 1495 passed、3 skipped。前端 `pnpm verify` 现已包含 mutationtypecheck 和 check:mutations，typecheck、类型漂移、测试和 build 全通过，结果为 352 passed、2 skipped；两个 skipped 是需要联调服务环境的 live acceptance 默认跳过，不是假失败。发行验证 `scripts/verify_distribution.py --output-dir .konwledge/b4-final-distribution-verified` 已通过 wheel／sdist 隔离安装 smoke，未发布或公开部署；提交记录以 Git 历史为准。
 
 ### B3 评测对照与手动导览
 
@@ -24,7 +34,7 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 - 新增用户主动开启的有界观察，每 10 秒刷新，最多 5 分钟／30 次。手动刷新与观察共用刷新逻辑，刷新前记录列表头部，再重读当前页与按原 ID 选中的参考／候选；列表或选中任务读取中均视为 busy，跳过不延长窗口。导览刷新也重读当前页及已选三阶段任务。隐藏、page key 变化、读取错误或卸载后停止观察，不自动 resume；停止只阻止后续 tick，不承诺取消已发 HTTP，手动刷新仍可用。
 - 新增 `scripts/workbench_evaluation_acceptance.py` 隔离验收。2026-11-16 最后一次 run `20261116T042018921245Z-951ad2f7` 通过，真实前端 client／DTO／comparison engine／jsdom UI 经 HTTP dev proxy 联调，mean Recall 为 `1 → 0.666667 → 1`。副本 CLI import 后新增 passed 任务，UI 提示可见，选择与失败记录保留，`children_stopped=true`。临时 secret 仅留服务子进程环境，报告只记 stdout／stderr hash，不改原始 docs 或用户库。
 - 前端 `pnpm verify` 为 179 passed、1 skipped（10 files passed、1 skipped），typecheck、Snapshot 类型漂移、management 类型漂移与 build 通过；锁定安装通过。默认跳过的真实 HTTP integration 已由隔离验收单独运行通过，不计入普通回归通过数量。Python 完整回归为 1325 passed、3 skipped，ruff check／format、mypy 169 个源文件及 Snapshot／schema 漂移检查均通过。专项测试不另行相加，Snapshot V1 不变。
-- 两页页面渲染检查通过，控制台为空，内容无外溢。首屏结果位置已修正并复查，评测对照先显示 Recall 100% → 66.67%、−33.33 个百分点，导览先显示阶段判定和对照链接。以临时测试密钥执行真实 build，dist 扫描无该密钥或测试后端地址；B4 收尾 build 仍有 584.87 kB chunk 体积提醒，属非阻断优化项，不是功能失败。本次云端浏览器无法直达 loopback，HTTP／jsdom UI 联调与页面渲染检查各有范围，不代表浏览器整链点击验收。命令与记录见 [评测工作台](docs/evaluation-workbench.md#回归命令与验收记录)。
+- 两页页面渲染检查通过，控制台为空，内容无外溢。首屏结果位置已修正并复查，评测对照先显示 Recall 100% → 66.67%、−33.33 个百分点，导览先显示阶段判定和对照链接。以临时测试密钥执行真实 build，dist 扫描无该密钥或测试后端地址；历史 B4 收尾 build 有 584.87 kB chunk 体积提醒，属非阻断优化项，不是功能失败。本次云端浏览器无法直达 loopback，HTTP／jsdom UI 联调与页面渲染检查各有范围，不代表浏览器整链点击验收。命令与记录见 [评测工作台](docs/evaluation-workbench.md#回归命令与验收记录)。
 - B5 MCP、release、PR／main、tag、PyPI 和部署授权不变。B4 没有扩展到候选批准写入、时效写入、LLM 答案评分或生产自治。
 
 以下旧条目中的“本次”“本轮”“下一批”均指各自增量完成时的范围，保留历史说明。B2 的 126／1320／3 是历史验收数量，不作为 B3 全量结果。
@@ -123,5 +133,3 @@ This release candidate closes local readiness for the first Knowledge CI workflo
 - Raw evaluation reports may include source text, locators, IDs, and local paths. Compact baselines omit hit quotes, source locators, document/unit IDs, and absolute corpus paths, but still contain dataset-authored queries and identifiers.
 - v0.1.0 prepared 当时沿用 2026-11-06 的范围决定，前端停在 V2。后续 B2 已获授权恢复并实现 V3，B3 已完成 V4 只读对照与手动导览，当前 feature 分支的 B4 也已实现受控变更 demo 并通过隔离验收；本次云端浏览器无法直达 loopback，B3／B4 的 HTTP 联调、页面渲染与真实前端恢复验收各有范围，不代表浏览器整链点击验收。B5 MCP 未实现，公开 live 部署未执行，workflow 配置不代表站点已上线。
 - No v0.1.0 tag, GitHub Release, PyPI package publication, or public-site deployment is part of this prepared candidate.
-
-<!-- 文稿复核：已回读事实、行文和节奏。机械扫描中文半角标点 0（排除 URL／路径／inline code 命中）、长破折号 0、编号／量词标题 1（0.1.0 版本索引豁免）、对比句式 0、元话语 0。事实账本：更新 B4 最终 scope b239f388-6ef5-401f-879b-e43cf59fb68e，补齐全部 checks true、frontend_update／frontend_recovery、command/jobs 各 3、1495／3 Python、352／2 前端、发行包隔离 smoke 和 584.87 kB 非阻断提醒；未写入密钥、正文或内部技能内容。 -->

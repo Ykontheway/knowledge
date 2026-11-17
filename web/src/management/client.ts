@@ -19,6 +19,7 @@ import {
   buildPaginationSearchParams,
   validateManagementResponse,
 } from "./validation";
+import { ResponseByteLimitError, readBoundedBytes } from "../shared/readBoundedBytes";
 
 export type ManagementFetcher = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -58,45 +59,16 @@ function mapHttpStatus(status: number): ManagementError {
 }
 
 async function readResponseText(response: Response): Promise<string> {
-  const declaredLength = Number(response.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_MANAGEMENT_RESPONSE_BYTES) {
-    throw new ManagementError("invalid_response", { status: response.status });
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    const buffer = new Uint8Array(await response.arrayBuffer());
-    if (buffer.byteLength > MAX_MANAGEMENT_RESPONSE_BYTES) {
+  let bytes: Uint8Array;
+  try {
+    bytes = await readBoundedBytes(response, MAX_MANAGEMENT_RESPONSE_BYTES);
+  } catch (error) {
+    if (error instanceof ResponseByteLimitError) {
       throw new ManagementError("invalid_response", { status: response.status });
     }
-    return new TextDecoder().decode(buffer);
+    throw error;
   }
-
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      size += value.byteLength;
-      if (size > MAX_MANAGEMENT_RESPONSE_BYTES) {
-        await reader.cancel().catch(() => undefined);
-        throw new ManagementError("invalid_response", { status: response.status });
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const merged = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(merged);
+  return new TextDecoder().decode(bytes);
 }
 
 function buildPath(pathname: string, params?: URLSearchParams): string {

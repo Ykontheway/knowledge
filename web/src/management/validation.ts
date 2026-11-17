@@ -16,12 +16,11 @@ import {
   type RevisionDTO,
   type UnitDTO,
 } from "./types";
+import { HASH_PATTERN, UUID_PATTERN, validUnicode } from "../shared/validation";
 
 export const MANAGEMENT_BASE_PATH = "/v1/management";
 export const MAX_MANAGEMENT_RESPONSE_BYTES = 5 * 1024 * 1024;
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const JOB_STATUS_VALUES: readonly JobStatus[] = [
   "queued",
   "running",
@@ -188,19 +187,8 @@ function assertTrustedHashFields(payload: unknown): void {
 }
 
 function assertValidUnicodeText(text: string): void {
-  for (let index = 0; index < text.length; index += 1) {
-    const codeUnit = text.charCodeAt(index);
-    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
-      const next = text.charCodeAt(index + 1);
-      if (!Number.isInteger(next) || next < 0xdc00 || next > 0xdfff) {
-        throw new ManagementError("invalid_response");
-      }
-      index += 1;
-      continue;
-    }
-    if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
-      throw new ManagementError("invalid_response");
-    }
+  if (!validUnicode(text)) {
+    throw new ManagementError("invalid_response");
   }
 }
 

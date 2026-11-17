@@ -4,10 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import json
-import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaMode
@@ -20,6 +18,11 @@ from konwledge.mutations.models import (
     PreviewRequest,
     SessionDTO,
 )
+
+if TYPE_CHECKING or __package__:
+    from .schema_utils import check_or_write, dump_json, insert_definition_strict
+else:
+    from schema_utils import check_or_write, dump_json, insert_definition_strict
 
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "web/src/mutations/schema.json"
 MODEL_SOURCES: tuple[tuple[type[BaseModel], JsonSchemaMode], ...] = (
@@ -37,13 +40,8 @@ def build_mutation_schema() -> dict[str, Any]:
     for model, mode in MODEL_SOURCES:
         schema = model.model_json_schema(mode=mode)
         for name, fragment in schema.pop("$defs", {}).items():
-            if name in definitions and definitions[name] != fragment:
-                raise ValueError(f"conflicting schema definition: {name}")
-            definitions[name] = fragment
-        name = model.__name__
-        if name in definitions and definitions[name] != schema:
-            raise ValueError(f"conflicting schema definition: {name}")
-        definitions[name] = schema
+            insert_definition_strict(definitions, name, fragment)
+        insert_definition_strict(definitions, model.__name__, schema)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "MutationApiSchemaBundle",
@@ -55,7 +53,7 @@ def build_mutation_schema() -> dict[str, Any]:
 
 
 def dump_mutation_schema() -> str:
-    return json.dumps(build_mutation_schema(), ensure_ascii=False, indent=2) + "\n"
+    return dump_json(build_mutation_schema())
 
 
 def main() -> int:
@@ -64,20 +62,15 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     rendered = dump_mutation_schema()
-    if args.check:
-        current = args.output.read_text(encoding="utf-8") if args.output.exists() else ""
-        if current != rendered:
-            print(
-                "Mutation schema is out of date; run python scripts/export_mutation_schema.py",
-                file=sys.stderr,
-            )
-            return 1
-        print("Mutation schema is up to date.")
-        return 0
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(rendered, encoding="utf-8")
-    print(f"Wrote {args.output}")
-    return 0
+    return check_or_write(
+        args.output,
+        rendered,
+        check=args.check,
+        up_to_date_message="Mutation schema is up to date.",
+        out_of_date_message=(
+            "Mutation schema is out of date; run python scripts/export_mutation_schema.py"
+        ),
+    )
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ManagementClient } from "./client";
-import { getManagementErrorMessage, type ListJobsQuery } from "./types";
+import { ManagementError, getManagementErrorMessage, type ListJobsQuery } from "./types";
+import { MAX_MANAGEMENT_RESPONSE_BYTES } from "./validation";
 
 const jobId = "11111111-1111-1111-1111-111111111111";
 const revisionId = "22222222-2222-2222-2222-222222222222";
@@ -348,4 +349,110 @@ describe("ManagementClient", () => {
     await expect(client.getJob(jobId)).rejects.toMatchObject({ kind: "invalid_response" });
     expect(redirectMode).toBe("error");
   });
+});
+
+
+describe("B1 bounded-byte extraction regressions", () => {
+  it.each(["not-a-number", "-1", "0", "Infinity", "1e309"])(
+    "keeps content-length %s advisory and does not require JSON content-type", async (length) => {
+      const response = new Response(JSON.stringify(evidencePayload), {
+        headers: { "content-type": "text/plain", "content-length": length },
+      });
+      await expect(new ManagementClient(async () => response).getEvidence(unitId)).resolves.toEqual(evidencePayload);
+    },
+  );
+
+  it("maps an oversized declared length without reading the body", async () => {
+    const response = jsonResponse(jobPayload, { headers: { "content-length": String(MAX_MANAGEMENT_RESPONSE_BYTES + 1) } });
+    const body = vi.spyOn(response, "body", "get");
+    const buffer = vi.spyOn(response, "arrayBuffer");
+    const error = await new ManagementClient(async () => response).getJob(jobId).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(ManagementError);
+    expect(error).toMatchObject({ kind: "invalid_response", status: 200, cause: undefined });
+    expect(body).not.toHaveBeenCalled();
+    expect(buffer).not.toHaveBeenCalled();
+  });
+
+  it("bounds cumulative streamed bytes and tolerates cancel rejection", async () => {
+    const cancel = vi.fn(() => Promise.reject(new Error("cancel secret")));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_MANAGEMENT_RESPONSE_BYTES));
+        controller.enqueue(new Uint8Array([1]));
+      },
+      cancel,
+    });
+    const response = new Response(stream, { headers: { "content-length": "0" } });
+    await expect(new ManagementClient(async () => response).getJob(jobId))
+      .rejects.toMatchObject({ kind: "invalid_response", status: 200, cause: undefined });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(stream.locked).toBe(false);
+  });
+
+  it("decodes UTF-8 split at every byte and retains whitespace/HTML handling", async () => {
+    const payload = { ...evidencePayload, text: "中😀" };
+    const bytes = new TextEncoder().encode(` \n${JSON.stringify(payload)}\n `);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const byte of bytes) controller.enqueue(new Uint8Array([byte]));
+        controller.close();
+      },
+    });
+    await expect(new ManagementClient(async () => new Response(stream)).getEvidence(unitId)).resolves.toEqual(payload);
+    for (const text of [" \n ", " \n <!doctype html>"]) {
+      await expect(new ManagementClient(async () => new Response(text)).getJob(jobId))
+        .rejects.toMatchObject({ kind: "invalid_response", status: 200 });
+    }
+  });
+
+  it("keeps nonfatal UTF-8 decoding while evidence still rejects unpaired surrogates", async () => {
+    const bytes = new TextEncoder().encode(JSON.stringify({ ...evidencePayload, text: "?" }));
+    bytes[bytes.indexOf(63)] = 255;
+    await expect(new ManagementClient(async () => new Response(bytes)).getEvidence(unitId))
+      .resolves.toMatchObject({ text: "\ufffd" });
+    for (const text of ["\ud800", "\udfff", "a\ud800b"]) {
+      await expect(new ManagementClient(async () => jsonResponse({ ...evidencePayload, text })).getEvidence(unitId))
+        .rejects.toMatchObject({ kind: "invalid_response" });
+    }
+  });
+
+  it("keeps bounded arrayBuffer fallback and never switches to text", async () => {
+    for (const oversized of [false, true]) {
+      const response = new Response(null);
+      const bytes = oversized ? new Uint8Array(MAX_MANAGEMENT_RESPONSE_BYTES + 1)
+        : new TextEncoder().encode(JSON.stringify(jobPayload));
+      const buffer = vi.spyOn(response, "arrayBuffer").mockResolvedValue(bytes.buffer);
+      const text = vi.spyOn(response, "text");
+      const client = new ManagementClient(async () => response);
+      if (oversized) await expect(client.getJob(jobId)).rejects.toMatchObject({ kind: "invalid_response", status: 200 });
+      else await expect(client.getJob(jobId)).resolves.toEqual(jobPayload);
+      expect(buffer).toHaveBeenCalledTimes(1);
+      expect(text).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([[401, "unauthorized"], [410, "gone"], [413, "invalid_response"], [415, "invalid_response"], [503, "unavailable"]] as const)(
+    "does not access error body for HTTP %i", async (status, kind) => {
+      const response = new Response("RAW_SECRET_ERROR", { status });
+      const body = vi.spyOn(response, "body", "get");
+      const buffer = vi.spyOn(response, "arrayBuffer");
+      const text = vi.spyOn(response, "text");
+      await expect(new ManagementClient(async () => response).getJob(jobId)).rejects.toMatchObject({ kind, status });
+      expect(body).not.toHaveBeenCalled();
+      expect(buffer).not.toHaveBeenCalled();
+      expect(text).not.toHaveBeenCalled();
+      expect(response.bodyUsed).toBe(false);
+    },
+  );
+
+  it.each([[new Error("stream secret"), "network"], [abortError(), "aborted"],
+    [new DOMException("timeout", "TimeoutError"), "timeout"]] as const)(
+    "keeps stream error mapping: %s", async (error, kind) => {
+      const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.error(error); } });
+      const fetcher = vi.fn(async () => new Response(stream));
+      await expect(new ManagementClient(fetcher).getJob(jobId)).rejects.toMatchObject({ kind, cause: error });
+      expect(stream.locked).toBe(false);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
 });

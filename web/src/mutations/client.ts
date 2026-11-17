@@ -1,5 +1,6 @@
 import { MutationError, type CommandDTO, type CommandRequest, type DocumentDTO, type PreviewDTO, type PreviewRequest, type SessionDTO } from "./types";
 import { assertUuid, MAX_RESPONSE_BYTES, serializeRequest, validateMutation, type SchemaMap } from "./validation";
+import { ResponseByteLimitError, readBoundedBytes } from "../shared/readBoundedBytes";
 
 export type MutationFetcher = (path: string, init: RequestInit) => Promise<Response>;
 const BASE = "/v1/mutations";
@@ -20,29 +21,16 @@ function statusError(status: number): MutationError {
 }
 async function readJson(response: Response): Promise<unknown> {
   if (response.redirected || !/^application\/json(?:;|$)/i.test(response.headers.get("content-type") ?? "")) throw new MutationError("invalid_response");
+  // B4 also rejects positive nonfinite declarations; retain its original precheck.
   const size = Number(response.headers.get("content-length"));
   if (size > MAX_RESPONSE_BYTES) throw new MutationError("invalid_response");
-  const reader = response.body?.getReader();
   let bytes: Uint8Array;
-  if (!reader) {
-    bytes = new Uint8Array(await response.arrayBuffer());
-  } else {
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        total += value.byteLength;
-        if (total > MAX_RESPONSE_BYTES) { await reader.cancel().catch(() => undefined); throw new MutationError("invalid_response"); }
-        chunks.push(value);
-      }
-      bytes = new Uint8Array(total);
-      let offset = 0;
-      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    } finally { reader.releaseLock(); }
+  try {
+    bytes = await readBoundedBytes(response, MAX_RESPONSE_BYTES);
+  } catch (error) {
+    if (error instanceof ResponseByteLimitError) throw new MutationError("invalid_response");
+    throw error;
   }
-  if (bytes.byteLength > MAX_RESPONSE_BYTES) throw new MutationError("invalid_response");
   try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown; }
   catch { throw new MutationError("invalid_response"); }
 }
