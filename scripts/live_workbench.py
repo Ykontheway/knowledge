@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import http.client
+import importlib
 import json
 import os
+import re
 import secrets
 import signal
 import socket
@@ -36,6 +38,20 @@ def port_number(raw: str) -> int:
     return port
 
 
+def mutation_preflight(database: Path, manifest: Path, actor: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,79}", actor):
+        raise WorkbenchError("写演示预检失败：必须显式指定安全的本机 actor。")
+    try:
+        preparer = importlib.import_module(
+            "scripts.prepare_mutation_demo" if __package__ else "prepare_mutation_demo"
+        )
+        return Path(preparer.validate_demo(manifest, database))
+    except Exception:
+        raise WorkbenchError(
+            "写演示预检失败：依赖不可用或不是有效、私有、启用自动评测的生成库。"
+        ) from None
+
+
 def preflight(database: Path, web_port: int, api_port: int) -> Path:
     if (
         isinstance(web_port, bool)
@@ -58,6 +74,7 @@ def preflight(database: Path, web_port: int, api_port: int) -> Path:
                 raise WorkbenchError("已有数据库校验未通过。")
         finally:
             connection.close()
+
         with ExitStack() as stack:
             for port in (web_port, api_port):
                 sock = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_STREAM))
@@ -68,8 +85,22 @@ def preflight(database: Path, web_port: int, api_port: int) -> Path:
 
 
 def child_environments(
-    parent: Mapping[str, str], api_port: int, secret: str
+    parent: Mapping[str, str],
+    api_port: int,
+    secret: str,
+    mutation_key: str | None = None,
+    actor: str | None = None,
 ) -> tuple[dict[str, str], dict[str, str]]:
+    if (mutation_key is None) != (actor is None) or (
+        mutation_key is not None
+        and (
+            mutation_key == secret
+            or not mutation_key
+            or actor is None
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@-]{0,79}", actor)
+        )
+    ):
+        raise WorkbenchError("写演示子进程配置必须完整，actor 安全且读写凭据不同。")
     # 不继承 VITE_*、已有业务密钥、NODE_OPTIONS 或完整父进程环境。
     allowed = {
         "PATH",
@@ -90,9 +121,21 @@ def child_environments(
         "LOCALAPPDATA",
     }
     base = {key: value for key, value in parent.items() if key in allowed or key.startswith("LC_")}
+    # 显式清除 inherited mutation vars，避免意外污染。
+    mut_vars = {"KNOWLEDGE_MUTATION_ENABLED", "KNOWLEDGE_MUTATION_KEY", "KNOWLEDGE_MUTATION_ACTOR"}
+    base = {key: value for key, value in base.items() if key not in mut_vars}
+
     # 即便错误地把本次 secret 放入可继承变量，也不能再通过其它变量传播。
     base = {key: value for key, value in base.items() if secret not in value}
+    if mutation_key:
+        base = {key: value for key, value in base.items() if mutation_key not in value}
+
     backend = {**base, "KNOWLEDGE_API_KEY": secret}
+    if mutation_key and actor:
+        backend["KNOWLEDGE_MUTATION_ENABLED"] = "1"
+        backend["KNOWLEDGE_MUTATION_KEY"] = mutation_key
+        backend["KNOWLEDGE_MUTATION_ACTOR"] = actor
+
     web = {
         **backend,
         "KNOWLEDGE_MANAGEMENT_ORIGIN": f"http://127.0.0.1:{api_port}",
@@ -171,7 +214,13 @@ def cleanup(children: Sequence[subprocess.Popen[bytes]]) -> None:
         child.wait()
 
 
-def run(database: Path, web_port: int, api_port: int) -> int:
+def run(
+    database: Path,
+    web_port: int,
+    api_port: int,
+    mutation_manifest: Path | None = None,
+    mutation_actor: str | None = None,
+) -> int:
     children: list[subprocess.Popen[bytes]] = []
     stop = threading.Event()
     received_signal = 0
@@ -185,11 +234,35 @@ def run(database: Path, web_port: int, api_port: int) -> int:
     try:
         for signum in (signal.SIGINT, signal.SIGTERM):
             previous[signum] = signal.signal(signum, request_stop)
+        if (mutation_manifest is None) != (mutation_actor is None):
+            raise WorkbenchError("--mutation-manifest 与 --mutation-actor 必须同时显式提供。")
+        manifest = None
+        if mutation_manifest is not None and mutation_actor is not None:
+            # 保留原始输入给 symlink 检查，不能先 resolve 隐藏符号链接。
+            manifest = mutation_preflight(database, mutation_manifest, mutation_actor)
         path = preflight(database, web_port, api_port)
         if stop.is_set():
             return 128 + received_signal
         secret = secrets.token_urlsafe(32)
-        backend_env, web_env = child_environments(os.environ, api_port, secret)
+        mutation_key = None
+        if manifest is not None:
+            mutation_key = secrets.token_urlsafe(32)
+            if mutation_key == secret:
+                raise WorkbenchError("写演示启动失败：读写临时凭据必须不同。")
+        backend_env, web_env = child_environments(
+            os.environ, api_port, secret, mutation_key, mutation_actor
+        )
+        mutation_args = (
+            [
+                "--enable-mutations",
+                "--mutation-manifest",
+                str(manifest),
+                "--mutation-origin",
+                f"http://127.0.0.1:{web_port}",
+            ]
+            if manifest is not None
+            else []
+        )
         backend = spawn(
             [
                 "uv",
@@ -203,6 +276,7 @@ def run(database: Path, web_port: int, api_port: int) -> int:
                 "127.0.0.1",
                 "--port",
                 str(api_port),
+                *mutation_args,
             ],
             ROOT,
             backend_env,
@@ -258,8 +332,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--web-port", type=port_number, default=5175)
     parser.add_argument("--api-port", type=port_number, default=8015)
+    parser.add_argument("--mutation-manifest", type=Path)
+    parser.add_argument("--mutation-actor", type=str)
     args = parser.parse_args(argv)
-    return run(args.database, args.web_port, args.api_port)
+    return run(
+        args.database, args.web_port, args.api_port, args.mutation_manifest, args.mutation_actor
+    )
 
 
 if __name__ == "__main__":

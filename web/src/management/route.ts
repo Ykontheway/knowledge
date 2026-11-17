@@ -1,7 +1,7 @@
 import type { JobStatus } from "./types";
 
 export type DemoView = "overview" | "trace" | "diff";
-export type View = DemoView | "lifecycle" | "evaluation" | "guide";
+export type View = DemoView | "lifecycle" | "evaluation" | "guide" | "changes";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INTEGER_PATTERN = /^(0|[1-9]\d*)$/;
@@ -100,6 +100,16 @@ export interface GuideInvalidRoute {
   readonly requestedHash: string;
 }
 
+export type ChangesRoute =
+  | { readonly view: "changes"; readonly kind: "edit"; readonly documentId?: string }
+  | { readonly view: "changes"; readonly kind: "command"; readonly commandId: string };
+
+export interface ChangesInvalidRoute {
+  readonly view: "changes";
+  readonly kind: "invalid";
+  readonly reason: InvalidReason;
+}
+
 export type LifecycleRoute =
   | LifecycleJobsRoute
   | LifecycleJobRoute
@@ -111,7 +121,8 @@ export type LifecycleRoute =
   | LifecycleInvalidRoute;
 export type EvaluationRoute = EvaluationCompareRoute | EvaluationInvalidRoute;
 export type GuideRoute = GuideCompareRoute | GuideInvalidRoute;
-export type HashRoute = DemoRoute | LifecycleRoute | EvaluationRoute | GuideRoute;
+export type ChangesHashRoute = ChangesRoute | ChangesInvalidRoute;
+export type HashRoute = DemoRoute | LifecycleRoute | EvaluationRoute | GuideRoute | ChangesHashRoute;
 
 export interface BreadcrumbMeta {
   readonly section: string;
@@ -148,6 +159,22 @@ function evaluationInvalid(hash: string, reason: InvalidReason): EvaluationInval
 
 function guideInvalid(hash: string, reason: InvalidReason): GuideInvalidRoute {
   return { view: "guide", kind: "invalid", reason, requestedHash: hash };
+}
+
+function parseChangesRoute(hash: string): ChangesHashRoute {
+  const fail = (reason: InvalidReason): ChangesInvalidRoute => ({ view: "changes", kind: "invalid", reason });
+  // Unlike read-only routes, never preserve raw input: it may contain a token.
+  const parts = hash.replace(/^#/, "").split("?");
+  if (parts[0] !== "changes" || parts.length > 2) return fail("invalid_query");
+  const search = parts[1];
+  if (search === undefined || search === "") return { view: "changes", kind: "edit" };
+  if (search.split("&").some(part => !part)) return fail("invalid_query");
+  const query = new URLSearchParams(search);
+  if (!hasOnlyKeys(query, new Set(["document", "command"])) || [...query.keys()].length !== 1) return fail("invalid_query");
+  const id = query.get("document") ?? query.get("command");
+  if (!id || !isUuid(id)) return fail("invalid_id");
+  return query.has("document") ? { view: "changes", kind: "edit", documentId: id }
+    : { view: "changes", kind: "command", commandId: id };
 }
 
 function hasDuplicateKeys(query: URLSearchParams): boolean {
@@ -215,6 +242,7 @@ function parseGuideRoute(query: URLSearchParams, rawHash: string): GuideRoute {
 }
 
 export function parseHashRoute(rawHash: string): HashRoute {
+  if (/^#?\/*changes(?:$|[?/%\\\s])/i.test(rawHash)) return parseChangesRoute(rawHash);
   const normalized = rawHash.replace(/^#/, "").trim();
   if (!normalized || normalized === "/") return { view: "overview" };
   if ((normalized.match(/\?/g) ?? []).length > 1) {
@@ -352,6 +380,15 @@ export function guideHash(options: { normal?: string; fault?: string; restore?: 
   });
 }
 
+export function changesHash(options: { document?: string; command?: string } = {}): string {
+  if (Object.keys(options).some(key => !["document", "command"].includes(key)) ||
+      (options.document !== undefined && options.command !== undefined) ||
+      Object.values(options).some(id => id !== undefined && (typeof id !== "string" || !isUuid(id)))) {
+    throw new Error("invalid_changes_route");
+  }
+  return buildHash("changes", options);
+}
+
 export function getBreadcrumbMeta(route: HashRoute): BreadcrumbMeta {
   switch (route.view) {
     case "overview":
@@ -360,6 +397,8 @@ export function getBreadcrumbMeta(route: HashRoute): BreadcrumbMeta {
       return { section: "静态演示", title: "原文溯源", tone: "demo" };
     case "diff":
       return { section: "静态演示", title: "版本 Diff", tone: "demo" };
+    case "changes":
+      return { section: "受控更新 / 仅演示副本", title: route.kind === "invalid" ? "安全提示" : "受控变更", tone: "live" };
     case "evaluation":
       return { section: "实时工作台 / 只读", title: route.kind === "invalid" ? "安全提示" : "评测对照", tone: "live" };
     case "guide":

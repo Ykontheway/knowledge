@@ -15,7 +15,7 @@ import {
 import { REPO_URL, snapshot } from "./data";
 import { formatMoment } from "./lib/format";
 
-export type View = "overview" | "trace" | "diff" | "lifecycle" | "evaluation" | "guide";
+export type View = "overview" | "trace" | "diff" | "lifecycle" | "evaluation" | "guide" | "changes";
 
 interface LayoutProps {
   readonly currentView: View;
@@ -87,6 +87,12 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
 
         <div className="space-y-2">
+          <SectionLabel label="受控更新 / 默认关闭" tone="live" />
+          <NavItem active={currentView === "changes"} badge="仅演示副本" icon={<GitCompare size={18} />} label="受控变更" onClick={() => onViewChange("changes")} />
+          <p className="px-3 text-xs leading-5 text-amber-200">仅演示副本。是否可更新以服务端授权为准，未启用时停在安全提示。</p>
+        </div>
+
+        <div className="space-y-2">
           <SectionLabel label="演示故事线" tone="muted" />
           {snapshot.story?.map((step, index) => (
             <div
@@ -127,7 +133,7 @@ export const Layout: React.FC<LayoutProps> = ({
           <div className="flex flex-wrap items-center gap-3">
             <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${currentTone === "live" ? "border-[#d39b3b] bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
               <Zap fill="currentColor" size={14} />
-              <span>{currentTone === "live" ? "实时工作台 / 只读" : `Snapshot v${snapshot.schema_version} / 静态演示`}</span>
+              <span>{currentView === "changes" ? "受控更新 / 仅演示副本 / 以服务端授权为准" : currentTone === "live" ? "实时工作台 / 只读" : `Snapshot v${snapshot.schema_version} / 静态演示`}</span>
             </div>
           </div>
         </div>

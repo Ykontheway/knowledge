@@ -112,3 +112,23 @@ describe("management hash routes", () => {
     });
   });
 });
+
+
+describe("B4 changes hash routes", () => {
+  it("accepts only entry or one document/command UUID", () => {
+    expect(parseHashRoute("#changes")).toEqual({ view: "changes", kind: "edit" });
+    expect(parseHashRoute(`#changes?document=${documentId}`)).toEqual({ view: "changes", kind: "edit", documentId });
+    expect(parseHashRoute(`#changes?command=${jobId}`)).toEqual({ view: "changes", kind: "command", commandId: jobId });
+    expect(getBreadcrumbMeta(parseHashRoute("#changes"))).toMatchObject({ section: "受控更新 / 仅演示副本", title: "受控变更" });
+  });
+  it.each([
+    "#changes?document=", "#changes?command=not-uuid", "#changes?token=DO_NOT_ECHO",
+    `#changes?document=${documentId}&command=${jobId}`, `#changes?command=${jobId}&command=${jobId}`,
+    `#changes?document=${documentId}&x=1`, `#changes?document=${documentId}?command=${jobId}`,
+    `#changes?document=${documentId}&`, "#changes%2Fanything", "#changes/https://evil.invalid", "#changes?document=%ZZ", "#Changes",
+  ])("rejects %s without retaining raw input", (hash) => {
+    const route = parseHashRoute(hash);
+    expect(route).toMatchObject({ view: "changes", kind: "invalid" });
+    expect(route).not.toHaveProperty("requestedHash");
+  });
+});

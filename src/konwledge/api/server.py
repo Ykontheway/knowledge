@@ -23,6 +23,9 @@ def run_server(
     host: str = "127.0.0.1",
     port: int = 8000,
     enable_management: bool = False,
+    enable_mutations: bool = False,
+    mutation_manifest: Path | None = None,
+    mutation_origin: str | None = None,
 ) -> None:
     """校验本地配置，打开已有数据库，阻塞运行，并始终释放 engine。
 
@@ -33,15 +36,32 @@ def run_server(
 
     if not isinstance(enable_management, bool):
         raise TypeError("enable_management must be a bool")
+    if not isinstance(enable_mutations, bool):
+        raise TypeError("enable_mutations must be a bool")
     if host not in {"127.0.0.1", "::1", "localhost"}:
         raise ValueError("--host 仅允许 127.0.0.1、::1 或 localhost")
     if isinstance(port, bool) or not 1 <= port <= 65535:
         raise ValueError("--port 必须在 1..65535 之间")
     api_key = os.environ.get("KNOWLEDGE_API_KEY")
+    mutation_key = os.environ.get("KNOWLEDGE_MUTATION_KEY")
+    mutation_actor = os.environ.get("KNOWLEDGE_MUTATION_ACTOR")
     if api_key is not None and not api_key.strip():
         raise ValueError("显式设置的 KNOWLEDGE_API_KEY 不得为空或仅含空白")
     if enable_management and api_key is None:
         raise ValueError("--enable-management 需要通过环境变量 KNOWLEDGE_API_KEY 设置访问密钥")
+    if enable_mutations:
+        if mutation_manifest is None:
+            raise ValueError("--enable-mutations 需要 --mutation-manifest")
+        if mutation_origin is None:
+            raise ValueError("--enable-mutations 需要 --mutation-origin")
+        if mutation_key is None or not mutation_key.strip():
+            raise ValueError(
+                "--enable-mutations 需要通过环境变量 KNOWLEDGE_MUTATION_KEY 设置写密钥"
+            )
+        if api_key is not None and mutation_key == api_key:
+            raise ValueError("KNOWLEDGE_MUTATION_KEY 必须独立于 KNOWLEDGE_API_KEY")
+        if mutation_actor is None or not mutation_actor.strip():
+            raise ValueError("--enable-mutations 需要 KNOWLEDGE_MUTATION_ACTOR")
     database_path = database.expanduser().resolve()
     if not database_path.is_file():
         raise ValueError("--database 必须指向已有数据库文件；请先使用 knowledge import")
@@ -64,7 +84,16 @@ def run_server(
         engine.url = engine.url.set(database=database_path.as_posix())
         create_schema(engine)
         library = KnowledgeLibrary(create_session_factory(engine))
-        application = create_app(library, api_key=api_key, enable_management=enable_management)
+        application = create_app(
+            library,
+            api_key=api_key,
+            enable_management=enable_management,
+            enable_mutations=enable_mutations,
+            mutation_manifest=mutation_manifest,
+            mutation_origin=mutation_origin,
+            mutation_key=mutation_key,
+            mutation_actor=mutation_actor,
+        )
         uvicorn.run(
             application,
             host="127.0.0.1" if host == "localhost" else host,

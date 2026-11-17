@@ -2,12 +2,13 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 import { managementProxy } from "./dev/management-proxy.ts";
+import { mutationProxy } from "./dev/mutation-proxy.ts";
 
 // A relative base keeps the build portable: the same dist/ works on GitHub Pages
 // (served under /konwledge/) and on any static host, because routing uses the hash.
 export default defineConfig({
   base: "./",
-  plugins: [react(), tailwindcss(), managementProxy()],
+  plugins: [react(), tailwindcss(), managementProxy(), mutationProxy()],
   envPrefix: "VITE_",
   server: {
     host: "127.0.0.1",

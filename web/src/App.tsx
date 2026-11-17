@@ -7,7 +7,9 @@ import { VersionDiffPage } from "./VersionDiffPage";
 import { EvaluationPage } from "./evaluation/EvaluationPage";
 import { GuidePage } from "./evaluation/GuidePage";
 import { LifecyclePage } from "./management/LifecyclePage";
+import { ChangesPage } from "./mutations/ChangesPage";
 import {
+  changesHash,
   demoHash,
   evaluationHash,
   getBreadcrumbMeta,
@@ -43,6 +45,7 @@ const App: React.FC = () => {
     if (view === "lifecycle") window.location.hash = lifecycleEntryHash();
     else if (view === "evaluation") window.location.hash = evaluationHash();
     else if (view === "guide") window.location.hash = guideHash();
+    else if (view === "changes") window.location.hash = changesHash();
     else window.location.hash = demoHash(view);
   };
 
@@ -51,7 +54,9 @@ const App: React.FC = () => {
     window.location.hash = hash;
   };
 
-  const content = isLifecycleRoute(route) ? (
+  const content = route.view === "changes" ? (
+    <ChangesPage navigate={navigate} route={route} />
+  ) : isLifecycleRoute(route) ? (
     <LifecyclePage navigate={navigate} route={route} />
   ) : isEvaluationRoute(route) ? (
     <EvaluationPage navigate={navigate} route={route} />

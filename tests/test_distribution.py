@@ -11,6 +11,8 @@ from scripts.verify_distribution import (
     API_MODULES,
     AUTO_EVALUATION_MODULES,
     DATABASE_SCHEMA_MODULES,
+    MUTATION_MODULES,
+    MUTATION_SDIST_FILES,
     QUALITY_MODULES,
     TOKEN_MODULES,
     Inspection,
@@ -44,6 +46,7 @@ def write_wheel(
         "konwledge/__main__.py": "",
         "konwledge/py.typed": "",
         **dict.fromkeys(API_MODULES, ""),
+        **dict.fromkeys(MUTATION_MODULES, ""),
         **dict.fromkeys(DATABASE_SCHEMA_MODULES, ""),
         **dict.fromkeys(QUALITY_MODULES, ""),
         **dict.fromkeys(AUTO_EVALUATION_MODULES, ""),
@@ -72,6 +75,8 @@ def write_sdist(
         f"{root}/src/konwledge/__init__.py": "",
         f"{root}/src/konwledge/py.typed": "",
         **dict.fromkeys((f"{root}/src/{module}" for module in API_MODULES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in MUTATION_MODULES), ""),
+        **dict.fromkeys((f"{root}/{filename}" for filename in MUTATION_SDIST_FILES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in DATABASE_SCHEMA_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in QUALITY_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES), ""),
@@ -122,7 +127,7 @@ def test_inspect_wheel_accepts_metadata_resources_and_both_entry_points(tmp_path
             "demo_resources",
             "runtime_exclusions",
         ),
-        file_count=34,
+        file_count=40,
     )
 
 
@@ -175,7 +180,7 @@ def test_inspect_sdist_allows_source_tests_with_narrow_warning(tmp_path: Path) -
     result = inspect_sdist(sdist, NAME, VERSION)
 
     assert result.format == "sdist"
-    assert result.file_count == 35
+    assert result.file_count == 51
     assert len(result.warnings) == 1
     assert "source tests" in result.warnings[0]
 
@@ -240,6 +245,7 @@ def test_inspection_rejects_nonoptional_api_dependencies(tmp_path: Path, depende
     "module",
     (
         *API_MODULES,
+        *MUTATION_MODULES,
         *DATABASE_SCHEMA_MODULES,
         *QUALITY_MODULES,
         *AUTO_EVALUATION_MODULES,
@@ -357,4 +363,35 @@ def test_inspection_rejects_invalid_tokens_extra(
     )
 
     with pytest.raises(ValueError, match=message):
+        inspect_wheel(wheel, NAME, VERSION, (RESOURCE,))
+
+
+@pytest.mark.parametrize("module", MUTATION_MODULES)
+def test_sdist_requires_mutation_package(tmp_path: Path, module: str) -> None:
+    sdist = tmp_path / "missing.tar.gz"
+    write_sdist(sdist, omit=(f"konwledge-0.1.0/src/{module}",))
+    with pytest.raises(ValueError, match="missing source file"):
+        inspect_sdist(sdist, NAME, VERSION)
+
+
+@pytest.mark.parametrize("filename", MUTATION_SDIST_FILES)
+def test_sdist_requires_mutation_acceptance_assets(tmp_path: Path, filename: str) -> None:
+    sdist = tmp_path / "missing.tar.gz"
+    write_sdist(sdist, omit=(f"konwledge-0.1.0/{filename}",))
+    with pytest.raises(ValueError, match="missing source file"):
+        inspect_sdist(sdist, NAME, VERSION)
+
+
+def test_mutation_module_collection_matches_actual_backend() -> None:
+    root = Path(__file__).resolve().parents[1] / "src"
+    actual = {
+        path.relative_to(root).as_posix() for path in (root / "konwledge/mutations").glob("*.py")
+    }
+    assert actual == set(MUTATION_MODULES)
+
+
+def test_wheel_rejects_unlisted_mutation_module(tmp_path: Path) -> None:
+    wheel = tmp_path / "unexpected.whl"
+    write_wheel(wheel, overrides={"konwledge/mutations/unlisted.py": ""})
+    with pytest.raises(ValueError, match="mutation module collection mismatch"):
         inspect_wheel(wheel, NAME, VERSION, (RESOURCE,))

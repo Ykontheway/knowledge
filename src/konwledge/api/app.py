@@ -7,6 +7,7 @@ import secrets
 import time
 import uuid
 from collections.abc import Mapping
+from pathlib import Path
 from threading import RLock
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -40,6 +41,11 @@ def create_app(
     *,
     api_key: str | None = None,
     enable_management: bool = False,
+    enable_mutations: bool = False,
+    mutation_manifest: Path | None = None,
+    mutation_origin: str | None = None,
+    mutation_key: str | None = None,
+    mutation_actor: str | None = None,
 ) -> FastAPI:
     """Create an API over an existing library whose lifecycle remains caller-owned.
 
@@ -61,12 +67,39 @@ def create_app(
 
     if not isinstance(enable_management, bool):
         raise TypeError("enable_management must be a bool")
+    if not isinstance(enable_mutations, bool):
+        raise TypeError("enable_mutations must be a bool")
     if api_key is not None and not isinstance(api_key, str):
         raise TypeError("api_key must be a string or None")
     if api_key is not None and not api_key.strip():
         raise ValueError("api_key must not be empty or contain only whitespace")
     if enable_management and api_key is None:
         raise ValueError("enable_management requires a non-empty api_key")
+    mutation_scope = None
+    mutation_service = None
+    mutation_allowed_origin = None
+    if enable_mutations:
+        from konwledge.mutations.router import validate_actor, validate_origin
+        from konwledge.mutations.safety import load_mutation_scope
+        from konwledge.mutations.service import MutationService
+
+        if mutation_manifest is None:
+            raise ValueError("enable_mutations requires mutation_manifest")
+        if mutation_key is None or not mutation_key.strip():
+            raise ValueError("enable_mutations requires a non-empty mutation_key")
+        if api_key is not None and secrets.compare_digest(mutation_key, api_key):
+            raise ValueError("mutation_key must be independent from api_key")
+        database_path = getattr(getattr(library, "_session_factory", None), "kw", {}).get("bind")
+        engine_database = getattr(getattr(database_path, "url", None), "database", None)
+        if not isinstance(engine_database, str):
+            raise ValueError("enable_mutations requires a file-backed library engine")
+        mutation_scope = load_mutation_scope(Path(mutation_manifest), Path(engine_database))
+        mutation_allowed_origin = validate_origin(mutation_origin)
+        mutation_service = MutationService(
+            library._session_factory,
+            mutation_scope,
+            actor_id=validate_actor(mutation_actor),
+        )
 
     # When authentication is enabled, do not accidentally publish interactive
     # documentation that cannot itself enforce the bearer-key requirement.
@@ -318,6 +351,21 @@ def create_app(
         from konwledge.api.management import build_management_router
 
         app.include_router(build_management_router(library), dependencies=auth_dependencies)
+
+    if enable_mutations:
+        from konwledge.mutations.router import build_mutation_router
+
+        assert mutation_service is not None
+        assert mutation_allowed_origin is not None
+        assert mutation_key is not None
+        app.include_router(
+            build_mutation_router(
+                mutation_service,
+                mutation_key=mutation_key,
+                allowed_origin=mutation_allowed_origin,
+                read_key=api_key,
+            )
+        )
 
     return app
 

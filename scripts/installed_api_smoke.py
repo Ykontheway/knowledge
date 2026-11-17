@@ -181,6 +181,22 @@ def verify_management_routes(library: KnowledgeLibrary) -> None:
     status, _ = asyncio.run(request(disabled, "GET", "/v1/management/jobs"))
     assert status == 404
     assert "/v1/management/jobs" not in disabled.openapi()["paths"]
+    for method, path in (
+        ("GET", "/v1/mutations/session"),
+        ("POST", "/v1/mutations/previews"),
+        ("POST", "/v1/mutations/commands"),
+    ):
+        status, _ = asyncio.run(request(disabled, method, path))
+        assert status == 404
+    assert not any(path.startswith("/v1/mutations") for path in disabled.openapi()["paths"])
+    assert not any(name.startswith("konwledge.mutations") for name in sys.modules), (
+        "default application eagerly imported mutations"
+    )
+    with library._session_factory() as session:
+        from sqlalchemy import text
+
+        names = set(session.scalars(text("SELECT name FROM sqlite_master WHERE type='table'")))
+        assert not {"mutation_previews", "mutation_commands"} & names
 
     enabled = create_app(library, api_key=KEY, enable_management=True)
     status, _ = asyncio.run(request(enabled, "GET", "/v1/management/jobs", auth=False))
@@ -199,6 +215,15 @@ def verify_installed() -> None:
         assert any(
             path.is_relative_to(Path(directory).resolve()) for directory in site.getsitepackages()
         )
+    mutation_root = Path(app_module.__file__).resolve().parents[1] / "mutations"
+    assert {path.name for path in mutation_root.glob("*.py")} == {
+        "__init__.py",
+        "models.py",
+        "tables.py",
+        "safety.py",
+        "service.py",
+        "router.py",
+    }
     for package in ("openai", "langchain_openai", "httpx"):
         assert importlib.util.find_spec(package) is None, f"SDK/test dependency leaked: {package}"
 
@@ -423,6 +448,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "readonly",
                     "management_disabled_hidden",
                     "management_jobs_readonly",
+                    "mutations_default_404_hidden_lazy_no_tables",
                     "cli_management_startup_disposal",
                 ],
             }

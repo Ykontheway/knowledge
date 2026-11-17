@@ -13,7 +13,7 @@ from contextvars import ContextVar
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated, Any, NoReturn
 from uuid import UUID
 
 import typer
@@ -315,6 +315,21 @@ def serve_command(
             help="显式启用只读 B1 管理 API；必须设置 KNOWLEDGE_API_KEY。",
         ),
     ] = False,
+    enable_mutations: Annotated[
+        bool,
+        typer.Option(
+            "--enable-mutations",
+            help="显式启用 B4 本机 mutation demo API；必须设置 KNOWLEDGE_MUTATION_KEY/ACTOR。",
+        ),
+    ] = False,
+    mutation_manifest: Annotated[
+        Path | None,
+        typer.Option("--mutation-manifest", help="B4 mutation demo manifest JSON。"),
+    ] = None,
+    mutation_origin: Annotated[
+        str | None,
+        typer.Option("--mutation-origin", help="允许的 loopback HTTP Origin。"),
+    ] = None,
 ) -> None:
     """运行本机只读上下文 API；密钥仅从 KNOWLEDGE_API_KEY 环境变量读取。"""
 
@@ -322,7 +337,18 @@ def serve_command(
     from konwledge.api.server import run_server
 
     try:
-        run_server(database, host=host, port=port, enable_management=enable_management)
+        server_options: dict[str, Any] = {
+            "host": host,
+            "port": port,
+            "enable_management": enable_management,
+        }
+        if enable_mutations or mutation_manifest is not None or mutation_origin is not None:
+            server_options.update(
+                enable_mutations=enable_mutations,
+                mutation_manifest=mutation_manifest,
+                mutation_origin=mutation_origin,
+            )
+        run_server(database, **server_options)
     except ValueError as error:
         _fail(str(error), code=2)
     except ImportError:

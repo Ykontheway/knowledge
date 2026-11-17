@@ -39,6 +39,22 @@ API_MODULES = tuple(
         "management_service",
     )
 )
+MUTATION_MODULES = tuple(
+    f"konwledge/mutations/{name}.py"
+    for name in ("__init__", "models", "tables", "safety", "service", "router")
+)
+MUTATION_SDIST_FILES = (
+    "scripts/prepare_mutation_demo.py",
+    "scripts/export_mutation_schema.py",
+    "scripts/mutation_workbench_acceptance.py",
+    "scripts/real_knowledge_acceptance.py",
+    "tests/test_prepare_mutation_demo.py",
+    "tests/test_mutation_schema.py",
+    "tests/test_mutations_demo.py",
+    "tests/test_mutations_integration.py",
+    "tests/test_mutation_workbench_acceptance.py",
+    "web/src/mutations/tests/live-acceptance.test.ts",
+)
 QUALITY_MODULES = (
     "konwledge/quality/__init__.py",
     "konwledge/quality/models.py",
@@ -245,6 +261,7 @@ def inspect_wheel(
         "konwledge/__main__.py",
         "konwledge/py.typed",
         *API_MODULES,
+        *MUTATION_MODULES,
         *DATABASE_SCHEMA_MODULES,
         *QUALITY_MODULES,
         *AUTO_EVALUATION_MODULES,
@@ -254,6 +271,11 @@ def inspect_wheel(
     missing = sorted(required.difference(names))
     if missing:
         raise ValueError(f"wheel is missing packaged file: {missing[0]}")
+    actual_mutations = {
+        name for name in names if name.startswith("konwledge/mutations/") and name.endswith(".py")
+    }
+    if actual_mutations != set(MUTATION_MODULES):
+        raise ValueError("wheel mutation module collection mismatch")
     return Inspection(
         format="wheel",
         checks=(
@@ -296,6 +318,8 @@ def inspect_sdist(
             f"{root}/src/konwledge/__init__.py",
             f"{root}/src/konwledge/py.typed",
             *(f"{root}/src/{module}" for module in API_MODULES),
+            *(f"{root}/src/{module}" for module in MUTATION_MODULES),
+            *(f"{root}/{filename}" for filename in MUTATION_SDIST_FILES),
             *(f"{root}/src/{module}" for module in DATABASE_SCHEMA_MODULES),
             *(f"{root}/src/{module}" for module in QUALITY_MODULES),
             *(f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES),
@@ -309,6 +333,14 @@ def inspect_sdist(
         missing = sorted(required.difference(names))
         if missing:
             raise ValueError(f"sdist is missing source file: {missing[0]}")
+        prefix = f"{root}/src/"
+        actual_mutations = {
+            name.removeprefix(prefix)
+            for name in names
+            if name.startswith(prefix + "konwledge/mutations/") and name.endswith(".py")
+        }
+        if actual_mutations != set(MUTATION_MODULES):
+            raise ValueError("sdist mutation module collection mismatch")
         pkg_info = archive.extractfile(f"{root}/PKG-INFO")
         if pkg_info is None:
             raise ValueError("sdist PKG-INFO is unreadable")
@@ -413,7 +445,11 @@ def _smoke_install(
             "-I",
             "-c",
             (
-                "import importlib.util; "
+                "import importlib.util, sys; import konwledge, konwledge.cli; "
+                "assert not any(n.startswith('konwledge.mutations') for n in sys.modules), "
+                "'core install eagerly imported mutations'; "
+                "assert importlib.util.find_spec('fastapi') is None; "
+                "assert importlib.util.find_spec('uvicorn') is None; "
                 "assert importlib.util.find_spec('psycopg') is None, "
                 "'core install leaked postgres extra'; "
                 "assert importlib.util.find_spec('tiktoken') is None, "
