@@ -4,7 +4,18 @@ All notable changes to Konwledge are documented in this file.
 
 The project is in alpha. Minor releases may refine public and lower-level APIs as capabilities are added; v0.1.0 does not provide a complete backward-compatibility guarantee.
 
-## Unreleased - U14-U20 and B1-B4, B-R1
+## Unreleased - U14-U20 and B1-B4, B-R1, B-R2
+
+### B-R2 统一入口已完成并验证
+
+- `scripts/workbench.py` 已完成统一入口，稳定命令为 `list`、`demo`、`accept`。`demo` 默认 `--mode readonly`；`--mode controlled` 必须显式 `--actor demo-editor`；`--prepare-only` 只准备不启动。
+- `accept` 默认等价于 `--suite readonly`，只编排 seed／management／evaluation；`full` 才加入 mutations；`--with-distribution` 再追加 wheel／sdist smoke。统一入口不接受外部 database／manifest／路径／DSN／key。
+- 已验证 summary：readonly 通过 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json)，最新 full `--with-distribution` 通过 [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)。最新 full summary 中 seed、management、evaluation、mutations、distribution 全部 `status=passed`，所有组件 `exit_code=0`、`checks_failed=0`、`cleanup_verified=true`；distribution `checks_passed=82`，wheel／sdist smoke 均通过。
+- 两次 live demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)。两者都以 `Ctrl+C` 收尾，summary 状态是 `stopped`，launcher `exit_code=130`，清理核验为 true；停止语义与评测 `passed`／`failed` 分开记录，不把演示停止写成验收成功。
+- readonly demo 的 live 复核只做 HTTP GET：readonly backend 的 B4 session 路径返回 `404`，Vite Node dev proxy 未开启时返回 `503`，不写成“全部 404”；seed 已有 3 个 jobs，demo 本身不新增 preview／command／额外 jobs。controlled demo 验证了演示验收实际 actor `demo-editor`、session role `demo_editor`、server actor 与 allowlist source 匹配，浏览器无裸 key，backend 缺 key 返回 `401`，错误 `Origin` 返回 `403`，Vite Node 同源 GET 正常。
+- 较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史通过记录。首个 full summary [`.konwledge/workbench/559fcce3-a270-4739-80e8-ebe3598bd044/summary.json`](.konwledge/workbench/559fcce3-a270-4739-80e8-ebe3598bd044/summary.json) 保留为历史失败记录：distribution 当时因 `report_invalid` 被正确判成失败。后续修复只把 summary 投影收紧到 known schema，没有放宽原 driver 或业务安全校验。
+- 统一入口当前只支持具备 Linux `/proc`、`subreaper`、`pidfd` 子进程追踪与清理核验能力的环境。macOS／Windows 缺少必要能力时会 fail-closed 返回 `cleanup_unknown`，不会误报通过。
+- 最终复核：`ruff check .` 通过，`ruff format --check .` 为 218 files，`mypy src tests scripts` 为 192 sources success，management／mutation schema `--check` 保持不变，前端 `pnpm verify` 为 430 passed、2 skipped，Python `pytest -q` 为 **1902 passed、5 skipped**；其中 3 个是既有可选用例，另 2 个是需显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 的 demo live 用例默认 skip。显式设置该环境变量后，统一入口 E2E 为 2 passed（41.21s）。`WORKBENCH_SDIST_FILES` 已覆盖入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件，缺任一项发行验证都会拒绝通过。
 
 ### Refactor：B-R1 已验证
 
@@ -12,9 +23,7 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 - `SCHEMA_SDIST_FILES` 已纳入 `scripts/schema_utils.py` 与 `tests/test_schema_utils.py`，缺文件拒绝检查通过，避免 sdist 遗漏共享依赖。新发行验证 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) 的 wheel／sdist 隔离 smoke 通过，未发布。
 - 最终检查：`ruff check .` passed；`ruff format --check .` 为 210 files；`mypy src tests scripts` 为 185 sources success；management／mutation schema `--check` 通过，两份输出逐字节不变。Python `pytest` 为 **1515 passed、3 skipped**，前端 `pnpm verify` 为 **430 passed、2 skipped**；两个 live test 常规需联调环境、默认 skip。生产 build 的 584.38 kB chunk 提醒非阻断。
 - 完整 B4 HTTP／jsdom driver 另跑通过，`children_stopped=true`，scope 为 `c2c9b890-e706-4362-a7fe-e4675edef052`，见 [本轮 B4 验收报告](.konwledge/mutation-demo/c2c9b890-e706-4362-a7fe-e4675edef052/b4-acceptance-report.json)。command／jobs 各 3，任务仍为 `passed → failed → passed`，mean Recall 为 `1 → 2/3 → 1`；GET 恢复不重复写，历史失败／Diff／证据保留。这不表示普通回归的两个 skipped 都已运行。
-- [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 保留 B1～B4 职责、ID、依赖和不合并边界。下一项为 B-R2 统一入口／可复现报告，再接 B5／U22 只读 MCP、B6 候选受控命令，均仍是规划；生产 SSO／RBAC、部署与回滚另设阶段门禁。下列 B4 的 1495／352 等数量及旧条目的“本轮／本次”仍指历史验收，不与本轮相加。
-
-<!-- 事实／术语／数字核对一致：Python 1515 passed／3 skipped，前端 430 passed／2 skipped。中文机械扫描：半角标点 0、长破折号 0、编号／量词标题 1（0.1.0 版本索引豁免）、对比句式 0、元话语 0。 -->
+- [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 保留 B1～B4 职责、ID、依赖和不合并边界。B-R2 已完成并验证；后续仍接 B5／U22 只读 MCP、B6 候选受控命令，二者尚未实现；生产 SSO／RBAC、部署与回滚另设阶段门禁。下列 B4 的 1495／352 等数量及旧条目的“本轮／本次”仍指历史验收，不与 B-R1 最终数量相加，也不作为 B-R2 结果。
 
 ### B4 受控变更交互
 

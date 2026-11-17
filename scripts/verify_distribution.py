@@ -47,6 +47,16 @@ SCHEMA_SDIST_FILES = (
     "scripts/schema_utils.py",
     "tests/test_schema_utils.py",
 )
+WORKBENCH_SDIST_FILES = (
+    "scripts/workbench.py",
+    "scripts/workbench_runtime.py",
+    "scripts/workbench_reports.py",
+    "tests/test_workbench_cli.py",
+    "tests/test_workbench_runtime.py",
+    "tests/test_workbench_reports.py",
+    "tests/test_workbench_demo_live.py",
+    "docs/workbench-entry.md",
+)
 MUTATION_SDIST_FILES = (
     "scripts/prepare_mutation_demo.py",
     "scripts/export_mutation_schema.py",
@@ -325,6 +335,7 @@ def inspect_sdist(
             *(f"{root}/src/{module}" for module in MUTATION_MODULES),
             *(f"{root}/{filename}" for filename in MUTATION_SDIST_FILES),
             *(f"{root}/{filename}" for filename in SCHEMA_SDIST_FILES),
+            *(f"{root}/{filename}" for filename in WORKBENCH_SDIST_FILES),
             *(f"{root}/src/{module}" for module in DATABASE_SCHEMA_MODULES),
             *(f"{root}/src/{module}" for module in QUALITY_MODULES),
             *(f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES),

@@ -16,6 +16,7 @@ from scripts.verify_distribution import (
     QUALITY_MODULES,
     SCHEMA_SDIST_FILES,
     TOKEN_MODULES,
+    WORKBENCH_SDIST_FILES,
     Inspection,
     inspect_sdist,
     inspect_wheel,
@@ -37,6 +38,33 @@ WHEEL_METADATA = (
 )
 SDIST_METADATA = WHEEL_METADATA
 ENTRY_POINTS = "[console_scripts]\nknowledge = konwledge.cli:main\nkonwledge = konwledge.cli:main\n"
+SDIST_ROOT = "konwledge-0.1.0"
+
+
+def _sdist_files(root: str = SDIST_ROOT) -> dict[str, str]:
+    return {
+        f"{root}/PKG-INFO": SDIST_METADATA,
+        f"{root}/README.md": "readme",
+        f"{root}/LICENSE": "license",
+        f"{root}/pyproject.toml": "[project]",
+        f"{root}/src/konwledge/__init__.py": "",
+        f"{root}/src/konwledge/py.typed": "",
+        **dict.fromkeys((f"{root}/src/{module}" for module in API_MODULES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in MUTATION_MODULES), ""),
+        **dict.fromkeys((f"{root}/{filename}" for filename in MUTATION_SDIST_FILES), ""),
+        **dict.fromkeys((f"{root}/{filename}" for filename in SCHEMA_SDIST_FILES), ""),
+        **dict.fromkeys((f"{root}/{filename}" for filename in WORKBENCH_SDIST_FILES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in DATABASE_SCHEMA_MODULES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in QUALITY_MODULES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in TOKEN_MODULES), ""),
+        f"{root}/tests/test_source.py": "",
+    }
+
+
+@pytest.fixture(name="expected_sdist_file_count")
+def fixture_expected_sdist_file_count() -> int:
+    return len(_sdist_files())
 
 
 def write_wheel(
@@ -67,24 +95,7 @@ def write_wheel(
 def write_sdist(
     path: Path, *, overrides: dict[str, str] | None = None, omit: tuple[str, ...] = ()
 ) -> None:
-    root = "konwledge-0.1.0"
-    files = {
-        f"{root}/PKG-INFO": SDIST_METADATA,
-        f"{root}/README.md": "readme",
-        f"{root}/LICENSE": "license",
-        f"{root}/pyproject.toml": "[project]",
-        f"{root}/src/konwledge/__init__.py": "",
-        f"{root}/src/konwledge/py.typed": "",
-        **dict.fromkeys((f"{root}/src/{module}" for module in API_MODULES), ""),
-        **dict.fromkeys((f"{root}/src/{module}" for module in MUTATION_MODULES), ""),
-        **dict.fromkeys((f"{root}/{filename}" for filename in MUTATION_SDIST_FILES), ""),
-        **dict.fromkeys((f"{root}/{filename}" for filename in SCHEMA_SDIST_FILES), ""),
-        **dict.fromkeys((f"{root}/src/{module}" for module in DATABASE_SCHEMA_MODULES), ""),
-        **dict.fromkeys((f"{root}/src/{module}" for module in QUALITY_MODULES), ""),
-        **dict.fromkeys((f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES), ""),
-        **dict.fromkeys((f"{root}/src/{module}" for module in TOKEN_MODULES), ""),
-        f"{root}/tests/test_source.py": "",
-    }
+    files = _sdist_files()
     files.update(overrides or {})
     with tarfile.open(path, "w:gz") as archive:
         for name, content in files.items():
@@ -175,14 +186,16 @@ def test_inspect_wheel_rejects_missing_resource_and_entry_point(tmp_path: Path) 
         inspect_wheel(missing, NAME, VERSION, (RESOURCE, "konwledge/demo/corpus/missing.md"))
 
 
-def test_inspect_sdist_allows_source_tests_with_narrow_warning(tmp_path: Path) -> None:
+def test_inspect_sdist_allows_source_tests_with_narrow_warning(
+    tmp_path: Path, expected_sdist_file_count: int
+) -> None:
     sdist = tmp_path / "konwledge-0.1.0.tar.gz"
     write_sdist(sdist)
 
     result = inspect_sdist(sdist, NAME, VERSION)
 
     assert result.format == "sdist"
-    assert result.file_count == 51 + len(SCHEMA_SDIST_FILES)
+    assert result.file_count == expected_sdist_file_count
     assert len(result.warnings) == 1
     assert "source tests" in result.warnings[0]
 
@@ -402,7 +415,16 @@ def test_wheel_rejects_unlisted_mutation_module(tmp_path: Path) -> None:
 @pytest.mark.parametrize("filename", SCHEMA_SDIST_FILES)
 def test_sdist_requires_shared_schema_dependencies(tmp_path: Path, filename: str) -> None:
     sdist = tmp_path / "missing-schema-helper.tar.gz"
-    write_sdist(sdist, omit=(f"konwledge-0.1.0/{filename}",))
+    write_sdist(sdist, omit=(f"{SDIST_ROOT}/{filename}",))
+
+    with pytest.raises(ValueError, match="missing source file"):
+        inspect_sdist(sdist, NAME, VERSION)
+
+
+@pytest.mark.parametrize("filename", WORKBENCH_SDIST_FILES)
+def test_sdist_requires_workbench_entry_files(tmp_path: Path, filename: str) -> None:
+    sdist = tmp_path / "missing-workbench-entry.tar.gz"
+    write_sdist(sdist, omit=(f"{SDIST_ROOT}/{filename}",))
 
     with pytest.raises(ValueError, match="missing source file"):
         inspect_sdist(sdist, NAME, VERSION)

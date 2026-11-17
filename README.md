@@ -2,13 +2,11 @@
 
 Konwledge is a local-first toolkit for managing the full lifecycle of knowledge used by AI applications. The project will track where knowledge came from, how it changed, when it became stale, and whether a change improved or degraded retrieval quality.
 
-> 状态：**v0.1.0 已准备、未发布（alpha）；B-R1 已完成并验证。** U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，B4 在当前 feature 分支完成受控变更交互并通过隔离验收，原 V2 静态演示保留。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
+> 状态：**v0.1.0 已准备、未发布（alpha）；B-R1、B-R2 已完成并验证。** U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，B4 在当前 feature 分支完成受控变更交互并通过隔离验收，原 V2 静态演示保留。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
 
-本轮 B-R1 最终验证：`ruff check .` 通过，`ruff format --check .` 为 210 files，`mypy src tests scripts` 为 185 sources success；management／mutation schema `--check` 通过，两份输出逐字节不变；Python **1515 passed、3 skipped**，前端 `pnpm verify` **430 passed、2 skipped**。两个 live test 常规需联调环境，默认 skip；真实 B4 HTTP／jsdom driver 另跑通过，不表示两个 skipped 都已运行。新发行验证 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) 的 wheel／sdist 隔离 smoke 通过，未发布；生产 build 的 584.38 kB chunk 提醒非阻断。旧 B4 的 1495／352 是历史通过数量，不与本轮相加。
+本轮最终复核：`ruff check .` 通过，`ruff format --check .` 为 218 files，`mypy src tests scripts` 为 192 sources success；Python `pytest -q` 为 **1902 passed、5 skipped**，其中 3 个是既有可选用例，另 2 个是需显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 的 demo live 用例默认 skip；management／mutation schema `--check` 通过，两份输出保持不变；前端 `pnpm verify` **430 passed、2 skipped**。`tests/test_workbench_demo_live.py` 常规默认 **2 skipped**，显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 后统一入口 E2E **2 passed（41.21s）**。workbench 发行验证的 `WORKBENCH_SDIST_FILES` 现含入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件，缺任一项都拒绝通过。B-R1 的 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) wheel／sdist 隔离 smoke 仍保留为历史证据，生产 build 的 584.38 kB chunk 提醒仍是非阻断优化项。
 
-B 系列唯一主计划见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。B-R1 已收敛 `web/src/shared/readBoundedBytes.ts`、`web/src/shared/validation.ts` 和 `scripts/schema_utils.py`；`SCHEMA_SDIST_FILES` 已纳入共享脚本及 `tests/test_schema_utils.py`，缺文件拒绝检查通过。后续顺序为 **B-R2 统一演示／验收入口与报告汇总 → B5／U22 只读 MCP → B6 候选受控命令**，均仍是规划；生产阶段单独评审，不改 B1～B4 职责、B5 编号或不合并边界。
-
-<!-- 事实／术语／数字核对一致：Python 1515 passed／3 skipped，前端 430 passed／2 skipped。中文机械扫描：半角标点 0、长破折号 0、编号／量词标题 0、对比句式 0、元话语 0。 -->
+B 系列唯一主计划见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。B-R1 已收敛 `web/src/shared/readBoundedBytes.ts`、`web/src/shared/validation.ts` 和 `scripts/schema_utils.py`；`SCHEMA_SDIST_FILES` 已纳入共享脚本及 `tests/test_schema_utils.py`，缺文件拒绝检查通过。**B-R2 已完成并验证**：`scripts/workbench.py` 统一 `list`、`demo`、`accept` 入口，`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和最新 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口不接受外部 database／manifest／路径／DSN／key，当前只支持具备 `/proc`、`subreaper`、`pidfd` 清理核验能力的 Linux 环境；macOS／Windows 会 fail-closed 返回 `cleanup_unknown`。后续仍接 **B5／U22 只读 MCP → B6 候选受控命令**，原编号不变；MCP、B6 与生产身份／权限能力未做，生产阶段单独评审，不改 B1～B4 职责或不合并边界。
 
 ## Implemented increments
 
@@ -132,17 +130,11 @@ uv run python scripts/real_knowledge_acceptance.py \
 
 B1 已提供只读管理契约，B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 评测对照与手动导览开发；现有静态演示保留。当前 feature 分支的 B4 已完成受控变更交互：`/v1/mutations` 默认关闭，需独立写密钥、manifest 和 actor 显式启用，只允许隔离 demo 库内 allowlist source 的当前正文修改，并保留幂等命令与评测审计。B1 没有 case-level query／cases，页面不造逐用例失败诊断。B5 U22 MCP 未实现，不自动开工。Snapshot V1 和现有上下文 API 保持兼容，没有公开 live 部署。详见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 和 [受控变更工作台](docs/controlled-mutations.md)。
 
-## 本机只读工作台（B2／B3，Unreleased）
+## 本机工作台统一入口（B-R2，Unreleased）
 
-首次运行先执行 `uv sync --locked --dev` 和 `(cd web && pnpm install --frozen-lockfile)`。从仓库根目录运行上面的真实文档验收脚本，确认成功后，将其输出 `report.json` 的实际父目录替换到下面命令中：
+启动与验收统一使用 [工作台入口说明（B-R2 已完成并验证）](docs/workbench-entry.md)。`list` 只列命令；`demo` 默认 `--mode readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和最新 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录；两次 Ctrl+C demo 停止证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)，两者都记为 `stopped`，不算验收 passed。原 `scripts/live_workbench.py` 和各验收 driver 继续独立使用，原命令见 [本机启动器](docs/live-workbench.md)。
 
-```bash
-uv run python scripts/live_workbench.py \
-  --database "<real-acceptance-run-directory>/knowledge.db" \
-  --web-port 5175 --api-port 8015
-```
-
-启动器使用已有库，自动生成临时 key，先等待 backend health，再启动 web；打开 [本机任务列表](http://127.0.0.1:5175/#lifecycle/jobs)，`Ctrl+C` 只清理自己的子进程。backend 启动可能执行已有 schema／FTS 初始化，HTTP 读取只读，页面不新增 evaluation 或更新 baseline。密钥仅留在 backend 与 Vite Node 进程，浏览器同源 GET 不带 key；dev proxy 默认无配置返回 503，preview／dist 不提供该代理，不自动回退 fixture。
+默认 demo 会先在新隔离库生成正常／故障／恢复 seed，再启动已有 seed 的只读管理联调；准备会写隔离库，backend 启动也可能执行已有 schema／FTS 初始化。只读 demo 的 live 复核只做 HTTP GET：readonly backend 的 B4 session 路径返回 `404`，Vite Node dev proxy 未开启时返回 `503`，不要写成“全部 404”；seed 已有 3 个 jobs，demo 本身不新增 preview／command／额外 jobs。交互 API 只读，页面不新增 evaluation 或更新 baseline。临时 key 仅留在 backend 与 Vite Node 进程，浏览器同源 GET 不带 key；preview／dist 不提供该代理，不自动回退 fixture。统一入口不接受外部 database／manifest／路径／DSN／key，当前只支持具备 `/proc`、`subreaper`、`pidfd` 清理核验能力的 Linux 环境；macOS／Windows 不在已完成范围内，缺少必要能力时会 fail-closed 返回 `cleanup_unknown`，不会误报通过。
 
 实时生命周期页面提供任务过滤、分页刷新，以及 revision／document／lineage／Diff／exact evidence 的 hash 导航。B3 新增 [评测对照](http://127.0.0.1:5175/#evaluation) 和 [手动导览](http://127.0.0.1:5175/#guide)：选择跨页保留，比例 delta 按百分点显示，null 为未评估。评测页手动刷新与有界观察共用刷新逻辑，刷新前记录列表头部，再重读当前页及按原 ID 选中的参考／候选；列表或选中任务读取中均视为 busy，不切换选择。导览刷新也重读当前页及已选的正常／故障／恢复任务。
 
@@ -167,16 +159,7 @@ uv run python scripts/workbench_evaluation_acceptance.py
 
 ## 受控变更工作台（B4，Unreleased）
 
-B4 在当前 feature 分支已完成实现并通过隔离验收，但默认关闭，只面向 `scripts/prepare_mutation_demo.py` 生成的隔离 demo 库，不接受浏览器文件路径、SQL 凭据或任意写目标。准备演示副本后，用 `scripts/live_workbench.py` 显式打开受控变更：
-
-```bash
-uv run python scripts/prepare_mutation_demo.py
-uv run python scripts/live_workbench.py \
-  --database "<mutation-demo-run-directory>/knowledge.db" \
-  --web-port 5175 --api-port 8015 \
-  --mutation-manifest "<mutation-demo-run-directory>/mutation-manifest.json" \
-  --mutation-actor demo-editor
-```
+B4 在当前 feature 分支已完成实现并通过隔离验收，但默认关闭，只面向 `scripts/prepare_mutation_demo.py` 生成的隔离 demo 库，不接受浏览器文件路径、SQL 凭据或任意写目标。B-R2 的显式 controlled demo 命令见 [统一工作台入口](docs/workbench-entry.md#controlled-demo-必须显式提供-actor)，该入口已完成并验证；受控 demo 的停止证据见 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)。原 prepare 与 launcher 命令保留在 [受控变更工作台](docs/controlled-mutations.md#一分钟启动)。
 
 启动器会为本次进程生成独立读／写 bearer key，浏览器继续只发同源请求；`#changes` 页面让用户选择允许的来源、编辑正文、查看完整 Diff、勾选确认后提交，`#changes?command=<id>` 仅按幂等标识做 GET 恢复。preview 绑定 source／当前 document／old checksum／new checksum／actor／scope／TTL／confirmation token；command 在 `BEGIN IMMEDIATE` 后校验并把命令、revision 与 auto-evaluation outbox 一并写入事务，评测失败不回滚已提交知识，不自动重试不确定写请求。
 
@@ -303,7 +286,7 @@ uv run python scripts/export_management_schema.py --check
 uv run python scripts/export_mutation_schema.py --check
 ```
 
-前端 B2／V3、B3／V4 只读开发及 B4 受控变更交互已完成；Pages 配置不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。`pnpm verify` 已包含 mutationtypecheck、Snapshot／management／mutation 类型漂移、测试和构建。Vitest 覆盖静态演示、实时 adapter／路由／请求状态、评测对照、有界轮询与受控变更状态，但不代替浏览器交互或页面渲染检查。普通测试不启动真实联调，未设置 acceptance 环境时两个 live test 默认 skip；本轮真实 B4 HTTP／jsdom driver 另跑通过，不表示两个 skipped 都已运行。
+前端 B2／V3、B3／V4、B4 与 B-R2 统一入口已完成并验证；Pages 配置不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。本轮 `pnpm verify` 已包含 mutationtypecheck、Snapshot／management／mutation 类型漂移、测试和构建，结果为 **430 passed、2 skipped**。`tests/test_workbench_demo_live.py` 默认 **2 skipped**；显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 后，统一入口 E2E **2 passed（41.21s）**。Python `pytest -q` **1902 passed、5 skipped**，其中 3 个是既有可选用例，另 2 个是 demo live 默认 skip；management／mutation schema `--check`、`ruff check .`（218 files）和 `mypy src tests scripts`（192 sources）均通过。`WORKBENCH_SDIST_FILES` 现含入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件；缺任一项都会拒绝发行验证。Vitest 覆盖静态演示、实时 adapter／路由／请求状态、评测对照、有界轮询与受控变更状态，但不代替浏览器交互或页面渲染检查。
 
 The optional LanceDB adapter has its own CI job. Run it locally with:
 
