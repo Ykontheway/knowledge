@@ -453,13 +453,22 @@ def test_http500_after_commit_can_be_queried_by_original_key(
         assert counts(library)[3] == 1
 
 
+@pytest.mark.parametrize("walltime_offset_days", [0, 2 * 365], ids=["current", "two-years-later"])
 def test_running_lease_recover_poll_updates_status(
     setup: tuple[KnowledgeLibrary, Path, MutationService],
     monkeypatch: pytest.MonkeyPatch,
+    walltime_offset_days: int,
 ) -> None:
     library, _manifest, service = setup
-    library.automatic_evaluation._replace_clock(lambda: NOW)
-    request = command(preview(service))
+    # Import facts already exist; write and evaluate at the same relative instant,
+    # not a fixed future year that will eventually precede new mutation facts.
+    clock = datetime.now(UTC) + timedelta(seconds=1)
+    clock += timedelta(days=walltime_offset_days)
+    service._clock = lambda: clock
+    library.automatic_evaluation._replace_clock(lambda: clock)
+    value = preview(service)
+    assert service.get_document_text(value.document_id)[1].ingested_at < clock
+    request = command(value)
 
     def interrupt_execute(_job_id: UUID, _token: UUID) -> None:
         raise RuntimeError("worker interrupted after durable lease claim")
@@ -470,14 +479,25 @@ def test_running_lease_recover_poll_updates_status(
     assert result.evaluation_status is EvaluationStatus.PENDING
     job = library.automatic_evaluation.show(result.job_ids[0])
     assert job.status.value == "running" and job.attempt_count == 1
-    library.automatic_evaluation._replace_clock(lambda: NOW + timedelta(minutes=11))
+    assert job.created_at == job.evaluated_at == job.started_at == clock
+    with UnitOfWork(library._session_factory) as uow:
+        document = uow.documents.get(result.document_id)
+        assert document is not None and document.ingested_at == clock
+        revisions = [uow.revisions.get(item) for item in result.revision_ids]
+        assert revisions and all(row is not None and row.created_at == clock for row in revisions)
+    assert job.lease_expires_at == clock + timedelta(minutes=10)
+    assert library.automatic_evaluation.recover() == 0
+    clock += timedelta(minutes=11)
+    library.automatic_evaluation._replace_clock(lambda: clock)
     assert library.automatic_evaluation.recover() == 1
     assert (
         service.get_command(request.idempotency_key).evaluation_status is EvaluationStatus.PENDING
     )
     library.automatic_evaluation.drain()
-    assert service.get_command(request.idempotency_key).evaluation_status is EvaluationStatus.PASSED
     job = library.automatic_evaluation.show(result.job_ids[0])
+    assert (
+        service.get_command(request.idempotency_key).evaluation_status is EvaluationStatus.PASSED
+    ), job.error_code
     assert job.attempt_count == 2 and job.recovery_errors
 
 

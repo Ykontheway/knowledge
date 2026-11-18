@@ -27,6 +27,15 @@ ACCEPTANCE_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_acceptance_smoke
 TOKENS_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_tokens_smoke.py"
 API_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_api_smoke.py"
 POSTGRES_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_postgres_smoke.py"
+MCP_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_mcp_smoke.py"
+MCP_MODULES = tuple(
+    f"konwledge/mcp/{name}.py" for name in ("__init__", "models", "service", "server")
+)
+MCP_SDIST_FILES = (
+    "tests/test_mcp_service.py",
+    "tests/test_mcp_protocol.py",
+    "scripts/installed_mcp_smoke.py",
+)
 API_MODULES = tuple(
     f"konwledge/api/{name}.py"
     for name in (
@@ -104,6 +113,7 @@ FIXTURE_NAMES = (
 CONSOLE_SCRIPTS = {
     "knowledge": "konwledge.cli:main",
     "konwledge": "konwledge.cli:main",
+    "konwledge-mcp": "konwledge.mcp.server:main",
 }
 RUNTIME_COMPONENTS = {
     ".git",
@@ -193,13 +203,14 @@ def _metadata_identity(text: str, expected_name: str, expected_version: str) -> 
     if actual_version != expected_version:
         raise ValueError(f"distribution version mismatch: {actual_version!r}")
     extras = set(metadata.get_all("Provides-Extra", []))
-    for extra in ("api", "postgres", "tokens"):
+    for extra in ("api", "postgres", "tokens", "mcp"):
         if extra not in extras:
             raise ValueError(f"distribution is missing the {extra} extra")
     requirements = metadata.get_all("Requires-Dist", [])
     api_dependencies: set[str] = set()
     postgres_dependencies: set[str] = set()
     token_dependencies: set[str] = set()
+    mcp_requirements = 0
     for requirement in requirements:
         dependency = canonicalize_name(re.split(r"[\s<>=!~;\[]", requirement, maxsplit=1)[0])
         if dependency in {"openai", "langchain-openai", "httpx"}:
@@ -208,6 +219,17 @@ def _metadata_identity(text: str, expected_name: str, expected_version: str) -> 
             if not re.search(r"extra\s*==\s*['\"]api['\"]", requirement):
                 raise ValueError("API dependencies must be conditional on the api extra")
             api_dependencies.add(dependency)
+        if dependency == "mcp":
+            package_part, separator, marker = requirement.partition(";")
+            if not separator or not re.fullmatch(r"\s*extra\s*==\s*(['\"])mcp\1\s*", marker):
+                raise ValueError("mcp must be conditional only on the mcp extra")
+            package_match = re.fullmatch(r"\s*mcp\s*(?:\(([^()]+)\)|([^()]+))\s*", package_part)
+            if package_match is None:
+                raise ValueError("mcp extra must pin mcp>=1.30.0,<2")
+            bounds = (package_match.group(1) or package_match.group(2)).strip()
+            if {part.strip() for part in bounds.split(",")} != {">=1.30.0", "<2"}:
+                raise ValueError("mcp extra must pin mcp>=1.30.0,<2")
+            mcp_requirements += 1
         if dependency == "tiktoken":
             if not re.search(r"extra\s*==\s*['\"]tokens['\"]", requirement):
                 raise ValueError("tiktoken must be conditional on the tokens extra")
@@ -234,6 +256,8 @@ def _metadata_identity(text: str, expected_name: str, expected_version: str) -> 
         raise ValueError("api extra must include FastAPI and Uvicorn")
     if postgres_dependencies != {"psycopg"}:
         raise ValueError("postgres extra must include psycopg[binary]")
+    if mcp_requirements != 1:
+        raise ValueError("mcp extra must include exactly one mcp>=1.30.0,<2 requirement")
     if token_dependencies != {"tiktoken"}:
         raise ValueError("tokens extra must include tiktoken>=0.12,<1")
 
@@ -275,6 +299,7 @@ def inspect_wheel(
         "konwledge/__main__.py",
         "konwledge/py.typed",
         *API_MODULES,
+        *MCP_MODULES,
         *MUTATION_MODULES,
         *DATABASE_SCHEMA_MODULES,
         *QUALITY_MODULES,
@@ -332,6 +357,8 @@ def inspect_sdist(
             f"{root}/src/konwledge/__init__.py",
             f"{root}/src/konwledge/py.typed",
             *(f"{root}/src/{module}" for module in API_MODULES),
+            *(f"{root}/src/{module}" for module in MCP_MODULES),
+            *(f"{root}/{filename}" for filename in MCP_SDIST_FILES),
             *(f"{root}/src/{module}" for module in MUTATION_MODULES),
             *(f"{root}/{filename}" for filename in MUTATION_SDIST_FILES),
             *(f"{root}/{filename}" for filename in SCHEMA_SDIST_FILES),
@@ -440,6 +467,113 @@ def _expected_resource_names() -> tuple[str, ...]:
     )
 
 
+def load_mcp_summary(stdout: str, version: str, mode: str) -> dict[str, Any]:
+    """接受固定 schema/白名单/计数，不把任意 smoke stdout 反射进父报告。"""
+    checks = {
+        "base": (
+            "installed_core_identity",
+            "no_optional_sdk",
+            "lazy_root_cli_help",
+            "console_missing_extra_safe",
+            "cli_missing_extra_safe",
+            "missing_database_not_created",
+        ),
+        "extra": (
+            "installed_mcp_extra",
+            "no_unrelated_extras",
+            "console_cli_module_stdio",
+            "initialize_server_metadata",
+            "list_all_five_tools",
+            "input_schema_limits",
+            "call_all_five_tools",
+            "exact_historical_evidence",
+            "context_and_page_limits",
+            "output_metadata_allowlist",
+            "invalid_arguments_safe",
+            "stdout_jsonrpc_only",
+            "stderr_sanitized",
+            "database_hash_and_files_unchanged",
+            "shutdown_eof",
+        ),
+    }
+    expected_counts: dict[str, dict[str, int | None]] = {
+        "base": {"help_commands": 5, "missing_extra_commands": 2},
+        "extra": {
+            "tools": 5,
+            "sessions": 3,
+            "successful_calls": 18,
+            "rejected_calls": 39,
+            "protocol_responses": 63,
+            "unchanged_files": None,
+        },
+    }
+    try:
+        summary = json.loads(stdout)
+        if not isinstance(summary, dict) or set(summary) != {
+            "version",
+            "passed",
+            "mode",
+            "sdk_version",
+            "pydantic_version",
+            "checks",
+            "counts",
+        }:
+            raise ValueError
+        if (
+            summary["version"] != version
+            or summary["passed"] is not True
+            or summary["mode"] != mode
+            or summary["checks"] != list(checks[mode])
+        ):
+            raise ValueError
+        counts = summary["counts"]
+        if not isinstance(counts, dict) or set(counts) != set(expected_counts[mode]):
+            raise ValueError
+        for key, expected in expected_counts[mode].items():
+            if type(counts[key]) is not int or counts[key] < 0:
+                raise ValueError
+            if expected is not None and counts[key] != expected:
+                raise ValueError
+        pydantic_version = summary["pydantic_version"]
+        if (
+            not isinstance(pydantic_version, str)
+            or re.fullmatch(r"\d+\.\d+\.\d+", pydantic_version) is None
+            or not (2, 7, 0) <= tuple(int(part) for part in pydantic_version.split(".")) < (3, 0, 0)
+        ):
+            raise ValueError
+        sdk = summary["sdk_version"]
+        if mode == "base":
+            if sdk is not None:
+                raise ValueError
+        elif (
+            not isinstance(sdk, str)
+            or re.fullmatch(r"\d+\.\d+\.\d+", sdk) is None
+            or not (1, 30, 0) <= tuple(int(part) for part in sdk.split(".")) < (2, 0, 0)
+            or counts["unchanged_files"] < 2
+        ):
+            raise ValueError
+    except (ValueError, KeyError, TypeError):
+        raise RuntimeError("MCP smoke summary failed safe schema/check/count validation") from None
+    return summary
+
+
+def _run_mcp_smoke(python: Path, script: Path, version: str, mode: str) -> dict[str, Any]:
+    result = subprocess.run(
+        [str(python), "-I", str(script), "--expected-version", version, "--mode", mode],
+        cwd=script.parent,
+        env=_sanitized_environment(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=600,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"isolated installed MCP {mode} smoke failed")
+
+    return load_mcp_summary(result.stdout, version, mode)
+
+
 def _smoke_install(
     *,
     uv: str,
@@ -468,6 +602,8 @@ def _smoke_install(
                 "assert importlib.util.find_spec('uvicorn') is None; "
                 "assert importlib.util.find_spec('psycopg') is None, "
                 "'core install leaked postgres extra'; "
+                "assert importlib.util.find_spec('mcp') is None, "
+                "'core install leaked mcp extra'; "
                 "assert importlib.util.find_spec('tiktoken') is None, "
                 "'core install leaked tokens extra'"
             ),
@@ -515,6 +651,10 @@ def _smoke_install(
     if not isinstance(acceptance_summary, dict) or acceptance_summary.get("passed") is not True:
         raise RuntimeError("installed acceptance smoke summary must be a passing JSON object")
     summary["quality_acceptance"] = acceptance_summary
+
+    mcp_smoke_script = run_dir / MCP_SMOKE_SCRIPT.name
+    shutil.copyfile(MCP_SMOKE_SCRIPT, mcp_smoke_script)
+    mcp_base_summary = _run_mcp_smoke(python, mcp_smoke_script, version, "base")
 
     # 先证明 core-only 无可选依赖，再在同一隔离环境安装 [api]；不安装 HTTPX/SDK。
     _run([uv, "pip", "install", "--python", str(python), f"{artifact}[api]"], cwd=scratch)
@@ -582,6 +722,39 @@ def _smoke_install(
     if not isinstance(postgres_summary, dict):
         raise RuntimeError("installed postgres smoke summary must be a JSON object")
     summary["postgres_extra"] = postgres_summary
+
+    mcp_venv = scratch / f"{distribution_format}-mcp-venv"
+    _run([uv, "venv", "--python", target_python, str(mcp_venv)], cwd=scratch)
+    mcp_python = _venv_python(mcp_venv)
+    _run([uv, "pip", "install", "--python", str(mcp_python), f"{artifact}[mcp]"], cwd=scratch)
+    mcp_summary = _run_mcp_smoke(mcp_python, mcp_smoke_script, version, "extra")
+
+    # 公共范围最低 SDK 完整依赖也只进入新增 [mcp] 环境，不污染 core/API/dev。
+    minimum_venv = scratch / f"{distribution_format}-mcp-minimum-venv"
+    _run([uv, "venv", "--python", target_python, str(minimum_venv)], cwd=scratch)
+    minimum_python = _venv_python(minimum_venv)
+    _run(
+        [
+            uv,
+            "pip",
+            "install",
+            "--python",
+            str(minimum_python),
+            f"{artifact}[mcp]",
+            "mcp==1.30.0",
+        ],
+        cwd=scratch,
+    )
+    minimum_summary = _run_mcp_smoke(minimum_python, mcp_smoke_script, version, "extra")
+    if minimum_summary["sdk_version"] != "1.30.0":
+        raise RuntimeError("minimum MCP SDK version mismatch")
+    # 两条 lane 保留以便对比；依赖自由解析，不用兼容 pin 掩盖旧 SDK 导入失败。
+    minimum_summary["test_label"] = "min1.30"
+    mcp_summary["test_label"] = f"default{mcp_summary['sdk_version'].removesuffix('.0')}"
+    mcp_summary["core_base"] = mcp_base_summary
+    mcp_summary["minimum_sdk"] = minimum_summary
+    summary["mcp_extra"] = mcp_summary
+
     return summary
 
 

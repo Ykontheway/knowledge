@@ -45,6 +45,7 @@ def test_release_metadata_is_coherent() -> None:
     assert project["scripts"] == {
         "knowledge": "konwledge.cli:main",
         "konwledge": "konwledge.cli:main",
+        "konwledge-mcp": "konwledge.mcp.server:main",
     }
 
 
@@ -142,7 +143,7 @@ def test_api_extra_and_sdk_dependencies_remain_separate() -> None:
 def test_core_only_root_api_and_cli_imports_are_lazy(tmp_path: Path) -> None:
     script = """
 import sys
-for name in ("fastapi", "uvicorn", "openai", "langchain_openai", "httpx"):
+for name in ("fastapi", "uvicorn", "openai", "langchain_openai", "httpx", "mcp"):
     sys.modules[name] = None
 import konwledge
 import konwledge.api
@@ -151,6 +152,9 @@ assert "konwledge.api.server" not in sys.modules
 assert main(["--version"]) == 0
 assert main(["--help"]) == 0
 assert main(["serve", "--help"]) == 0
+assert main(["mcp", "--help"]) == 0
+assert main(["mcp", "serve", "--help"]) == 0
+assert "konwledge.mcp.server" not in sys.modules
 assert "konwledge.api.server" not in sys.modules
 """
     result = _run_python(script, tmp_path)
@@ -175,3 +179,51 @@ raise SystemExit(main(["serve", "--database", "existing.db"]))
     assert "Traceback" not in result.stderr
     assert list(tmp_path.iterdir()) == [database]
     assert database.stat().st_size == 0
+
+
+def test_mcp_optional_metadata_and_lock_keep_core_dependency_boundary() -> None:
+    pyproject = _load_toml(PYPROJECT_PATH)
+    project = pyproject["project"]
+    assert project["optional-dependencies"]["mcp"] == ["mcp>=1.30.0,<2"]
+    assert project["dependencies"] == [
+        "click>=8.1,<9",
+        "pydantic>=2.7,<3",
+        "sqlalchemy>=2.0,<3",
+        "typer>=0.12,<1",
+    ]
+    dev_mcp = [item for item in pyproject["dependency-groups"]["dev"] if item.startswith("mcp")]
+    assert dev_mcp == project["optional-dependencies"]["mcp"] == ["mcp>=1.30.0,<2"]
+    package = next(
+        package
+        for package in _load_toml(LOCK_PATH)["package"]
+        if package["name"] == "konwledge" and package.get("source") == {"editable": "."}
+    )
+    assert {item["name"] for item in package["dependencies"]} == {
+        "click",
+        "pydantic",
+        "sqlalchemy",
+        "typer",
+    }
+    assert package["optional-dependencies"]["mcp"] == [{"name": "mcp"}]
+    requirements = [item for item in package["metadata"]["requires-dist"] if item["name"] == "mcp"]
+    assert requirements == [{"name": "mcp", "marker": "extra == 'mcp'", "specifier": ">=1.30.0,<2"}]
+    assert "mcp" in package["metadata"]["provides-extras"]
+    assert {item["name"] for item in package["dev-dependencies"]["dev"]} >= {"mcp"}
+    dev_requirements = [
+        item for item in package["metadata"]["requires-dev"]["dev"] if item["name"] == "mcp"
+    ]
+    assert dev_requirements == [{"name": "mcp", "specifier": ">=1.30.0,<2"}]
+
+
+def test_core_mcp_console_dependency_failure_is_safe_and_does_not_create_db(tmp_path: Path) -> None:
+    script = """
+import sys
+sys.modules['mcp'] = None
+from konwledge.mcp.server import main
+raise SystemExit(main(['--database', 'missing.db']))
+"""
+    result = _run_python(script, tmp_path)
+    assert result.returncode == 1 and result.stdout == ""
+    assert "pip install 'konwledge[mcp]'" in result.stderr
+    assert "Traceback" not in result.stderr and str(tmp_path) not in result.stderr
+    assert list(tmp_path.iterdir()) == []

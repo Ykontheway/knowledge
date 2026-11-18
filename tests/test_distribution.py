@@ -11,6 +11,8 @@ from scripts.verify_distribution import (
     API_MODULES,
     AUTO_EVALUATION_MODULES,
     DATABASE_SCHEMA_MODULES,
+    MCP_MODULES,
+    MCP_SDIST_FILES,
     MUTATION_MODULES,
     MUTATION_SDIST_FILES,
     QUALITY_MODULES,
@@ -31,13 +33,18 @@ WHEEL_METADATA = (
     "Provides-Extra: api\n"
     "Provides-Extra: postgres\n"
     "Provides-Extra: tokens\n"
+    "Provides-Extra: mcp\n"
+    'Requires-Dist: mcp<2,>=1.30.0; extra == "mcp"\n'
     'Requires-Dist: fastapi<1,>=0.115; extra == "api"\n'
     'Requires-Dist: uvicorn<1,>=0.30; extra == "api"\n'
     'Requires-Dist: psycopg[binary]<4,>=3.2; extra == "postgres"\n'
     'Requires-Dist: tiktoken<1,>=0.12; extra == "tokens"\n'
 )
 SDIST_METADATA = WHEEL_METADATA
-ENTRY_POINTS = "[console_scripts]\nknowledge = konwledge.cli:main\nkonwledge = konwledge.cli:main\n"
+ENTRY_POINTS = (
+    "[console_scripts]\nknowledge = konwledge.cli:main\nkonwledge = konwledge.cli:main\n"
+    "konwledge-mcp = konwledge.mcp.server:main\n"
+)
 SDIST_ROOT = "konwledge-0.1.0"
 
 
@@ -50,6 +57,8 @@ def _sdist_files(root: str = SDIST_ROOT) -> dict[str, str]:
         f"{root}/src/konwledge/__init__.py": "",
         f"{root}/src/konwledge/py.typed": "",
         **dict.fromkeys((f"{root}/src/{module}" for module in API_MODULES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in MCP_MODULES), ""),
+        **dict.fromkeys((f"{root}/{filename}" for filename in MCP_SDIST_FILES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in MUTATION_MODULES), ""),
         **dict.fromkeys((f"{root}/{filename}" for filename in MUTATION_SDIST_FILES), ""),
         **dict.fromkeys((f"{root}/{filename}" for filename in SCHEMA_SDIST_FILES), ""),
@@ -75,6 +84,7 @@ def write_wheel(
         "konwledge/__main__.py": "",
         "konwledge/py.typed": "",
         **dict.fromkeys(API_MODULES, ""),
+        **dict.fromkeys(MCP_MODULES, ""),
         **dict.fromkeys(MUTATION_MODULES, ""),
         **dict.fromkeys(DATABASE_SCHEMA_MODULES, ""),
         **dict.fromkeys(QUALITY_MODULES, ""),
@@ -124,7 +134,7 @@ def test_installed_location_rejects_source_checkout(tmp_path: Path) -> None:
     assert not is_installed_location(source, prefix, (installed.parents[1],))
 
 
-def test_inspect_wheel_accepts_metadata_resources_and_both_entry_points(tmp_path: Path) -> None:
+def test_inspect_wheel_accepts_metadata_resources_and_three_entry_points(tmp_path: Path) -> None:
     wheel = tmp_path / "konwledge-0.1.0-py3-none-any.whl"
     write_wheel(wheel)
 
@@ -140,7 +150,16 @@ def test_inspect_wheel_accepts_metadata_resources_and_both_entry_points(tmp_path
             "demo_resources",
             "runtime_exclusions",
         ),
-        file_count=40,
+        file_count=(
+            6
+            + len(API_MODULES)
+            + len(MCP_MODULES)
+            + len(MUTATION_MODULES)
+            + len(DATABASE_SCHEMA_MODULES)
+            + len(QUALITY_MODULES)
+            + len(AUTO_EVALUATION_MODULES)
+            + len(TOKEN_MODULES)
+        ),
     )
 
 

@@ -86,6 +86,8 @@ app = typer.Typer(
 app.add_typer(database_app, name="database")
 app.add_typer(auto_evaluation_app, name="auto-evaluation")
 app.add_typer(quality_app, name="quality")
+mcp_app = typer.Typer(help="只读 MCP stdio 服务。", pretty_exceptions_enable=False)
+app.add_typer(mcp_app, name="mcp")
 
 AtOption = Annotated[
     str | None,
@@ -296,6 +298,26 @@ def _status_label(state: UnitState | None) -> str:
     if state.stale_reason:
         return f"{state.status.value} ({state.stale_reason})"
     return state.status.value
+
+
+@mcp_app.command("serve")
+def mcp_serve_command(
+    database: Annotated[
+        Path,
+        typer.Option("--database", "-d", help="已有 SQLite 数据库文件（不会创建或升级）。"),
+    ] = DEFAULT_DATABASE,
+) -> None:
+    """通过标准输入/输出提供五个只读 MCP 工具。"""
+
+    # SDK 和 server 仅在真正启动时加载；不走会建库/升级的 _open_library。
+    try:
+        from konwledge.mcp.server import run_server
+
+        run_server(database)
+    except ImportError:
+        _fail("缺少 MCP 可选依赖；请安装：pip install 'konwledge[mcp]'")
+    except Exception:
+        _fail("MCP 服务无法启动或运行。")
 
 
 @app.command("serve")
