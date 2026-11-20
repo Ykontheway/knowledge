@@ -271,6 +271,16 @@ def test_orchestrator_keeps_old_layout_and_sdk_only_in_new_extra_venvs(
     monkeypatch.setattr(distribution, "_run", run)
     monkeypatch.setattr(distribution, "_venv_python", python_path)
     monkeypatch.setattr(distribution, "_run_mcp_smoke", mcp_run)
+
+    def controlled_run(python: Path, script: Path, version: str) -> dict[str, Any]:
+        assert python == tmp_path / f"{distribution_format}-mcp-venv/bin/python"
+        assert script.parent == tmp_path / f"{distribution_format}-run" and script.is_file()
+        assert script.with_name("installed_mcp_smoke.py").is_file()
+        assert version == VERSION
+        events.append(("controlled", python))
+        return {"passed": True, "mode": "controlled_extra"}
+
+    monkeypatch.setattr(distribution, "_run_mcp_controlled_smoke", controlled_run)
     artifact = tmp_path / ("artifact.whl" if distribution_format == "wheel" else "artifact.tar.gz")
     summary = distribution._smoke_install(
         uv="uv",
@@ -290,7 +300,10 @@ def test_orchestrator_keeps_old_layout_and_sdk_only_in_new_extra_venvs(
         "tokens_extra",
         "postgres_extra",
         "mcp_extra",
+        "mcp_controlled_extra",
     }
+    assert summary["mcp_controlled_extra"] == {"passed": True, "mode": "controlled_extra"}
+    assert sum(kind == "controlled" for kind, _ in events) == 1
     for key in ("quality_acceptance", "api_extra", "tokens_extra", "postgres_extra"):
         assert summary[key] == old_summary
     assert summary["checks"] == old_summary["checks"]

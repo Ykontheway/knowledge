@@ -2,7 +2,7 @@
 
 **B-R2 已完成并验证。** 统一入口是 `scripts/workbench.py`，稳定命令为 `list`、`demo`、`accept`。命令语义、退出结果和报告引用以仓库内真实 `summary.json` 与 Git 历史为准。
 
-B 系列状态见 [主计划](integrated-demo-roadmap.md)。B5／U22 仍是下一项只读 MCP，原编号不变；B6 仍是候选。若后续要做本地 Mac 统一入口，需先单独补平台兼容，不并入本次已完成范围。
+B 系列状态见 [主计划](integrated-demo-roadmap.md)。B5／U22 只读 MCP 与 B6 受控正文更新均已完成并验证，原编号不变；MCP 是独立 stdio 入口，不是工作台 HTTP 代理。若后续要做本地 Mac 统一入口，需先单独补平台兼容，不并入 B-R2 已完成范围。
 
 ## 运行环境
 

@@ -2,11 +2,11 @@
 
 Konwledge is a local-first toolkit for managing the full lifecycle of knowledge used by AI applications. The project will track where knowledge came from, how it changed, when it became stale, and whether a change improved or degraded retrieval quality.
 
-> 状态：**v0.1.0 已准备、未发布（alpha）；B-R1、B-R2 已完成并验证，B5／U22 只读 MCP 已完成并验证。** U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，B4 在当前 feature 分支完成受控变更交互并通过隔离验收，原 V2 静态演示保留。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
+> 状态：**v0.1.0 已准备、未发布（alpha）；B-R1、B-R2 已完成并验证，B5／U22 只读 MCP 已完成并验证；B6 受控 MCP 正文更新已完成并验证。** U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，B4 在当前 feature 分支完成受控变更交互并通过隔离验收，B6 主验收确认默认 MCP 零写入，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过；macOS／Windows 未测，原 V2 静态演示保留。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
 
 B-R2 收尾复核（历史结果，不计作 B5／U22 验收）：`ruff check .` 通过，`ruff format --check .` 为 218 files，`mypy src tests scripts` 为 192 sources success；Python `pytest -q` 为 **1902 passed、5 skipped**，其中 3 个是既有可选用例，另 2 个是需显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 的 demo live 用例默认 skip；management／mutation schema `--check` 通过，两份输出保持不变；前端 `pnpm verify` **430 passed、2 skipped**。`tests/test_workbench_demo_live.py` 常规默认 **2 skipped**，显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 后统一入口 E2E **2 passed（41.21s）**。workbench 发行验证的 `WORKBENCH_SDIST_FILES` 现含入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件，缺任一项都拒绝通过。B-R1 的 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) wheel／sdist 隔离 smoke 仍保留为历史证据，生产 build 的 584.38 kB chunk 提醒仍是非阻断优化项。
 
-B 系列唯一主计划见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。B-R1 已收敛 `web/src/shared/readBoundedBytes.ts`、`web/src/shared/validation.ts` 和 `scripts/schema_utils.py`；`SCHEMA_SDIST_FILES` 已纳入共享脚本及 `tests/test_schema_utils.py`，缺文件拒绝检查通过。**B-R2 已完成并验证**：`scripts/workbench.py` 统一 `list`、`demo`、`accept` 入口，`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口不接受外部 database／manifest／路径／DSN／key，当前只支持具备 `/proc`、`subreaper`、`pidfd` 清理核验能力的 Linux 环境；macOS／Windows 会 fail-closed 返回 `cleanup_unknown`。后续仍接 **B5／U22 只读 MCP → B6 候选受控命令**，原编号不变；B5／U22 已完成并验证，B6 与生产身份／权限能力未做。MCP 使用独立 stdio 入口，不受 B-R2 的 Linux 清理依赖约束；本轮 MCP 仅验证 Linux 真实 SDK session，macOS 尚未实测。生产阶段单独评审，不改 B1～B4 职责或不合并边界。
+B 系列唯一主计划见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。B-R1 已收敛 `web/src/shared/readBoundedBytes.ts`、`web/src/shared/validation.ts` 和 `scripts/schema_utils.py`；`SCHEMA_SDIST_FILES` 已纳入共享脚本及 `tests/test_schema_utils.py`，缺文件拒绝检查通过。**B-R2 已完成并验证**：`scripts/workbench.py` 统一 `list`、`demo`、`accept` 入口，`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口不接受外部 database／manifest／路径／DSN／key，当前只支持具备 `/proc`、`subreaper`、`pidfd` 清理核验能力的 Linux 环境；macOS／Windows 会 fail-closed 返回 `cleanup_unknown`。后续衔接仍为 **B5／U22 只读 MCP → B6 受控命令**，原编号不变；B5／U22 与 B6 均已完成并验证，依赖链路已闭环。B6 主验收补齐 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准 3 次，默认 MCP 零写入。MCP 使用独立 stdio 入口，不受 B-R2 的 Linux 清理依赖约束；B6 只在 Linux 实测通过，macOS／Windows 未测。生产阶段单独评审，不改 B1～B4 职责或不合并边界。
 
 ## Implemented increments
 
@@ -41,8 +41,9 @@ B 系列唯一主计划见 [B系列任务与重构路线](docs/integrated-demo-r
 | B-R1 | Unreleased | 已完成并验证 shared reader／validation 与 schema 工具收敛；最终回归、B4 driver 与 wheel／sdist 隔离 smoke 通过，提交记录以 Git 历史为准 |
 | B-R2 | Unreleased | 已完成并验证统一 `list`／`demo`／`accept` 入口，历史结果与 Linux 清理依赖保留 |
 | B5／U22 | Unreleased | 已完成并验证只读 stdio MCP、可选 `[mcp]` 和五个查询工具；SDK `1.30.0` baseline、完整回归与 wheel／sdist 隔离安装通过 |
+| B6 | Unreleased | 已完成并验证受控正文更新 MCP；36 成功／17 拒绝／61 响应，3 个 command／job，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过 |
 
-Each increment builds on the preceding implementation. 当前分支包含 U01～U20、V1／V2、B1、V3（B2）、V4（B3）、B4、B-R1、B-R2 和已完成并验证的 B5／U22。`U` 扩展核心库，`V` 扩展展示；B4 默认关闭，MCP 须显式启动且不开放写工具。公开部署仍需另行明确授权。
+Each increment builds on the preceding implementation. 当前分支包含 U01～U20、V1／V2、B1、V3（B2）、V4（B3）、B4、B-R1、B-R2、已完成并验证的 B5／U22 和 B6。`U` 扩展核心库，`V` 扩展展示；B4 默认关闭，MCP 须显式启动且默认只有五个只读工具。B6 须另加 `--controlled`，生产写权限与公开部署仍需另行明确授权。
 
 ## Why this project
 
@@ -130,7 +131,7 @@ uv run python scripts/real_knowledge_acceptance.py \
 
 每次运行建立独立 SQLite 和文档副本，证据保存在输出根目录下的唯一运行目录，不覆盖旧报告，也不改原始文档。详见 [真实文档变更验收](docs/real-knowledge-acceptance.md)。
 
-B1 已提供只读管理契约，B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 评测对照与手动导览开发；现有静态演示保留。当前 feature 分支的 B4 已完成受控变更交互：`/v1/mutations` 默认关闭，需独立写密钥、manifest 和 actor 显式启用，只允许隔离 demo 库内 allowlist source 的当前正文修改，并保留幂等命令与评测审计。B1 没有 case-level query／cases，页面不造逐用例失败诊断。B5／U22 只读 MCP 已完成并验证，使用独立 stdio 入口且不开放写 API。Snapshot V1 和现有上下文 API 保持兼容，没有公开 live 部署。详见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 和 [受控变更工作台](docs/controlled-mutations.md)。
+B1 已提供只读管理契约，B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 评测对照与手动导览开发；现有静态演示保留。当前 feature 分支的 B4 已完成受控变更交互：`/v1/mutations` 默认关闭，需独立写密钥、manifest 和 actor 显式启用，只允许隔离 demo 库内 allowlist source 的当前正文修改，并保留幂等命令与评测审计。B1 没有 case-level query／cases，页面不造逐用例失败诊断。B5／U22 只读 MCP 已完成并验证，使用独立 stdio 入口且默认不开放写工具；B6 的显式受控正文更新也已完成并验证，主验收确认默认 MCP 零写入，3 次正文提交产生 3 个 command 与 3 个 job，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过，macOS／Windows 未测，不改变 B5 只读默认或新增写 HTTP。Snapshot V1 和现有上下文 API 保持兼容，没有公开 live 部署。详见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 和 [受控变更工作台](docs/controlled-mutations.md)。
 
 ## 本机工作台统一入口（B-R2，Unreleased）
 
@@ -244,7 +245,7 @@ konwledge-mcp --database FILE
 
 `FILE` 由本机操作人员替换为已有 SQLite 文件。可选 `[mcp]` 与开发组均使用 `mcp>=1.30.0,<2`，核心 `pydantic>=2.7,<3` 未收紧；为避免上游兼容问题，选用已测 SDK `1.30.0` baseline，不承诺旧 SDK `1.2`／`1.20` 支持。开发使用 `uv sync --extra mcp`，SDK 不进入 core 运行时依赖。基本 CLI 不需要 SDK，缺 extra 安全提示只写 stderr、退出 `1`，不接触或创建数据库。
 
-MCP 只有 stdio，不提供 HTTP、SSE、公网、SSO 或写 API。五个工具为 `search`、`build_context`、`get_evidence`、`get_lineage`、`compare_documents`，不接收路径、SQL、凭据或 URL，不继承 B4 写权限。每次读取使用独立 SQLite `mode=ro`／`query_only`／事务 rollback，不创建或升级 schema、不回填 FTS、不写 outbox、不构造写服务。
+默认 MCP 只有 stdio，不提供 HTTP、SSE、公网、SSO 或写工具。五个工具为 `search`、`build_context`、`get_evidence`、`get_lineage`、`compare_documents`，不接收路径、SQL、凭据或 URL，不继承 B4 写权限。每次读取使用独立 SQLite `mode=ro`／`query_only`／事务 rollback，不创建或升级 schema，包括不创建批准表；不回填 FTS、不写 outbox、不构造写服务。
 
 检索固定 lexical／active，历史 `at`、source scope 与分页不承诺时间因果。严格输入和独立输出白名单保留；精确证据按旧版本校验范围及 hash 锚点，不用 latest 替代。MCP context 仅限制字符和块数，无 token 预算，不透传核心 `context_text`、source URL、raw metadata／locator／href；空上下文不表示 LLM 拒答或答案正确。
 
@@ -252,11 +253,24 @@ MCP 只有 stdio，不提供 HTTP、SSE、公网、SSO 或写 API。五个工具
 
 最终主环境为 SDK `1.30.0`／Pydantic `2.14.1`，Python 全量 **2131 passed、7 skipped（322.01s）**，前端 **430 passed、2 skipped**；ruff、格式、mypy 与两份 schema 检查均通过。新版 [full summary](.konwledge/workbench/be248fe7-e37c-4b6a-a0cf-d697a927bd8a/summary.json) 各组件通过；MCP 的 72 项底层发行检查单独确认通过，不计入 B-R2 既有 82 项投影。隔离 core-only 未装 SDK，extra/default 与 min1.30 均为 SDK `1.30.0`／Pydantic `2.14.3`，未人工 pin Pydantic。
 
-本轮仅 Linux 实测，macOS 尚未验证，B-R2 平台待办独立保留。完整命令、客户端配置、输入限额、错误语义、发行与停止证据见 [只读 MCP 使用说明](docs/mcp-readonly.md)。B6 仍为未实现的候选，写命令须另行满足独立授权、审计、preview 与显式确认条件。
+本轮 B5 仅 Linux 实测，macOS 尚未验证，B-R2 平台待办独立保留。完整命令、客户端配置、输入限额、错误语义、发行与停止证据见 [只读 MCP 使用说明](docs/mcp-readonly.md)；上述 2131 等结果保留为 B5 历史证据，不作为 B6 验收。
+
+## 受控 MCP（B6，已完成并验证）
+
+B6 **已完成并验证**，版本仍为 `0.1.0` prepared。默认 MCP 保持 B5 的五个只读工具，主验收确认默认模式对知识、command、outbox 与批准审计均为零写入；显式受控模式才增加五个工具，总计十个。Linux 主验收汇总为 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准 3 次。先准备新的 B4 私有 sandbox，再用本次 summary 的实际 `database`、`manifest` 替换 `FILE`、`MANIFEST`；`ROOT` 为对应演示根目录，默认当前目录下的 `.konwledge/mutation-demo`：
+
+```bash
+uv run python scripts/prepare_mutation_demo.py
+knowledge mcp serve --database FILE --controlled --mutation-manifest MANIFEST --actor demo-editor --demo-root ROOT
+```
+
+独立 `konwledge-mcp` 接受相同启动参数。工具不能指定路径或 actor，只能更新 allowlist 当前正文；没有批准签发工具，也没有新增写 HTTP。人工通过 `knowledge mcp approve` 在独立 TTY 审阅 Diff 并签发 grant，apply 无 `confirmed` 字段；提交后评测失败仍为 `committed=true`、`isError=false`，响应不确定只按原幂等键回查。完整批准命令、私有文件与权限边界、限额及拒绝／恢复流程见 [受控 MCP 正文更新](docs/mcp-controlled.md) 和 [B6 最终验收](docs/mcp-controlled.md#b6-最终验收已通过)。Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 已实测通过，macOS／Windows 未测，不使用用户业务库，也不宣称生产写授权。
+
+收尾复核：Python **2439 passed、7 skipped**；Ruff check／format check 通过（238 files），`mypy src tests scripts` 为 210 sources，无错误。前端 430 passed／2 skipped 与显式 Linux E2E 2 passed 保留各自联调范围；wheel／sdist 的受控 MCP lane 各通过 17 项检查，不混入 B-R2 的 82 项旧投影。完整证据和复核命令见 [B6 最终验收](docs/mcp-controlled.md#b6-最终验收已通过)。
 
 ## Import CLI
 
-导入等已有 CLI 命令会自动创建 SQLite schema 与父目录；HTTP `serve` 与 `mcp serve` 例外，必须指向已有数据库文件。MCP 也不执行已有 schema／FTS 初始化。
+导入等已有 CLI 命令会自动创建 SQLite schema 与父目录；HTTP `serve` 与 `mcp serve` 例外，必须指向已有数据库文件。默认只读 MCP 不初始化 schema／FTS；显式 controlled 也不升级核心或回填 FTS，只在严格 scope 预检通过后新增批准审计表 `mcp_approvals`。
 默认数据库为 `.konwledge/knowledge.db`，可通过 `--database`（或 `-d`）指定其他位置。空仓库示例：
 
 ```bash

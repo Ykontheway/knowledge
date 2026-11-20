@@ -76,10 +76,8 @@ def fixture_expected_sdist_file_count() -> int:
     return len(_sdist_files())
 
 
-def write_wheel(
-    path: Path, *, overrides: dict[str, str] | None = None, omit: tuple[str, ...] = ()
-) -> None:
-    files = {
+def _wheel_files() -> dict[str, str]:
+    return {
         "konwledge/__init__.py": "",
         "konwledge/__main__.py": "",
         "konwledge/py.typed": "",
@@ -94,6 +92,12 @@ def write_wheel(
         "konwledge-0.1.0.dist-info/METADATA": WHEEL_METADATA,
         "konwledge-0.1.0.dist-info/entry_points.txt": ENTRY_POINTS,
     }
+
+
+def write_wheel(
+    path: Path, *, overrides: dict[str, str] | None = None, omit: tuple[str, ...] = ()
+) -> None:
+    files = _wheel_files()
     files.update(overrides or {})
     with zipfile.ZipFile(path, "w") as archive:
         for name, content in files.items():
@@ -150,16 +154,7 @@ def test_inspect_wheel_accepts_metadata_resources_and_three_entry_points(tmp_pat
             "demo_resources",
             "runtime_exclusions",
         ),
-        file_count=(
-            6
-            + len(API_MODULES)
-            + len(MCP_MODULES)
-            + len(MUTATION_MODULES)
-            + len(DATABASE_SCHEMA_MODULES)
-            + len(QUALITY_MODULES)
-            + len(AUTO_EVALUATION_MODULES)
-            + len(TOKEN_MODULES)
-        ),
+        file_count=len(_wheel_files()),
     )
 
 
@@ -253,7 +248,20 @@ def test_distributions_require_type_marker(tmp_path: Path, kind: str) -> None:
             inspect_sdist(sdist, NAME, VERSION)
 
 
-@pytest.mark.parametrize("dependency", ["openai", "langchain-openai", "httpx"])
+@pytest.mark.parametrize(
+    "dependency",
+    [
+        "openai",
+        "langchain-openai",
+        "httpx",
+        "pytest",
+        "pytest-cov",
+        "ruff",
+        "mypy",
+        "jsonschema",
+        "types-jsonschema",
+    ],
+)
 def test_inspection_rejects_sdk_runtime_dependencies(tmp_path: Path, dependency: str) -> None:
     wheel = tmp_path / "leaked.whl"
     write_wheel(

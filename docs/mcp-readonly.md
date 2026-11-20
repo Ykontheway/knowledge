@@ -1,6 +1,8 @@
 # 只读 MCP 使用说明
 
-B5／U22 **已完成并验证（Unreleased）**，原 ID 不变。MCP 只提供本机 stdio 查询，不开放写 API；版本仍为 `0.1.0` prepared，未发布。Linux 真实 SDK session、完整回归与 wheel／sdist 隔离安装验证均已通过。实现状态与发布状态分开记录，提交以 Git 历史为准；本文不代表已推送、部署或获得生产授权。
+B5／U22 **已完成并验证（Unreleased）**，原 ID 不变。默认 MCP 只提供本机 stdio 查询，不开放写工具；版本仍为 `0.1.0` prepared，未发布。Linux 真实 SDK session、完整回归与 wheel／sdist 隔离安装验证均已通过。实现状态与发布状态分开记录，提交以 Git 历史为准；本文不代表已推送、部署或获得生产授权。
+
+B5 默认五工具及下文历史验收保持不变。B6 受控正文更新已完成并验证，只有显式启用 `--controlled` 才增加五个工具，总计十个；人工批准走独立 TTY，MCP 不签发批准。本文的只读、不建表语义均指默认模式；受控启动、批准与原键恢复见 [受控 MCP 正文更新](mcp-controlled.md)，[最终验收](mcp-controlled.md#b6-最终验收已通过)单独记录，不计入 B5 历史结果。
 
 ## 安装按需选择
 
@@ -61,9 +63,9 @@ MCP 不监听 HTTP 端口，不提供 SSE、公网服务或 SSO。它与 U18 的
 
 每次 stdio 会话独立绑定已有本地数据库；每个读取请求另开 SQLite URI `mode=ro` 连接，设置 `PRAGMA query_only=ON`，显式开启事务，结束时 rollback 并关闭专用连接。不复用写 session，也不改变原 SDK 写连接的状态。
 
-启动和读取均不创建或升级 schema，不创建／回填 FTS，不写 auto-evaluation outbox、不启动评测，也不构造 `KnowledgeLibrary` 写服务。缺失数据库不会自动创建；缺表、缺 FTS 或不兼容旧 schema 会安全失败，不修复、不升级、不静默降级。数据库准备或升级须在 MCP 之外由操作人员另行决定。
+默认只读模式的启动和读取均不创建或升级 schema，包括不创建 `mcp_approvals`；不创建／回填 FTS，不写 auto-evaluation outbox、不启动评测，也不构造 `KnowledgeLibrary` 写服务。缺失数据库不会自动创建；缺表、缺 FTS 或不兼容旧 schema 会安全失败，不修复、不升级、不静默降级。数据库准备或升级须在 MCP 之外由操作人员另行决定。
 
-工具名称是封闭白名单。参数只接受查询、ID、历史时间及有界预算／分页，不接收数据库路径、SQL、凭据或 URL。所有输入模型使用 `extra="forbid"`，未知字段和写工具调用均拒绝。`query` 是检索文本，不能据此执行 SQL 或访问任意路径／URL。
+默认只读会话的工具名称是封闭白名单。参数只接受查询、ID、历史时间及有界预算／分页，不接收数据库路径、SQL、凭据或 URL。所有输入模型使用 `extra="forbid"`，未知字段和写工具调用均拒绝。`query` 是检索文本，不能据此执行 SQL 或访问任意路径／URL。
 
 ## 工具与输入范围
 
@@ -177,6 +179,6 @@ MCP 底层检查见原始 [wheel smoke summary](../.konwledge/workbench/be248fe7
 
 新版 live demo 的 [readonly 停止记录](../.konwledge/workbench/84efd3b9-8553-449d-8764-9d8ae4787db5/summary.json) 与 [controlled 停止记录](../.konwledge/workbench/d466d8fe-1dc8-4b70-8eab-54edbfdf4693/summary.json) 均为 `stopped`，launcher `exit_code=130`、`cleanup_verified=true`，不计为验收 `passed`。B-R2 旧报告及历史失败记录保留原样。
 
-B6 仍为未实现的候选，写命令须另行满足独立授权、审计、preview 与显式确认条件，本轮不开放。未创建 MR／PR、合并 main、创建 tag、发布 Release／PyPI 或公开部署，也不宣称已推送。路线和状态见 [B系列任务与重构路线](integrated-demo-roadmap.md)。
+本节仅保留 B5 的 Linux 五工具真实 SDK session 与只读发行历史结果。B6 正文更新已完成并验证，最终结果另列于 [受控 MCP 验收](mcp-controlled.md#b6-最终验收已通过)，不改写 B5 计数。feature 分支提交与推送以 Git 历史为准；未创建 MR／PR、合并 main、创建 tag、发布 Release／PyPI 或公开部署。路线和状态见 [B系列任务与重构路线](integrated-demo-roadmap.md)。
 
-<!-- 已核对 B5／U22 完成状态、依赖范围、验收数字与报告原文，保留 B-R2 历史范围。四文档中文正文半角标点、机械编号、元话语、反转腔扫描均零命中。 -->
+<!-- B5 历史结果与 B6 最终状态已分开核对；六文档的中文收尾校对与机械扫描记录见 mcp-controlled.md 文末。 -->

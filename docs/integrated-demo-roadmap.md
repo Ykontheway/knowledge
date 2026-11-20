@@ -1,12 +1,12 @@
 # B系列任务与重构路线
 
-本文件是 B 系列唯一主计划，继续使用现有 `integrated-demo-roadmap.md`，不另建演示或重构路线图。按职责和验收依赖安排后续工作，不编造工期。B1～B4 保留原职责与已完成证据，B5／U22 仍指向 MCP；B-R1、B-R2 是衔接任务，不替换原编号。仓库此前未定义 B6，本计划仅把它列为候选编号。
+本文件是 B 系列唯一主计划，继续使用现有 `integrated-demo-roadmap.md`，不另建演示或重构路线图。按职责和验收依赖安排后续工作，不编造工期。B1～B4 保留原职责与已完成证据，B5／U22 仍指向 MCP；B-R1、B-R2 是衔接任务，不替换原编号。B6 已完成并验证，沿用原编号；后续命令仍须逐类评审，不扩大为生产写权限。
 
 B1 只读管理 API、B2 V3 live lifecycle、B3 V4 评测对照与导览均已完成；B4 在当前 feature 分支完成受控变更交互并通过隔离验收，V2 静态演示保留。此前 B4 收尾的 Python 1495 passed／3 skipped、前端 352 passed／2 skipped 是历史证据，不计入本轮 B-R1 的最终回归数量。
 
 **B-R1 已完成并验证。** shared 的两个 TS 模块与 `scripts/schema_utils.py` 已接入两个领域调用方，最终回归、完整 B4 HTTP／jsdom 联调及新发行包隔离 smoke 均通过，结果见下文。B5／U22 只读 MCP 已完成并验证，没有公开 live 部署；版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release 或 PyPI 发布。
 
-**B-R2 已完成并验证。** `scripts/workbench.py` 已统一 `list`、`demo`、`accept` 入口；`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](../.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](../.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](../.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](../.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](../.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口当前只支持具备 Linux `/proc`、`subreaper`、`pidfd` 清理核验能力的环境；macOS／Windows 缺少必要能力时会 fail-closed 返回 `cleanup_unknown`。B5／U22 只读 MCP 已完成并验证；B6 候选与生产权限能力未做。MCP 的 stdio 平台语义与 B-R2 清理依赖分开记录，本轮只验证 Linux server 真实 SDK session，macOS 尚未实测。
+**B-R2 已完成并验证。** `scripts/workbench.py` 已统一 `list`、`demo`、`accept` 入口；`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](../.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](../.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](../.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](../.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](../.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口当前只支持具备 Linux `/proc`、`subreaper`、`pidfd` 清理核验能力的环境；macOS／Windows 缺少必要能力时会 fail-closed 返回 `cleanup_unknown`。B5／U22 只读 MCP 已完成并验证；B6 正文更新也已完成并验证，36 成功、17 拒绝、61 响应与 3 次 command／job 提交已补齐，默认 MCP 零写入，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过；macOS／Windows 未测。MCP 的 stdio 平台语义与 B-R2 清理依赖分开记录，生产权限能力未做。
 
 ## 数据流回到同一评测链路
 
@@ -54,10 +54,10 @@ B2 历史浏览器验收只覆盖最短导航，未逐项人工检查全部状�
 | B-R1 | 已完成并验证 | 收敛机械 reader／纯函数／schema 工具，保持领域行为 | B1～B4 原契约和独立测试 | 字节超限、stream／fallback、异常、UUID／hash／Unicode 与 schema 工具测试通过；领域 error／headers／UTF-8／DTO／limits 与 GET／写边界不变。两个 schema 输出逐字节不变，`--check` 不写文件／目录；最终回归、B4 driver、wheel／sdist 隔离 smoke 通过，详见下文；提交记录以 Git 历史为准 |
 | B-R2 | 已完成并验证 | 统一演示／验收入口与可复现报告汇总，命令见 [工作台入口](workbench-entry.md) | B-R1 已验证；保留全部独立安全 driver | `demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，CLI actor 示例是 `demo-editor`，session role 仍是 `demo_editor`；`accept` 默认 `readonly`，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。通过 summary 为 [7014a5a8-5dda-4406-b159-592d5620ab0b](../.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [ef8c8448-e402-4951-8324-44579ce0045b](../.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)；readonly／controlled demo 的停止证据为 [9beb853b-909a-4165-86b7-5b59574baac7](../.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [17cf59ec-b616-47ee-8f52-5b79ea8824f4](../.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)，均 `stopped` 且 `cleanup_verified=true`，但不记作评测成功。较早一次 full 通过 [2297462f-6e76-4207-abc0-8d4b8e625ba3](../.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 与首次失败 [559fcce3-a270-4739-80e8-ebe3598bd044](../.konwledge/workbench/559fcce3-a270-4739-80e8-ebe3598bd044/summary.json) 均保留原样；统一入口当前仅支持具备 Linux `/proc`、`subreaper`、`pidfd` 能力的环境，缺少必要能力时 fail-closed 返回 `cleanup_unknown` |
 | B5／U22 | 已完成并验证（Unreleased），原编号保留 | 五个只读 stdio 工具：search／build_context／get_evidence／get_lineage／compare_documents | B-R2 后接入；不阻塞 B1～B4，独立 MCP SDK extra，不继承 B4 写权限 | Linux 真实 SDK `1.30.0` session、完整回归与 wheel／sdist 隔离安装通过，macOS 未实测。独立 SQLite ro／query_only／事务 rollback 保留，不建库／升级 schema／回填 FTS／写 outbox；严格输入、lexical／active、字符／块预算与历史精确证据白名单不变。四项 ToolAnnotations hint、标准 outputSchema／structuredContent／JSON text 与完整 CallToolResult 2 MiB 上限均已实现并验证，无旧 SDK fallback；详见 [只读 MCP](mcp-readonly.md#最终验证已通过) |
-| B6（候选编号） | 规划，未实现，编号待确认 | 逐类扩展受控命令，独立确认 preview／validator 审计、授权与用户确认后再考虑 MCP 写 | B4 命令安全契约与 B5 只读验收；每类单独审核 | 每条命令独立限定 target／scope／actor／权限与确认条件；越权、过期、冲突、非法输入失败时知识／command／outbox 无写入。同键同请求只提交一次，异请求冲突；提交后评测失败准确返回 `committed=true` 与 failed job／report，禁止伪报回滚。MCP 写沿用同一契约，不能扩大为任意文件／SQL 写权限 |
+| B6 | 已完成并验证（Unreleased），原编号保留 | 首类受控 MCP 命令只更新 sandbox allowlist 当前正文，后续命令逐类评审 | B4 单事务核心与 B5 五工具只读默认；显式 controlled、私有 root／manifest、server actor、独立 TTY 人工批准 | 增加五工具后共十个，无批准签发工具或新增写 HTTP。Linux 主验收汇总为 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准 3 次。默认 MCP 零写入，Linux PTY／SDK session、全量回归与 wheel／sdist 隔离 smoke 通过；macOS／Windows 未测，不开放业务库或任意文件／SQL 写入。详见 [受控 MCP](mcp-controlled.md#b6-最终验收已通过) |
 | 候选阶段（不占 B 编号） | 未完成，未获生产授权 | 生产 SSO／RBAC、部署与回滚策略 | 独立评审、数据使用授权与上线批准 | 用跨身份／跨 scope 用例证明权限拒绝，完成脱敏检查；部署隔离、健康检查与故障恢复可复现，回滚演练区分服务版本回滚和知识修订，eval failed 不自动回滚知识。须形成可核查审批与演练记录 |
 
-推荐衔接为 **B-R1 已验证 → B-R2 已完成并验证 → B5／U22 只读 MCP → B6 候选受控命令**。B-R2 已把入口、summary 和证据口径收敛到同一条链路，但不取代各 driver 的安全断言。B5／U22 已完成并验证；B6 未实现，任何写工具都须独立确认审计、授权和用户确认条件，本轮不开放。若后续需要本地 Mac 统一入口，应单列平台兼容待办，不并入 B-R2 已完成状态；MCP 的 stdio 语义不改变该限制。生产阶段单独评审，不混入重构完成状态，也不承诺日期。
+推荐衔接为 **B-R1 已验证 → B-R2 已完成并验证 → B5／U22 只读 MCP → B6 受控命令**。B-R2 已把入口、summary 和证据口径收敛到同一条链路，但不取代各 driver 的安全断言。B5／U22 与 B6 均已完成并验证，依赖链路已闭环。受控模式必须独立绑定范围并取得人工批准，默认五工具只读不变。后续命令仍逐类评审，不能按本轮正文权限扩展到候选批准、retire／remove 或任意导入。若后续需要本地 Mac 统一入口，应单列平台兼容待办，不并入 B-R2 已完成状态；MCP 的 stdio 语义不改变该限制。生产阶段单独评审，不混入实现完成状态，也不承诺日期。
 
 ## B5／U22 只开放 stdio 读取
 
@@ -67,7 +67,15 @@ B2 历史浏览器验收只覆盖最短导航，未逐项人工检查全部状�
 
 Linux 真实 session、最终全量回归及隔离发行均通过，结果与命令见 [最终验证](mcp-readonly.md#最终验证已通过)。新版 [full summary](../.konwledge/workbench/be248fe7-e37c-4b6a-a0cf-d697a927bd8a/summary.json) 各组件均通过；MCP 的 72 项底层检查已单独确认，不把 B-R2 既有 82 项投影当作 MCP 验收。新版 live demo 的停止记录与原始 wheel／sdist 报告见 [发行证据](mcp-readonly.md#隔离发行验证保留原始证据)，旧 B-R2 历史报告保留原样。macOS 未实测，Mac 统一入口继续单列平台待办，不计入 B5 或 B-R2 已完成范围。
 
-B6 候选尚未实现，后续写命令仍须独立授权、审计、preview 和显式确认。实现已完成不表示已推送或发布，提交以 Git 历史为准，本轮不提交或推送。
+B5 五工具只读默认与上述历史结果保持不变。B6 验收结果见下节；feature 分支提交与推送以 Git 历史为准，实现状态不代表发布授权。
+
+## B6 正文更新已完成并验证
+
+Linux 主验收已补齐。命令和完整契约见 [受控 MCP 正文更新](mcp-controlled.md)。范围固定为 B4 prepare 格式的私有 sandbox 当前正文；root／manifest／actor 由操作人员绑定，工具不能指定写目标。带外 TTY 审阅 Diff 后签发私有 grant，apply 只能持批准提交，Agent 布尔确认无效；同 OS 身份仍须权限隔离，生产 SSO／RBAC 未做。
+
+主验收汇总为 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准 3 次。默认 MCP 维持 B5 的五个只读工具与零写入结果；Linux PTY／SDK session、全量回归与 wheel／sdist 隔离发行验证均通过，macOS／Windows 未测，B-R2 平台待办继续独立保留。B5 的 2131 等历史结果不改写，也不回填为 B6。
+
+后续受控命令仍按类别单独核验 validator、scope／actor、审计、preview、批准与失败恢复；当前没有 candidate approve、retire／remove、任意文件导入或 SQL 写入。知识提交、人工批准与提交后评测各有状态：评测失败不撤销知识，未知写结果只按固定原键回查；生产写、部署与回滚仍须单独评审。
 
 ## B-R1 只合并机械逻辑
 

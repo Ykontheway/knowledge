@@ -4,15 +4,23 @@ All notable changes to Konwledge are documented in this file.
 
 The project is in alpha. Minor releases may refine public and lower-level APIs as capabilities are added; v0.1.0 does not provide a complete backward-compatibility guarantee.
 
-## Unreleased - U14-U20、U22 and B1-B5, B-R1, B-R2
+## Unreleased - U14-U20、U22 and B1-B6, B-R1, B-R2
+
+### B6 受控 MCP 正文更新已完成并验证
+
+- **B6 已完成并验证。** 版本仍为 `0.1.0` prepared。Linux 主验收汇总为 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准 3 次。B5 已完成的五工具只读默认状态和历史结果保留；默认 MCP 维持五个只读工具，知识、command、outbox 与批准审计均为零写入。feature 分支提交与推送以 Git 历史为准；未创建 PR、合并 main、创建 tag、发布 PyPI 或公开部署。
+- 两个 stdio 入口仅在显式 `--controlled --mutation-manifest MANIFEST --actor demo-editor --demo-root ROOT` 后增加 `get_mutation_session`、`get_mutation_document`、`preview_document_update`、`apply_document_update`、`get_mutation_command`，总计十个工具。只允许 B4 prepare 格式私有 sandbox 的 allowlist 当前正文更新，不使用业务库，不增加批准签发工具或写 HTTP，不开放候选批准、retire／remove、任意文件导入或 SQL 写入。
+- `knowledge mcp approve` 在独立 TTY 显示 JSON 转义 Diff 与 checksums，要求键入完整批准短语；没有 `--yes`／`--confirmed`。私有 grant 最长 120 秒且不晚于 preview 300 秒，绑定身份、scope、键、内容与请求指纹。apply 不接受 `confirmed`，人工只转交 `approval_token`，confirmation token 来自 preview；同 OS 身份仍须权限隔离，不宣称密码学人类证明或企业 SSO／RBAC。Linux PTY／SDK session 已实测通过，macOS／Windows 未实测。
+- 严格预检后受控启动只新增 `mcp_approvals`，不升级核心或回填 FTS。get 不写，preview／approve 仅写各自审计；实际变更与 revision／FTS／command／outbox、grant 消费同事务提交。评测失败仍返回 `committed=true`、`isError=false`；未知／EOF／响应丢失只按原幂等键回查，不自动重试写请求。
+- 发行 smoke 已补强：`uv run python scripts/verify_distribution.py` 现要求 sdist 带上本文与受控 smoke／测试文件，wheel／sdist 隔离验证通过。写工具参数 JSON UTF-8 上限 128 KiB、正文 64 KiB、完整 CallToolResult 2 MiB；响应计入 text 与 structuredContent，不含 JSON-RPC wrapper，不限制输入 wire 或峰值内存。DTO 与固定错误码不透传 metadata／locator／raw exception，allowlist 当前完整正文属于明确受控授权文本。SDK 保持可选 `mcp>=1.30.0,<2`，无新增 FastAPI 依赖。实际命令、批准文件与恢复语义见 [受控 MCP 正文更新](docs/mcp-controlled.md)，最终验收见该文末节。
 
 ### B5／U22 只读 MCP 已完成并验证
 
-- 原 ID 保留，状态为 Unreleased，版本仍为 `0.1.0` prepared。Linux 真实 SDK stdio session、完整回归与 wheel／sdist 隔离安装验证通过；提交以 Git 历史为准，本轮不提交或推送，未创建 MR／PR、合并 main、创建 tag、发布 Release／PyPI 或公开部署。
+- 原 ID 保留，状态为 Unreleased，版本仍为 `0.1.0` prepared。Linux 真实 SDK stdio session、完整回归与 wheel／sdist 隔离安装验证通过；提交与推送以 Git 历史为准；未创建 MR／PR、合并 main、创建 tag、发布 Release／PyPI 或公开部署。
 - 新增共用实现的 `knowledge mcp serve --database FILE` 与 `konwledge-mcp --database FILE`。可选 `[mcp]` 与开发组均使用 `mcp>=1.30.0,<2`，核心 `pydantic>=2.7,<3` 未收紧；为避免上游兼容问题，以已测 SDK `1.30.0` 为 baseline，不承诺旧 SDK `1.2`／`1.20` 支持。SDK 不进入 core 运行时依赖，缺 extra 安全 stderr 提示、退出 `1`，不接触或创建数据库。
 - 五个工具固定 lexical／active 检索，严格输入拒绝未知字段、非字符串 query 及数字／布尔值／数字字符串时间；允许带时区的 Python `datetime` 与 ISO 日期时间 wire。独立 SQLite `mode=ro`／`query_only`／事务 rollback 保留，不初始化写服务，不继承 B4 写权限。上下文仅限制字符和块数，无 token 预算；精确证据保留旧版本与 hash 锚点，输出白名单和既有读写边界不变。
 - 每个 Tool 已实现四项 `ToolAnnotations` hint、标准 `outputSchema`、`structuredContent` 与 JSON `TextContent`，无旧 SDK fallback；实际防护仍来自物理只读连接。完整 `CallToolResult` UTF-8 序列化结果含 text 转义与结构化内容，上限 2 MiB；不含 JSON-RPC 外层，不限制输入 bytes 或序列化峰值。超限返回 `413/mcp_response_too_large`，不截断精确证据；非法 Unicode／非有限浮点返回固定安全 `500`，不反射异常。
-- 完整回归、Linux 显式 live 与 wheel／sdist core-only／extra/default／min1.30 隔离安装通过，Pydantic 未人工 pin。MCP 的 72 项底层发行检查单独确认通过，不混入 B-R2 既有 82 项投影；新版 full 验收通过，live demo 停止仍记为 `stopped`，历史报告不改写。macOS 未实测，B-R2 平台待办与未实现的 B6 候选独立保留。完整结果、命令与原始证据见 [只读 MCP 使用说明](docs/mcp-readonly.md)。
+- 完整回归、Linux 显式 live 与 wheel／sdist core-only／extra/default／min1.30 隔离安装通过，Pydantic 未人工 pin。MCP 的 72 项底层发行检查单独确认通过，不混入 B-R2 既有 82 项投影；新版 full 验收通过，live demo 停止仍记为 `stopped`，历史报告不改写。macOS 未实测，B-R2 平台待办独立保留；B6 最终结果另见上节，不改写本条 B5 历史结果。完整结果、命令与原始证据见 [只读 MCP 使用说明](docs/mcp-readonly.md)。
 - 修复旧 lease 测试时钟早于实际 mutation 发布时间、导致 as-of 检索不可见的问题，仅调整测试逻辑时钟；整文件 49 项及相关 2 项重复 5 轮均通过，生产 threshold 未改。
 
 ### B-R2 统一入口已完成并验证
@@ -32,7 +40,7 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 - `SCHEMA_SDIST_FILES` 已纳入 `scripts/schema_utils.py` 与 `tests/test_schema_utils.py`，缺文件拒绝检查通过，避免 sdist 遗漏共享依赖。新发行验证 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) 的 wheel／sdist 隔离 smoke 通过，未发布。
 - 最终检查：`ruff check .` passed；`ruff format --check .` 为 210 files；`mypy src tests scripts` 为 185 sources success；management／mutation schema `--check` 通过，两份输出逐字节不变。Python `pytest` 为 **1515 passed、3 skipped**，前端 `pnpm verify` 为 **430 passed、2 skipped**；两个 live test 常规需联调环境、默认 skip。生产 build 的 584.38 kB chunk 提醒非阻断。
 - 完整 B4 HTTP／jsdom driver 另跑通过，`children_stopped=true`，scope 为 `c2c9b890-e706-4362-a7fe-e4675edef052`，见 [本轮 B4 验收报告](.konwledge/mutation-demo/c2c9b890-e706-4362-a7fe-e4675edef052/b4-acceptance-report.json)。command／jobs 各 3，任务仍为 `passed → failed → passed`，mean Recall 为 `1 → 2/3 → 1`；GET 恢复不重复写，历史失败／Diff／证据保留。这不表示普通回归的两个 skipped 都已运行。
-- [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 保留 B1～B4 职责、ID、依赖和不合并边界。B-R2 已完成并验证；后续仍接 B5／U22 只读 MCP、B6 候选受控命令。B5／U22 已完成并验证；B6 未实现。生产 SSO／RBAC、部署与回滚另设阶段门禁。下列 B4 的 1495／352 等数量及旧条目的“本轮／本次”仍指历史验收，不与 B-R1 最终数量相加，也不作为 B-R2 结果。
+- [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 保留 B1～B4 职责、ID、依赖和不合并边界。B-R2 已完成并验证；后续衔接仍为 B5／U22 只读 MCP、B6 受控命令。B5／U22 与 B6 均已完成并验证，依赖链路已闭环。生产 SSO／RBAC、部署与回滚另设阶段门禁。下列 B4 的 1495／352 等数量及旧条目的“本轮／本次”仍指历史验收，不与 B-R1 最终数量相加，也不作为 B-R2 结果。
 
 ### B4 受控变更交互
 

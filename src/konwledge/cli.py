@@ -16,8 +16,10 @@ from pathlib import Path
 from typing import Annotated, Any, NoReturn
 from uuid import UUID
 
+import click
 import typer
 from pydantic import ValidationError
+from typer.core import TyperGroup
 
 from konwledge import __version__
 from konwledge.application import ImportPathError, KnowledgeLibrary, KnowledgeUnitNotFoundError
@@ -86,7 +88,37 @@ app = typer.Typer(
 app.add_typer(database_app, name="database")
 app.add_typer(auto_evaluation_app, name="auto-evaluation")
 app.add_typer(quality_app, name="quality")
-mcp_app = typer.Typer(help="只读 MCP stdio 服务。", pretty_exceptions_enable=False)
+
+
+# Typer 新版内置 Click，旧版使用独立 Click；通过公开 BadParameter 的
+# UsageError 基类兼容两者，避免依赖 typer._click 私有模块。
+_MCP_USAGE_ERRORS: tuple[type[Exception], ...] = (
+    click.UsageError,
+    typer.BadParameter.__bases__[0],
+)
+
+
+class _SafeMcpGroup(TyperGroup):
+    """MCP 专用参数错误不回显 argv；不改变其他 CLI 命令的错误格式。"""
+
+    def parse_args(self, ctx: Any, args: list[str]) -> list[str]:
+        try:
+            return super().parse_args(ctx, args)
+        except _MCP_USAGE_ERRORS:
+            _fail("MCP 参数无效。", code=2)
+
+    def invoke(self, ctx: Any) -> Any:
+        try:
+            return super().invoke(ctx)
+        except _MCP_USAGE_ERRORS:
+            _fail("MCP 参数无效。", code=2)
+
+
+mcp_app = typer.Typer(
+    help="默认只读 MCP stdio 服务与带外人工批准。",
+    cls=_SafeMcpGroup,
+    pretty_exceptions_enable=False,
+)
 app.add_typer(mcp_app, name="mcp")
 
 AtOption = Annotated[
@@ -304,20 +336,89 @@ def _status_label(state: UnitState | None) -> str:
 def mcp_serve_command(
     database: Annotated[
         Path,
-        typer.Option("--database", "-d", help="已有 SQLite 数据库文件（不会创建或升级）。"),
+        typer.Option("--database", "-d", help="已有 SQLite 数据库文件（默认不创建或升级）。"),
     ] = DEFAULT_DATABASE,
+    controlled: Annotated[
+        bool, typer.Option("--controlled", help="显式启用五个受控演示工具；不签发批准。")
+    ] = False,
+    mutation_manifest: Annotated[
+        Path | None, typer.Option("--mutation-manifest", help="私有 mutation demo manifest JSON。")
+    ] = None,
+    actor: Annotated[
+        str | None, typer.Option("--actor", help="安全 ASCII 操作者标识（1-80 字符）。")
+    ] = None,
+    demo_root: Annotated[
+        Path | None, typer.Option("--demo-root", help="私有演示根目录（默认工作目录下）。")
+    ] = None,
 ) -> None:
-    """通过标准输入/输出提供五个只读 MCP 工具。"""
+    """stdio 默认五个只读工具；仅 --controlled 可启用受控正文更新。"""
 
     # SDK 和 server 仅在真正启动时加载；不走会建库/升级的 _open_library。
     try:
         from konwledge.mcp.server import run_server
 
-        run_server(database)
+        run_server(
+            database,
+            controlled=controlled,
+            mutation_manifest=mutation_manifest,
+            actor=actor,
+            demo_root=demo_root,
+        )
     except ImportError:
         _fail("缺少 MCP 可选依赖；请安装：pip install 'konwledge[mcp]'")
+    except KeyboardInterrupt:
+        raise typer.Exit(code=130) from None
     except Exception:
         _fail("MCP 服务无法启动或运行。")
+
+
+@mcp_app.command("approve")
+def mcp_approve_command(
+    database: Annotated[Path, typer.Option("--database", "-d", help="私有演示数据库。")],
+    mutation_manifest: Annotated[
+        Path, typer.Option("--mutation-manifest", help="私有 mutation demo manifest JSON。")
+    ],
+    actor: Annotated[str, typer.Option("--actor", help="与受控服务相同的操作者标识。")],
+    preview_id: Annotated[str, typer.Option("--preview-id", help="待人工审阅的 preview UUID。")],
+    idempotency_key: Annotated[
+        str, typer.Option("--idempotency-key", help="批准绑定的原 command UUID。")
+    ],
+    demo_root: Annotated[
+        Path | None, typer.Option("--demo-root", help="私有演示根目录（默认工作目录下）。")
+    ] = None,
+) -> None:
+    """带外 TTY 人工批准；无 --yes/--confirmed，不通过 MCP 签发或输出 token。"""
+
+    # UUID/actor/scope 校验由安全的批准入口完成，不由 Click 回显非法值。
+    # 本入口不读取批准文件/token，不连接 MCP，也不要求可选 SDK。
+    try:
+        from konwledge.mcp.approval_cli import main as approval_main
+
+        code = approval_main(
+            [
+                "--database",
+                str(database),
+                "--mutation-manifest",
+                str(mutation_manifest),
+                "--actor",
+                actor,
+                "--demo-root",
+                str(
+                    demo_root
+                    if demo_root is not None
+                    else Path.cwd() / ".konwledge" / "mutation-demo"
+                ),
+                "--preview-id",
+                preview_id,
+                "--idempotency-key",
+                idempotency_key,
+            ]
+        )
+    except KeyboardInterrupt:
+        raise typer.Exit(code=130) from None
+    except Exception:
+        _fail("MCP 人工批准无法启动或运行。")
+    raise typer.Exit(code=code)
 
 
 @app.command("serve")

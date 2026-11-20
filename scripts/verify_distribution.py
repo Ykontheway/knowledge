@@ -28,13 +28,51 @@ TOKENS_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_tokens_smoke.py"
 API_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_api_smoke.py"
 POSTGRES_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_postgres_smoke.py"
 MCP_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_mcp_smoke.py"
+MCP_CONTROLLED_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_mcp_controlled_smoke.py"
 MCP_MODULES = tuple(
-    f"konwledge/mcp/{name}.py" for name in ("__init__", "models", "service", "server")
+    f"konwledge/mcp/{name}.py"
+    for name in (
+        "__init__",
+        "models",
+        "service",
+        "server",
+        "controlled_models",
+        "controlled_tables",
+        "controlled_safety",
+        "controlled",
+        "approval_cli",
+    )
 )
 MCP_SDIST_FILES = (
     "tests/test_mcp_service.py",
     "tests/test_mcp_protocol.py",
     "scripts/installed_mcp_smoke.py",
+    "scripts/installed_mcp_controlled_smoke.py",
+    "tests/test_mcp_controlled_service.py",
+    "tests/test_mcp_approval_cli.py",
+    "tests/test_mcp_controlled_protocol.py",
+    "tests/test_distribution_mcp.py",
+    "tests/test_distribution_mcp_controlled.py",
+    "docs/mcp-controlled.md",
+)
+MCP_CONTROLLED_CHECKS = (
+    "installed_nine_mcp_modules",
+    "mcp_only_dependency_boundary",
+    "default_five_tools_no_controlled_imports_or_tables",
+    "fresh_private_b4_seed_actual_quality_four_cases",
+    "controlled_startup_approval_schema_only",
+    "initialize_ten_tools_explicit_schemas_annotations",
+    "session_document_reads_zero_writes",
+    "preview_and_pty_approval_no_knowledge_jobs",
+    "pty_exact_escaped_review_private_grant_no_token_stdout",
+    "non_tty_and_wrong_phrase_denied",
+    "scope_actor_expiry_token_key_confirmed_denied_unchanged",
+    "approval_consume_knowledge_outbox_atomic_rollback",
+    "passed_failed_passed_fixed_dataset_committed",
+    "same_key_replay_no_extra_job",
+    "restart_command_diff_exact_historical_evidence",
+    "safe_unknown_approval_tool_errors",
+    "stdio_eof_no_orphans_no_secret_output",
 )
 API_MODULES = tuple(
     f"konwledge/api/{name}.py"
@@ -213,7 +251,17 @@ def _metadata_identity(text: str, expected_name: str, expected_version: str) -> 
     mcp_requirements = 0
     for requirement in requirements:
         dependency = canonicalize_name(re.split(r"[\s<>=!~;\[]", requirement, maxsplit=1)[0])
-        if dependency in {"openai", "langchain-openai", "httpx"}:
+        if dependency in {
+            "openai",
+            "langchain-openai",
+            "httpx",
+            "pytest",
+            "pytest-cov",
+            "ruff",
+            "mypy",
+            "jsonschema",
+            "types-jsonschema",
+        }:
             raise ValueError("distribution contains SDK/test runtime dependencies")
         if dependency in {"fastapi", "uvicorn"}:
             if not re.search(r"extra\s*==\s*['\"]api['\"]", requirement):
@@ -574,6 +622,89 @@ def _run_mcp_smoke(python: Path, script: Path, version: str, mode: str) -> dict[
     return load_mcp_summary(result.stdout, version, mode)
 
 
+def load_mcp_controlled_summary(stdout: str, version: str) -> dict[str, Any]:
+    """B6 独立投影只接受固定检查名称与实测计数，不反射正文、路径或 capability。"""
+    expected = {
+        "runtime_modules": 9,
+        "tools": 10,
+        "quality_cases": 4,
+        "commands": 3,
+        "jobs": 3,
+        "passed_jobs": 2,
+        "failed_jobs": 1,
+        "consumed_grants": 3,
+    }
+    minimums = {
+        "sessions": 4,
+        "pty_approvals": 3,
+        "rejected_calls": 12,
+        "successful_calls": 20,
+        "protocol_responses": 30,
+        "seed_files": 4,
+    }
+    try:
+        summary = json.loads(stdout)
+        if not isinstance(summary, dict) or set(summary) != {
+            "version",
+            "passed",
+            "mode",
+            "sdk_version",
+            "pydantic_version",
+            "checks",
+            "counts",
+        }:
+            raise ValueError
+        if (
+            summary["version"] != version
+            or summary["passed"] is not True
+            or summary["mode"] != "controlled_extra"
+            or summary["checks"] != list(MCP_CONTROLLED_CHECKS)
+        ):
+            raise ValueError
+        counts = summary["counts"]
+        if not isinstance(counts, dict) or set(counts) != set(expected) | set(minimums):
+            raise ValueError
+        for key, value in counts.items():
+            if type(value) is not int or value < 0:
+                raise ValueError
+            if key in expected and value != expected[key]:
+                raise ValueError
+            if key in minimums and value < minimums[key]:
+                raise ValueError
+        for key, lower, upper in (
+            ("sdk_version", (1, 30, 0), (2, 0, 0)),
+            ("pydantic_version", (2, 7, 0), (3, 0, 0)),
+        ):
+            value = summary[key]
+            if (
+                not isinstance(value, str)
+                or re.fullmatch(r"\d+\.\d+\.\d+", value) is None
+                or not lower <= tuple(int(part) for part in value.split(".")) < upper
+            ):
+                raise ValueError
+    except (ValueError, KeyError, TypeError):
+        raise RuntimeError(
+            "controlled MCP smoke summary failed safe schema/check/count validation"
+        ) from None
+    return summary
+
+
+def _run_mcp_controlled_smoke(python: Path, script: Path, version: str) -> dict[str, Any]:
+    result = subprocess.run(
+        [str(python), "-I", str(script), "--expected-version", version],
+        cwd=script.parent,
+        env=_sanitized_environment(),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=600,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("isolated installed controlled MCP smoke failed")
+    return load_mcp_controlled_summary(result.stdout, version)
+
+
 def _smoke_install(
     *,
     uv: str,
@@ -596,6 +727,11 @@ def _smoke_install(
             "-c",
             (
                 "import importlib.util, sys; import konwledge, konwledge.cli; "
+                "assert konwledge.cli.main(['--help']) == 0; "
+                "assert konwledge.cli.main(['mcp', 'approve', '--help']) == 0; "
+                "assert not any(n.startswith(('konwledge.mcp.controlled', "
+                "'konwledge.mcp.approval_cli')) for n in sys.modules), "
+                "'core help eagerly imported controlled'; "
                 "assert not any(n.startswith('konwledge.mutations') for n in sys.modules), "
                 "'core install eagerly imported mutations'; "
                 "assert importlib.util.find_spec('fastapi') is None; "
@@ -728,6 +864,14 @@ def _smoke_install(
     mcp_python = _venv_python(mcp_venv)
     _run([uv, "pip", "install", "--python", str(mcp_python), f"{artifact}[mcp]"], cwd=scratch)
     mcp_summary = _run_mcp_smoke(mcp_python, mcp_smoke_script, version, "extra")
+    controlled_script = run_dir / MCP_CONTROLLED_SMOKE_SCRIPT.name
+    shutil.copyfile(MCP_CONTROLLED_SMOKE_SCRIPT, controlled_script)
+    # 当前 SDK 的 wheel/sdist 各跑一次真实受控验收；B5 最低版本 lane 不变。
+    summary["mcp_controlled_extra"] = _run_mcp_controlled_smoke(
+        mcp_python,
+        controlled_script,
+        version,
+    )
 
     # 公共范围最低 SDK 完整依赖也只进入新增 [mcp] 环境，不污染 core/API/dev。
     minimum_venv = scratch / f"{distribution_format}-mcp-minimum-venv"
