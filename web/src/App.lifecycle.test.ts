@@ -17,14 +17,17 @@ const clientMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("./management/client", () => ({
-  managementClient: clientMocks.managementClient,
-}));
+vi.mock("./management/client", async () => {
+  const actual = await vi.importActual<typeof import("./management/client")>("./management/client");
+  return { ...actual, managementClient: clientMocks.managementClient };
+});
 
 import App from "./App";
+import { makeReplayBundle, replayIds } from "./management/replayTestUtils";
 import { ManagementError, type JobDTO } from "./management/types";
 
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
+const previousFetch = globalThis.fetch;
 const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
 const roots = new Set<Root>();
 
@@ -46,6 +49,7 @@ afterEach(async () => {
   roots.clear();
   document.body.innerHTML = "";
   window.history.replaceState(null, "", "#overview");
+  globalThis.fetch = previousFetch;
   vi.resetAllMocks();
 });
 
@@ -290,6 +294,14 @@ function makeDeferred<T>() {
   return { promise, resolve };
 }
 
+function mockReplayFetch(bundle = makeReplayBundle()) {
+  const fetchMock = vi.fn<typeof globalThis.fetch>(async () =>
+    new Response(JSON.stringify(bundle), { status: 200, headers: { "content-type": "application/json" } }),
+  );
+  globalThis.fetch = fetchMock;
+  return fetchMock;
+}
+
 describe("App lifecycle workbench", () => {
 
   it("supports full mock navigation across jobs, revision, diff and evidence, plus back/forward", async () => {
@@ -336,6 +348,33 @@ describe("App lifecycle workbench", () => {
     expect(window.location.hash).toContain("/diff");
     expect(container.textContent).toContain("历史 Diff");
 
+  });
+
+  it("navigates replay lifecycle diff and evidence without live client fallback", async () => {
+    const fetchMock = mockReplayFetch();
+    const { container, root } = setupDom();
+    await setHash("#replay/lifecycle/jobs");
+    await renderApp(root);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(clientMocks.managementClient.listJobs).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("静态回放 · 非实时 / 仅合成公开语料");
+    expect(container.querySelector(`a[href='#replay/lifecycle/jobs/${replayIds.candidate}']`)).toBeTruthy();
+
+    await followLink(container, `#replay/lifecycle/jobs/${replayIds.candidate}`);
+    expect(container.textContent).toContain("任务详情");
+    expect(container.querySelector(`a[href='#replay/lifecycle/revisions/${replayIds.revisionA}']`)).toBeTruthy();
+
+    await followLink(container, `#replay/lifecycle/revisions/${replayIds.revisionA}`);
+    expect(container.textContent).toContain("Revision 详情");
+
+    await followLink(container, `#replay/lifecycle/documents/${replayIds.newDocument}/diff?old=${replayIds.oldDocument}`);
+    expect(container.textContent).toContain("历史 Diff");
+    expect(container.querySelector(`a[href='#replay/lifecycle/evidence/${replayIds.newUnit}']`)).toBeTruthy();
+
+    await followLink(container, `#replay/lifecycle/evidence/${replayIds.newUnit}`);
+    expect(container.textContent).toContain("旧值改成 20 ✅");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("stays on a safe page for invalid routes and does not start management fetches", async () => {

@@ -8,6 +8,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:preview": "tsc --noEmit && vite build --mode replay --outDir dist-preview",
+    "preview:replay": "vite preview --outDir dist-preview",
+    "check:replay": "vitest run src/management/replay.integration.test.ts src/management/validation.nullable.test.ts src/preview.test.ts src/preview.app.test.tsx",
+    "verify:preview": "pnpm check:replay && pnpm build:preview && node scripts/check-preview.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

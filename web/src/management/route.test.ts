@@ -13,6 +13,7 @@ import {
   lifecycleLineageHash,
   lifecycleRevisionHash,
   parseHashRoute,
+  replayEntryHash,
 } from "./route";
 
 const jobId = "11111111-1111-1111-1111-111111111111";
@@ -24,20 +25,22 @@ const unitId = "66666666-6666-6666-6666-666666666666";
 
 describe("management hash routes", () => {
   it("parses supported lifecycle deep links", () => {
-    expect(parseHashRoute(lifecycleEntryHash())).toEqual({ view: "lifecycle", kind: "jobs", status: undefined, offset: 0 });
+    expect(parseHashRoute(lifecycleEntryHash())).toEqual({ view: "lifecycle", kind: "jobs", status: undefined, offset: 0, mode: "live" });
     expect(parseHashRoute(lifecycleJobsHash({ status: "failed", offset: 20 }))).toEqual({
       view: "lifecycle",
       kind: "jobs",
       status: "failed",
       offset: 20,
+      mode: "live",
     });
-    expect(parseHashRoute(lifecycleJobHash(jobId))).toEqual({ view: "lifecycle", kind: "job", id: jobId });
-    expect(parseHashRoute(lifecycleRevisionHash(revisionId))).toEqual({ view: "lifecycle", kind: "revision", id: revisionId });
+    expect(parseHashRoute(lifecycleJobHash(jobId))).toEqual({ view: "lifecycle", kind: "job", id: jobId, mode: "live" });
+    expect(parseHashRoute(lifecycleRevisionHash(revisionId))).toEqual({ view: "lifecycle", kind: "revision", id: revisionId, mode: "live" });
     expect(parseHashRoute(lifecycleDocumentHash(documentId, 40))).toEqual({
       view: "lifecycle",
       kind: "document",
       id: documentId,
       offset: 40,
+      mode: "live",
     });
     expect(parseHashRoute(lifecycleDiffHash(documentId, oldDocumentId, 20))).toEqual({
       view: "lifecycle",
@@ -45,14 +48,16 @@ describe("management hash routes", () => {
       newId: documentId,
       oldId: oldDocumentId,
       offset: 20,
+      mode: "live",
     });
     expect(parseHashRoute(lifecycleLineageHash(lineageId, 60))).toEqual({
       view: "lifecycle",
       kind: "lineage",
       id: lineageId,
       offset: 60,
+      mode: "live",
     });
-    expect(parseHashRoute(lifecycleEvidenceHash(unitId))).toEqual({ view: "lifecycle", kind: "evidence", id: unitId });
+    expect(parseHashRoute(lifecycleEvidenceHash(unitId))).toEqual({ view: "lifecycle", kind: "evidence", id: unitId, mode: "live" });
   });
 
   it("rejects invalid ids and unsupported query keys without falling through to fetch", () => {
@@ -80,6 +85,7 @@ describe("management hash routes", () => {
       reference: jobId,
       candidate: revisionId,
       offset: 40,
+      mode: "live",
     });
     expect(parseHashRoute(guideHash({ normal: jobId, fault: revisionId, restore: documentId, offset: 20 }))).toEqual({
       view: "guide",
@@ -88,10 +94,11 @@ describe("management hash routes", () => {
       fault: revisionId,
       restore: documentId,
       offset: 20,
+      mode: "live",
     });
-    expect(parseHashRoute("#evaluation?reference=not-a-uuid")).toMatchObject({ view: "evaluation", kind: "invalid", reason: "invalid_query" });
-    expect(parseHashRoute(`#guide?normal=${jobId}&normal=${revisionId}`)).toMatchObject({ view: "guide", kind: "invalid", reason: "invalid_query" });
-    expect(parseHashRoute(`#evaluation?reference=${jobId}&secret=token`)).toMatchObject({ view: "evaluation", kind: "invalid", reason: "invalid_query" });
+    expect(parseHashRoute("#evaluation?reference=not-a-uuid")).toMatchObject({ view: "evaluation", kind: "invalid", reason: "invalid_query", mode: "live" });
+    expect(parseHashRoute(`#guide?normal=${jobId}&normal=${revisionId}`)).toMatchObject({ view: "guide", kind: "invalid", reason: "invalid_query", mode: "live" });
+    expect(parseHashRoute(`#evaluation?reference=${jobId}&secret=token`)).toMatchObject({ view: "evaluation", kind: "invalid", reason: "invalid_query", mode: "live" });
     expect(parseHashRoute(`#guide%2Fanything?normal=${jobId}`)).toMatchObject({ kind: "invalid", reason: "invalid_query" });
     expect(parseHashRoute(`#evaluation?reference=${jobId}?candidate=${revisionId}`)).toMatchObject({ kind: "invalid", reason: "invalid_query" });
   });
@@ -100,6 +107,34 @@ describe("management hash routes", () => {
     expect(parseHashRoute("")).toEqual({ view: "overview" });
     expect(parseHashRoute("#trace")).toEqual({ view: "trace" });
     expect(parseHashRoute("#unknown-view")).toEqual({ view: "overview" });
+    expect(parseHashRoute(replayEntryHash())).toEqual({
+      view: "guide",
+      kind: "steps",
+      normal: undefined,
+      fault: undefined,
+      restore: undefined,
+      offset: 0,
+      mode: "replay",
+    });
+    expect(parseHashRoute(lifecycleDocumentHash(documentId, 40, { mode: "replay" }))).toEqual({
+      view: "lifecycle",
+      kind: "document",
+      id: documentId,
+      offset: 40,
+      mode: "replay",
+    });
+    expect(parseHashRoute(`#replay/evaluation?reference=${jobId}&reference=${revisionId}`)).toMatchObject({
+      view: "evaluation",
+      kind: "invalid",
+      reason: "invalid_query",
+      mode: "replay",
+    });
+    expect(parseHashRoute(`#replay/guide?normal=${jobId}&token=secret`)).toMatchObject({
+      view: "guide",
+      kind: "invalid",
+      reason: "invalid_query",
+      mode: "replay",
+    });
     expect(getBreadcrumbMeta(parseHashRoute("#diff"))).toEqual({
       section: "静态演示",
       title: "版本 Diff",
@@ -109,6 +144,11 @@ describe("management hash routes", () => {
       section: "实时工作台 / 只读",
       title: "任务详情",
       tone: "live",
+    });
+    expect(getBreadcrumbMeta(parseHashRoute(lifecycleJobHash(jobId, { mode: "replay" })))).toEqual({
+      section: "静态回放 / 只读",
+      title: "任务详情",
+      tone: "replay",
     });
   });
 });

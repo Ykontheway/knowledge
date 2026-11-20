@@ -17,12 +17,17 @@ const clientMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("./management/client", () => ({ managementClient: clientMocks.managementClient }));
+vi.mock("./management/client", async () => {
+  const actual = await vi.importActual<typeof import("./management/client")>("./management/client");
+  return { ...actual, managementClient: clientMocks.managementClient };
+});
 
 import App from "./App";
+import { makeReplayBundle, replayIds } from "./management/replayTestUtils";
 import { ManagementError, type JobDTO, type Page, type SafeCheck } from "./management/types";
 
 const actEnvironment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
+const previousFetch = globalThis.fetch;
 const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
 const roots = new Set<Root>();
 
@@ -37,6 +42,7 @@ afterEach(async () => {
   roots.clear();
   document.body.innerHTML = "";
   window.history.replaceState(null, "", "#overview");
+  globalThis.fetch = previousFetch;
   vi.useRealTimers();
   vi.resetAllMocks();
 });
@@ -160,6 +166,14 @@ function selectedOverview(container: HTMLElement): string {
 }
 function mockGetJobFromMap(map: ReadonlyMap<string, JobDTO>): void {
   clientMocks.managementClient.getJob.mockImplementation((id: string) => Promise.resolve(map.get(id)!));
+}
+
+function mockReplayFetch(bundle = makeReplayBundle()) {
+  const fetchMock = vi.fn<typeof globalThis.fetch>(async () =>
+    new Response(JSON.stringify(bundle), { status: 200, headers: { "content-type": "application/json" } }),
+  );
+  globalThis.fetch = fetchMock;
+  return fetchMock;
 }
 
 class Deferred<T> {
@@ -345,5 +359,48 @@ describe("App evaluation and guide views", () => {
     expect(container.querySelector(`a[href='#evaluation?reference=${ids.normal}&candidate=${ids.fault}']`)).toBeTruthy();
     expect(container.querySelector(`a[href='#evaluation?reference=${ids.fault}&candidate=${ids.restore}']`)).toBeTruthy();
     expect(container.textContent).toContain("no-answer、stale、citation");
+  });
+
+  it("loads replay evaluation defaults without live fetch or observer controls, and keeps replay pagination", async () => {
+    const fetchMock = mockReplayFetch();
+    const { container, root } = setupDom();
+    await setHash("#replay/evaluation");
+    await renderApp(root);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(clientMocks.managementClient.listJobs).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("静态回放 · 非实时 / 仅合成公开语料");
+    expect(container.textContent).toContain("模式：静态回放，仅合成公开语料，不会请求 /v1 live API。");
+    expect(container.textContent).not.toContain("观察新任务（5分钟）");
+    expect(selectedOverview(container)).toContain(replayIds.reference.slice(0, 8));
+    expect(selectedOverview(container)).toContain(replayIds.candidate.slice(0, 8));
+    expect(container.querySelector(`a[href='#replay/lifecycle/jobs/${replayIds.reference}']`)).toBeTruthy();
+
+    await act(async () => {
+      button(container, "下一页").click();
+    });
+
+    expect(window.location.hash).toContain("#replay/evaluation?");
+    expect(window.location.hash).toContain("offset=20");
+    expect(window.location.hash).toContain(`reference=${replayIds.reference}`);
+    expect(window.location.hash).toContain(`candidate=${replayIds.candidate}`);
+
+    await tick(() => button(container, "刷新").click());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads replay guide defaults and links the three-stage story with replay-prefixed comparisons", async () => {
+    const fetchMock = mockReplayFetch();
+    const { container, root } = setupDom();
+    await setHash("#replay");
+    await renderApp(root);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(clientMocks.managementClient.listJobs).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("回放模式使用父流程生成的静态 bundle");
+    expect(container.textContent).toContain("三阶段满足回放故事条件");
+    expect(container.querySelector(`a[href='#replay/evaluation?reference=${replayIds.reference}&candidate=${replayIds.candidate}']`)).toBeTruthy();
+    expect(container.querySelector(`a[href='#replay/evaluation?reference=${replayIds.candidate}&candidate=${replayIds.recovery}']`)).toBeTruthy();
+    expect(container.textContent).toContain("回放默认指向 bundle.story.reference_job_id");
   });
 });

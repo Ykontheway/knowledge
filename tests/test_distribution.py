@@ -16,6 +16,8 @@ from scripts.verify_distribution import (
     MUTATION_MODULES,
     MUTATION_SDIST_FILES,
     QUALITY_MODULES,
+    REPLAY_MODULES,
+    REPLAY_SDIST_FILES,
     SCHEMA_SDIST_FILES,
     TOKEN_MODULES,
     WORKBENCH_SDIST_FILES,
@@ -67,6 +69,8 @@ def _sdist_files(root: str = SDIST_ROOT) -> dict[str, str]:
         **dict.fromkeys((f"{root}/src/{module}" for module in QUALITY_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in TOKEN_MODULES), ""),
+        **dict.fromkeys((f"{root}/src/{module}" for module in REPLAY_MODULES), ""),
+        **dict.fromkeys((f"{root}/{filename}" for filename in REPLAY_SDIST_FILES), ""),
         f"{root}/tests/test_source.py": "",
     }
 
@@ -88,6 +92,7 @@ def _wheel_files() -> dict[str, str]:
         **dict.fromkeys(QUALITY_MODULES, ""),
         **dict.fromkeys(AUTO_EVALUATION_MODULES, ""),
         **dict.fromkeys(TOKEN_MODULES, ""),
+        **dict.fromkeys(REPLAY_MODULES, ""),
         RESOURCE: "demo",
         "konwledge-0.1.0.dist-info/METADATA": WHEEL_METADATA,
         "konwledge-0.1.0.dist-info/entry_points.txt": ENTRY_POINTS,

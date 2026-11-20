@@ -136,7 +136,7 @@ async function renderPage(root: Root, reference: string, candidate: string): Pro
   await act(async () => {
     root.render(
       createElement(EvaluationPage, {
-        route: { view: "evaluation", kind: "compare", reference, candidate, offset: 0 },
+        route: { view: "evaluation", kind: "compare", reference, candidate, offset: 0, mode: "live" },
         navigate: () => undefined,
       }),
     );

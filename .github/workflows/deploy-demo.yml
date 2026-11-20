@@ -1,49 +1,80 @@
-name: Deploy Demo
+name: Prepare Replay Preview
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the verified static replay to GitHub Pages"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+
+concurrency:
+  group: replay-preview-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  prepare:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          node-version: 22
-
+          python-version: "3.11"
+      - name: Validate the committed public replay
+        run: uv run --frozen python scripts/export_replay.py --check --output web/public/replay.json
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 12
-
-      - name: Verify and build Web before publishing
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Verify the app and prepare the read-only preview
         working-directory: web
         run: |
           pnpm install --frozen-lockfile
           pnpm verify
+          pnpm verify:preview
+      - name: Upload the verified preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-preview
+          path: web/dist-preview
+          if-no-files-found: error
+          retention-days: 7
 
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download the verified preview artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: replay-preview
+          path: preview
       - name: Setup Pages
         uses: actions/configure-pages@v5
-
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './web/dist'
-
-      - name: Deploy to GitHub Pages
+          path: preview
+      - name: Publish to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

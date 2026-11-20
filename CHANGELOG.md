@@ -6,6 +6,16 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 
 ## Unreleased - U14-U20、U22 and B1-B6, B-R1, B-R2
 
+### 静态回放导出与预览准备
+
+- 回放导出、页面整合和独立 preview 构建已完成实现，仍归入 Unreleased，版本保持 `0.1.0` prepared；本任务不新增 B 系列或 P 系列编号。本轮只准备发布预览，不执行 Actions、公开部署、PR／main、tag、Release 或 PyPI 发布。
+- 新增 `src/konwledge/replay/{bundle,corpus,files,producer}.py` 与 `scripts/export_replay.py --output FILE`／`--check --output FILE`。只在工具自建 `.konwledge/replay/<UUID>` 私有 scope 生成固定可公开合成语料，经正式 SDK 发布与自动评测 outbox 产生真实的 `passed → failed → passed` 任务；同一 dataset／config、固定 4 条 cases，Recall 为 `1 → 2/3 → 1`。质量失败 `QUALITY_GATE_FAILED` 不回滚已提交知识，不声明业务原因或生成答案质量。
+- 仓库内 `web/public/replay.json` 已生成并通过 Python `--check`，使用严格 B1 DTO 数组包，含 3 jobs、16 revisions、4 documents、3 lineages、12 units、12 evidence、16 diffs。`DocumentDTO.units`／`LineageDTO.versions`／`DocumentDiffDTO.changes` 保留 Page，`limit=100`、`offset=0`、`total=items.length`。Evidence 只取固定安全全文／段落白名单，不提供任意业务原文自动脱敏；不透传 query／metadata／locator／local path／raw exception，也不开放通用业务库 export。拒绝 symlink 和已有输出覆写，没有 `--database`／`--manifest`／`--URL`／`--force`。
+- 新增显式 `#replay`／`#replay/guide`／`#replay/evaluation`／`#replay/lifecycle/...`，复用 `ManagementClient`、DTO schema 和静态 transport，分页与导航保留 mode，坏 bundle 报错且无 live fallback。修复 source revision 的合法 nullable `navigation.content_hash` 被后置校验误拒绝的问题，前置 Ajv 的必填性与 nullability 约束不变，非 nullable／非法 hash 仍拒绝。
+- 普通 `pnpm verify` 仍构建 `dist` 并保留 Snapshot V1／live／B4。新增 `check:replay`、`build:preview`、`verify:preview` 与仅本机的 `preview:replay`，独立 replay mode 输出 `dist-preview` 并由 `.gitignore` 忽略；预览空 hash 进入 `#replay/guide`，隐藏受控变更菜单，手输 changes／live 路由只显示 blocked notice，不请求实时或写入 API。旧 V1 路由保留，普通 production／dev／test 契约不变。
+- `scripts/check-preview.mjs` 检查资源白名单、固定敏感模式、子路径相对资产、回放字节相等和 3 阶段状态。web CI 加入 `pnpm verify:preview`；Pages workflow 改为手动 `workflow_dispatch`，`publish` boolean 默认 false，prepare 检查随源码提交的 JSON 并上传 `replay-preview` artifact，只有显式 true 才允许 publish job 部署。GitHub Pages Source、environment 权限／保护、默认分支 workflow dispatch 可用性及所选 ref 包含本轮实现仍须发布前确认，不能只凭 feature 推送认定新 workflow 名称和 UI 参数可用。
+- 命令、bundle bytes／hash 和发布边界见 [静态回放预览](docs/replay-preview.md)，实现状态见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。本轮 Python 全量 2540 passed／7 skipped、前端 529 passed／2 skipped、回放专项 91 passed；17 个构建资源、59 项 HTTP 子路径检查与 6 次静态页面呈现检查通过，真实 wheel／sdist 隔离发行通过。原始证据和限制见该说明，不改写 B1～B6 的历史验证范围。
+
 ### B6 受控 MCP 正文更新已完成并验证
 
 - **B6 已完成并验证。** 版本仍为 `0.1.0` prepared。Linux 主验收汇总为 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准 3 次。B5 已完成的五工具只读默认状态和历史结果保留；默认 MCP 维持五个只读工具，知识、command、outbox 与批准审计均为零写入。feature 分支提交与推送以 Git 历史为准；未创建 PR、合并 main、创建 tag、发布 PyPI 或公开部署。

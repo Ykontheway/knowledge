@@ -42,6 +42,7 @@ describe("Demo page rendering", () => {
         currentTitle: "总览",
         currentTone: "demo",
         onViewChange: () => {},
+        replayHref: "#replay",
         children: createElement(OverviewPage),
       }),
     );

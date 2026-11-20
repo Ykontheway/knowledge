@@ -167,6 +167,9 @@ jobs:
       - name: Verify demo types, tests, and production build
         run: pnpm verify
 
+      - name: Verify the committed read-only replay preview
+        run: pnpm verify:preview
+
   lancedb:
     name: Optional LanceDB adapter
     runs-on: ubuntu-latest

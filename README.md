@@ -4,6 +4,8 @@ Konwledge is a local-first toolkit for managing the full lifecycle of knowledge 
 
 > 状态：**v0.1.0 已准备、未发布（alpha）；B-R1、B-R2 已完成并验证，B5／U22 只读 MCP 已完成并验证；B6 受控 MCP 正文更新已完成并验证。** U17 完成本地发布准备；U18～U20（**Unreleased**）已加入本机上下文 API、对话导入与人工审核、只读数据库 schema 捕获。U14～U16 验收、知识变更自动评测和真实项目文档隔离验收已完成。B1 提供只读管理 API，B2 完成 V3 生命周期与变更视图，B3 完成 V4 只读评测对照与手动导览，B4 在当前 feature 分支完成受控变更交互并通过隔离验收，B6 主验收确认默认 MCP 零写入，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过；macOS／Windows 未测，原 V2 静态演示保留。版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并、GitHub Release、PyPI 发布或公开 live 部署。
 
+> 静态回放数据导出、页面整合和预览构建已完成实现，当前只准备发布预览；命令与发布前置见 [静态回放预览](docs/replay-preview.md)。没有执行公开部署，本轮完整回归与静态预览验收已通过，结果见该说明。
+
 B-R2 收尾复核（历史结果，不计作 B5／U22 验收）：`ruff check .` 通过，`ruff format --check .` 为 218 files，`mypy src tests scripts` 为 192 sources success；Python `pytest -q` 为 **1902 passed、5 skipped**，其中 3 个是既有可选用例，另 2 个是需显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 的 demo live 用例默认 skip；management／mutation schema `--check` 通过，两份输出保持不变；前端 `pnpm verify` **430 passed、2 skipped**。`tests/test_workbench_demo_live.py` 常规默认 **2 skipped**，显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 后统一入口 E2E **2 passed（41.21s）**。workbench 发行验证的 `WORKBENCH_SDIST_FILES` 现含入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件，缺任一项都拒绝通过。B-R1 的 [`.konwledge/b-r1-distribution-verified`](.konwledge/b-r1-distribution-verified) wheel／sdist 隔离 smoke 仍保留为历史证据，生产 build 的 584.38 kB chunk 提醒仍是非阻断优化项。
 
 B 系列唯一主计划见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。B-R1 已收敛 `web/src/shared/readBoundedBytes.ts`、`web/src/shared/validation.ts` 和 `scripts/schema_utils.py`；`SCHEMA_SDIST_FILES` 已纳入共享脚本及 `tests/test_schema_utils.py`，缺文件拒绝检查通过。**B-R2 已完成并验证**：`scripts/workbench.py` 统一 `list`、`demo`、`accept` 入口，`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口不接受外部 database／manifest／路径／DSN／key，当前只支持具备 `/proc`、`subreaper`、`pidfd` 清理核验能力的 Linux 环境；macOS／Windows 会 fail-closed 返回 `cleanup_unknown`。后续衔接仍为 **B5／U22 只读 MCP → B6 受控命令**，原编号不变；B5／U22 与 B6 均已完成并验证，依赖链路已闭环。B6 主验收补齐 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准 3 次，默认 MCP 零写入。MCP 使用独立 stdio 入口，不受 B-R2 的 Linux 清理依赖约束；B6 只在 Linux 实测通过，macOS／Windows 未测。生产阶段单独评审，不改 B1～B4 职责或不合并边界。
@@ -132,6 +134,28 @@ uv run python scripts/real_knowledge_acceptance.py \
 每次运行建立独立 SQLite 和文档副本，证据保存在输出根目录下的唯一运行目录，不覆盖旧报告，也不改原始文档。详见 [真实文档变更验收](docs/real-knowledge-acceptance.md)。
 
 B1 已提供只读管理契约，B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 评测对照与手动导览开发；现有静态演示保留。当前 feature 分支的 B4 已完成受控变更交互：`/v1/mutations` 默认关闭，需独立写密钥、manifest 和 actor 显式启用，只允许隔离 demo 库内 allowlist source 的当前正文修改，并保留幂等命令与评测审计。B1 没有 case-level query／cases，页面不造逐用例失败诊断。B5／U22 只读 MCP 已完成并验证，使用独立 stdio 入口且默认不开放写工具；B6 的显式受控正文更新也已完成并验证，主验收确认默认 MCP 零写入，3 次正文提交产生 3 个 command 与 3 个 job，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过，macOS／Windows 未测，不改变 B5 只读默认或新增写 HTTP。Snapshot V1 和现有上下文 API 保持兼容，没有公开 live 部署。详见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md) 和 [受控变更工作台](docs/controlled-mutations.md)。
+
+## 静态回放预览（Unreleased）
+
+回放数据导出、页面整合与独立预览构建已完成实现，本轮只准备发布预览，不执行公开部署。仓库内 `web/public/replay.json` 已生成并通过 Python `--check`，包含固定可公开合成语料经正式 SDK／自动评测 outbox 产生的真实 `passed → failed → passed` 任务；同一 dataset／config、固定 4 条 cases，Recall 为 `1 → 2/3 → 1`。质量失败不回滚已提交知识，不声明业务原因或生成答案质量。本任务不新增 B 系列或 P 系列编号，B1～B6 历史验收范围与 `0.1.0` prepared 状态不变。
+
+```bash
+# 仓库根目录：只读检查现有回放文件，不重建数据库
+uv run --frozen python scripts/export_replay.py --check --output web/public/replay.json
+# web/：普通构建仍保留 Snapshot V1／live／B4
+cd web
+pnpm install --frozen-lockfile
+pnpm verify
+pnpm verify:preview
+# 仅在需要查看本机预览时启动，不是公开部署
+pnpm preview:replay --host 127.0.0.1
+```
+
+显式 `#replay`／`#replay/guide`／`#replay/evaluation`／`#replay/lifecycle/...` 复用 B1 DTO schema 和静态 transport，分页与导航保留 replay mode，坏 bundle 报错且无 live fallback。独立 replay preview 构建输出 `dist-preview`，空 hash 默认进入 `#replay/guide`，隐藏受控变更菜单并阻断手输 changes／live 路由，旧 V1 路由保留。导出只接受工具自建的安全合成库，不提供任意业务原文自动脱敏；输出拒绝 symlink／覆写，没有 `--database`／`--manifest`／`--URL`／`--force`。
+
+Pages workflow 已改为手动 `workflow_dispatch`，`publish` boolean 默认 false；prepare 检查随源码提交的 JSON 并上传 `replay-preview` artifact，只有显式 true 才允许 publish job 部署。本轮不运行 Actions，未生成或验证可用的网站 URL；未来发布须确认 Pages Source、environment 权限／保护、默认分支已有可 dispatch 的 workflow，以及所选 ref 包含本轮实现。仅向 feature 分支推送不能保证新 workflow 名称或 UI 参数可用，不代办 main 变更。
+
+完整命令、DTO／Page 结构、bundle bytes／hash 与发布前置见 [静态回放预览](docs/replay-preview.md)，实现状态见 [B系列任务与重构路线](docs/integrated-demo-roadmap.md)。本轮 Python 2540 passed／7 skipped、前端 529 passed／2 skipped、回放预览专项 91 项通过；完整证据与未验范围见该说明。
 
 ## 本机工作台统一入口（B-R2，Unreleased）
 
@@ -317,16 +341,17 @@ The demo site has its own CI job:
 cd web
 pnpm install --frozen-lockfile
 pnpm verify        # typecheck → mutationtypecheck → Snapshot／management／mutation 类型漂移 → Vitest → build
+pnpm verify:preview # 真实回放 fixture／nullable hash／preview 测试 → 独立构建 → 资产检查
 ```
 
-仓库保留独立站点验证 job 和 Pages workflow，均运行 `pnpm verify`，其中 `check:management` 检查前端管理类型漂移，`check:mutations` 检查 mutation 类型漂移；需要更新类型时运行 `pnpm gen:mutations`，提交前用 `pnpm check:mutations` 校验。Python management／mutation schema 仍从仓库根目录单独检查：
+仓库保留独立站点验证 job 和手动 Pages workflow，均运行 `pnpm verify` 与 `pnpm verify:preview`；后者生成独立 `dist-preview`，不替代普通构建。Pages 默认只准备 artifact，不自动部署，详见 [静态回放预览](docs/replay-preview.md#公开发布须另行确认)。其中 `check:management` 检查前端管理类型漂移，`check:mutations` 检查 mutation 类型漂移；需要更新类型时运行 `pnpm gen:mutations`，提交前用 `pnpm check:mutations` 校验。Python management／mutation schema 仍从仓库根目录单独检查：
 
 ```bash
 uv run python scripts/export_management_schema.py --check
 uv run python scripts/export_mutation_schema.py --check
 ```
 
-前端 B2／V3、B3／V4、B4 与 B-R2 统一入口已完成并验证；Pages 配置不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。本轮 `pnpm verify` 已包含 mutationtypecheck、Snapshot／management／mutation 类型漂移、测试和构建，结果为 **430 passed、2 skipped**。B5／U22 最新 Python 全量、显式 Linux live、ruff／格式／mypy 与隔离发行结果见 [最终验证](docs/mcp-readonly.md#最终验证已通过)，两份 management／mutation schema `--check` 输出不变；上文 B-R2 的 1902／5 与 41.21s 保留为历史结果，不作为本轮验收。`WORKBENCH_SDIST_FILES` 含入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件；缺任一项都会拒绝发行验证。Vitest 覆盖静态演示、实时 adapter／路由／请求状态、评测对照、有界轮询与受控变更状态，但不代替浏览器交互或页面渲染检查。
+前端 B2／V3、B3／V4、B4 与 B-R2 统一入口已完成并验证；Pages 配置不代表已公开部署，preview／dist 也不含本机 dev proxy。保留 `strict`、`noUnusedLocals` 和 `noUnusedParameters`；开发后执行 `pnpm typecheck` 和 `pnpm verify`。B-R2／B5 历史 `pnpm verify` 已包含 mutationtypecheck、Snapshot／management／mutation 类型漂移、测试和构建，结果为 **430 passed、2 skipped**；该数字不作为静态回放本轮最终结果。B5／U22 最新 Python 全量、显式 Linux live、ruff／格式／mypy 与隔离发行结果见 [最终验证](docs/mcp-readonly.md#最终验证已通过)，两份 management／mutation schema `--check` 输出不变；上文 B-R2 的 1902／5 与 41.21s 保留为历史结果，不作为本轮验收。`WORKBENCH_SDIST_FILES` 含入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件；缺任一项都会拒绝发行验证。Vitest 覆盖静态演示、实时 adapter／路由／请求状态、评测对照、有界轮询与受控变更状态，但不代替浏览器交互或页面渲染检查。
 
 The optional LanceDB adapter has its own CI job. Run it locally with:
 
@@ -1196,7 +1221,7 @@ pnpm gen:types     # regenerate src/types/snapshot.gen.ts after a schema change
 - **Ranges match the CLI.** Snapshot offsets are Python code points, so the site slices by code
   point, not UTF-16 unit; Vitest checks that every unit's range reproduces its stored text and that
   the segments tile each document exactly.
-- **Deployment is deferred.** `.github/workflows/deploy-demo.yml` contains a GitHub Pages build configuration, but U17 did not trigger or verify a public deployment. Treat site publication as a separate, explicitly approved maintainer action.
+- **公开部署仍未执行。** `.github/workflows/deploy-demo.yml` 现为手动 `workflow_dispatch`，`publish` 默认 false，只准备并上传 `replay-preview` artifact；只有显式 true 才允许 Pages publish job。发布前仍须确认默认分支 workflow dispatch、所选 ref 与 Pages 权限，配置不代表网站已可用。详见 [静态回放预览](docs/replay-preview.md)。
 
 ## License
 

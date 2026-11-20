@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { managementClient } from "./client";
+import { ManagementError } from "./types";
+import { useManagementClient, useManagementRuntime } from "./runtime";
 import type {
   DocumentDTO,
   DocumentDiffDTO,
@@ -34,37 +35,41 @@ interface QueryOptions<T> {
 type QuerySnapshot<T> = Omit<ManagementQueryState<T>, "reload"> & { readonly key: string };
 
 export function useManagementQuery<T>({ key, load, isEmpty }: QueryOptions<T>): ManagementQueryState<T> {
+  const runtime = useManagementRuntime();
+  const runtimeKey = `${runtime.mode}:${runtime.status}:${key}`;
   const [reloadToken, setReloadToken] = useState(0);
   const [state, setState] = useState<QuerySnapshot<T>>({
-    key,
+    key: runtimeKey,
     data: null,
     error: null,
     refreshing: false,
-    status: "loading",
+    status: runtime.status === "error" ? "error" : "loading",
   });
-  const optionsRef = useRef({ key, load, isEmpty, reloadToken });
+  const optionsRef = useRef({ key: runtimeKey, load, isEmpty, reloadToken });
   const requestRef = useRef(0);
 
-  // 只发布已 commit 的回调，避免并发 render 把未提交的 route/loader 泄漏给请求。
-  // 同时在 passive effect cleanup 之前就使旧 route/reload 的响应失效。
   useLayoutEffect(() => {
-    optionsRef.current = { key, load, isEmpty, reloadToken };
+    optionsRef.current = { key: runtimeKey, load, isEmpty, reloadToken };
   });
 
   useEffect(() => {
+    if (runtime.status === "error") {
+      setState({ key: runtimeKey, data: null, error: runtime.error, refreshing: false, status: "error" });
+      return undefined;
+    }
+    if (runtime.status === "loading" || runtime.client === null) {
+      setState({ key: runtimeKey, data: null, error: null, refreshing: false, status: "loading" });
+      return undefined;
+    }
     const controller = new AbortController();
     const requestId = ++requestRef.current;
     const options = optionsRef.current;
-    const isCurrent = () =>
-      !controller.signal.aborted &&
-      requestRef.current === requestId &&
-      optionsRef.current.key === key &&
-      optionsRef.current.reloadToken === reloadToken;
+    const isCurrent = () => !controller.signal.aborted && requestRef.current === requestId && optionsRef.current.key === runtimeKey && optionsRef.current.reloadToken === reloadToken;
 
     setState((current) => {
-      const sameKey = current.key === key;
+      const sameKey = current.key === runtimeKey;
       return {
-        key,
+        key: runtimeKey,
         data: sameKey ? current.data : null,
         error: null,
         refreshing: sameKey && current.data !== null,
@@ -76,41 +81,38 @@ export function useManagementQuery<T>({ key, load, isEmpty }: QueryOptions<T>): 
       try {
         const value = await options.load(controller.signal);
         if (!isCurrent()) return;
-        setState({
-          key,
-          data: value,
-          error: null,
-          refreshing: false,
-          status: options.isEmpty?.(value) ? "empty" : "ready",
-        });
+        setState({ key: runtimeKey, data: value, error: null, refreshing: false, status: options.isEmpty?.(value) ? "empty" : "ready" });
       } catch (error: unknown) {
         if (!isCurrent()) return;
         if (error instanceof Error && error.name === "AbortError") return;
-        setState({
-          key,
-          data: null,
-          error,
-          refreshing: false,
-          status: "error",
-        });
+        setState({ key: runtimeKey, data: null, error, refreshing: false, status: "error" });
       }
     })();
 
     return () => controller.abort();
-  }, [key, reloadToken]);
+  }, [runtime.client, runtime.error, runtime.mode, runtime.status, runtimeKey, reloadToken]);
 
   const reload = useCallback(() => {
+    if (runtime.status !== "ready") {
+      runtime.reload();
+      return;
+    }
     setReloadToken((value) => value + 1);
-  }, []);
+  }, [runtime]);
 
-  // 新 route 的首个 commit 也不能短暂展示旧 route 的数据/错误。
-  if (state.key !== key) {
-    return { data: null, error: null, refreshing: false, status: "loading", reload };
+  if (state.key !== runtimeKey) {
+    return { data: null, error: null, refreshing: false, status: runtime.status === "error" ? "error" : "loading", reload };
   }
   return { data: state.data, error: state.error, refreshing: state.refreshing, status: state.status, reload };
 }
 
+function requireClient(client: ReturnType<typeof useManagementClient>) {
+  if (client === null) throw new ManagementError("unavailable");
+  return client;
+}
+
 export function useJobsPage(status: JobStatus | undefined, offset: number): ManagementQueryState<Page<JobDTO>> {
+  const client = useManagementClient();
   const key = useMemo(() => `jobs:${status ?? "all"}:${offset}`, [offset, status]);
   const load = useCallback(
     (signal: AbortSignal) => {
@@ -119,40 +121,43 @@ export function useJobsPage(status: JobStatus | undefined, offset: number): Mana
         offset,
         ...(status ? { status } : {}),
       };
-      return managementClient.listJobs(query, signal);
+      return requireClient(client).listJobs(query, signal);
     },
-    [offset, status],
+    [client, offset, status],
   );
   return useManagementQuery({ key, load, isEmpty: (page) => page.items.length === 0 });
 }
 
 export function useJobPage(id: string): ManagementQueryState<JobDTO> {
+  const client = useManagementClient();
   const key = useMemo(() => `job:${id}`, [id]);
-  const load = useCallback((signal: AbortSignal) => managementClient.getJob(id, signal), [id]);
+  const load = useCallback((signal: AbortSignal) => requireClient(client).getJob(id, signal), [client, id]);
   return useManagementQuery({ key, load });
 }
 
 export function useRevisionPage(id: string): ManagementQueryState<RevisionDTO> {
+  const client = useManagementClient();
   const key = useMemo(() => `revision:${id}`, [id]);
-  const load = useCallback((signal: AbortSignal) => managementClient.getRevision(id, signal), [id]);
+  const load = useCallback((signal: AbortSignal) => requireClient(client).getRevision(id, signal), [client, id]);
   return useManagementQuery({ key, load });
 }
 
 export function useDocumentPage(id: string, offset: number): ManagementQueryState<DocumentDTO> {
+  const client = useManagementClient();
   const key = useMemo(() => `document:${id}:${offset}`, [id, offset]);
   const load = useCallback(
-    (signal: AbortSignal) =>
-      managementClient.getDocument(id, { limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
-    [id, offset],
+    (signal: AbortSignal) => requireClient(client).getDocument(id, { limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
+    [client, id, offset],
   );
   return useManagementQuery({ key, load });
 }
 
 export function useLineagePage(id: string, offset: number): ManagementQueryState<LineageDTO> {
+  const client = useManagementClient();
   const key = useMemo(() => `lineage:${id}:${offset}`, [id, offset]);
   const load = useCallback(
-    (signal: AbortSignal) => managementClient.getLineage(id, { limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
-    [id, offset],
+    (signal: AbortSignal) => requireClient(client).getLineage(id, { limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
+    [client, id, offset],
   );
   return useManagementQuery({ key, load });
 }
@@ -162,17 +167,18 @@ export function useDocumentDiffPage(
   oldId: string,
   offset: number,
 ): ManagementQueryState<DocumentDiffDTO> {
+  const client = useManagementClient();
   const key = useMemo(() => `diff:${newId}:${oldId}:${offset}`, [newId, oldId, offset]);
   const load = useCallback(
-    (signal: AbortSignal) =>
-      managementClient.getDocumentDiff(newId, oldId, { limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
-    [newId, oldId, offset],
+    (signal: AbortSignal) => requireClient(client).getDocumentDiff(newId, oldId, { limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
+    [client, newId, oldId, offset],
   );
   return useManagementQuery({ key, load });
 }
 
 export function useEvidencePage(id: string): ManagementQueryState<EvidenceDTO> {
+  const client = useManagementClient();
   const key = useMemo(() => `evidence:${id}`, [id]);
-  const load = useCallback((signal: AbortSignal) => managementClient.getEvidence(id, signal), [id]);
+  const load = useCallback((signal: AbortSignal) => requireClient(client).getEvidence(id, signal), [client, id]);
   return useManagementQuery({ key, load });
 }

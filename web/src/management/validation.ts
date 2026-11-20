@@ -179,7 +179,12 @@ function assertTrustedHashFields(payload: unknown): void {
       "document_checksum",
     ]) {
       const candidate = value[key];
-      if (candidate !== undefined && (typeof candidate !== "string" || !HASH_PATTERN.test(candidate))) {
+      // 前置 Ajv 已按 DTO Schema 约束字段必填性与 nullability。
+      if (
+        candidate !== undefined &&
+        candidate !== null &&
+        (typeof candidate !== "string" || !HASH_PATTERN.test(candidate))
+      ) {
         throw new ManagementError("invalid_response");
       }
     }

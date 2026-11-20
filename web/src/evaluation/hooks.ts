@@ -1,14 +1,21 @@
 import { useCallback, useMemo } from "react";
 
-import { managementClient } from "../management/client";
+import { ManagementError } from "../management/types";
+import { useManagementClient } from "../management/runtime";
 import { MANAGEMENT_PAGE_LIMIT, useManagementQuery, type ManagementQueryState } from "../management/hooks";
 import type { JobDTO, Page } from "../management/types";
 
+function requireClient(client: ReturnType<typeof useManagementClient>) {
+  if (client === null) throw new ManagementError("unavailable");
+  return client;
+}
+
 export function useEvaluationJobs(offset: number): ManagementQueryState<Page<JobDTO>> {
+  const client = useManagementClient();
   const key = useMemo(() => `evaluation-jobs:${offset}`, [offset]);
   const load = useCallback(
-    (signal: AbortSignal) => managementClient.listJobs({ limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
-    [offset],
+    (signal: AbortSignal) => requireClient(client).listJobs({ limit: MANAGEMENT_PAGE_LIMIT, offset }, signal),
+    [client, offset],
   );
   return useManagementQuery({ key, load, isEmpty: (page) => page.items.length === 0 });
 }
@@ -19,16 +26,18 @@ export interface SelectedJobs {
 }
 
 export function useSelectedJobs(referenceId?: string, candidateId?: string): ManagementQueryState<SelectedJobs> {
+  const client = useManagementClient();
   const key = useMemo(() => `evaluation-pair:${referenceId ?? "-"}:${candidateId ?? "-"}`, [candidateId, referenceId]);
   const load = useCallback(
     async (signal: AbortSignal): Promise<SelectedJobs> => {
+      const resolved = requireClient(client);
       const [reference, candidate] = await Promise.all([
-        referenceId ? managementClient.getJob(referenceId, signal) : Promise.resolve(null),
-        candidateId ? managementClient.getJob(candidateId, signal) : Promise.resolve(null),
+        referenceId ? resolved.getJob(referenceId, signal) : Promise.resolve(null),
+        candidateId ? resolved.getJob(candidateId, signal) : Promise.resolve(null),
       ]);
       return { reference, candidate };
     },
-    [candidateId, referenceId],
+    [candidateId, client, referenceId],
   );
   return useManagementQuery({ key, load });
 }
@@ -40,20 +49,22 @@ export interface GuideJobs {
 }
 
 export function useGuideJobs(normalId?: string, faultId?: string, restoreId?: string): ManagementQueryState<GuideJobs> {
+  const client = useManagementClient();
   const key = useMemo(
     () => `guide-jobs:${normalId ?? "-"}:${faultId ?? "-"}:${restoreId ?? "-"}`,
     [faultId, normalId, restoreId],
   );
   const load = useCallback(
     async (signal: AbortSignal): Promise<GuideJobs> => {
+      const resolved = requireClient(client);
       const [normal, fault, restore] = await Promise.all([
-        normalId ? managementClient.getJob(normalId, signal) : Promise.resolve(null),
-        faultId ? managementClient.getJob(faultId, signal) : Promise.resolve(null),
-        restoreId ? managementClient.getJob(restoreId, signal) : Promise.resolve(null),
+        normalId ? resolved.getJob(normalId, signal) : Promise.resolve(null),
+        faultId ? resolved.getJob(faultId, signal) : Promise.resolve(null),
+        restoreId ? resolved.getJob(restoreId, signal) : Promise.resolve(null),
       ]);
       return { normal, fault, restore };
     },
-    [faultId, normalId, restoreId],
+    [client, faultId, normalId, restoreId],
   );
   return useManagementQuery({ key, load });
 }

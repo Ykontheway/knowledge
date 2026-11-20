@@ -8,6 +8,16 @@ B1 只读管理 API、B2 V3 live lifecycle、B3 V4 评测对照与导览均已�
 
 **B-R2 已完成并验证。** `scripts/workbench.py` 已统一 `list`、`demo`、`accept` 入口；`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](../.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](../.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](../.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](../.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](../.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口当前只支持具备 Linux `/proc`、`subreaper`、`pidfd` 清理核验能力的环境；macOS／Windows 缺少必要能力时会 fail-closed 返回 `cleanup_unknown`。B5／U22 只读 MCP 已完成并验证；B6 正文更新也已完成并验证，36 成功、17 拒绝、61 响应与 3 次 command／job 提交已补齐，默认 MCP 零写入，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过；macOS／Windows 未测。MCP 的 stdio 平台语义与 B-R2 清理依赖分开记录，生产权限能力未做。
 
+## 静态回放已整合，发布只做准备
+
+本轮完成回放数据导出、页面整合与独立预览构建的实现，不新增 B 系列或 P 系列编号，不改变 B1～B6 的原职责与历史验收范围。使用工具自建 `.konwledge/replay/<UUID>` 私有 scope 和固定可公开合成语料，经正式 SDK 发布、自动评测 outbox 生成真实的 `passed → failed → passed` 任务；同一 dataset／config、固定 4 条 cases，Recall 为 `1 → 2/3 → 1`，质量失败不回滚已提交知识。仓库内 `web/public/replay.json` 已生成并通过 Python `--check`，不开放任意业务库导出或自动脱敏。
+
+前端显式 replay 路由复用 B1 DTO／`ManagementClient` 和静态 transport，保留分页与 mode，坏 bundle 报错且无 live fallback。独立 `pnpm verify:preview` 检查真实 fixture、nullable hash 与 preview 行为，构建 `dist-preview` 并检查资源白名单、固定敏感模式、相对资产和回放字节相等。preview 默认 `#replay/guide`，隐藏受控变更菜单并阻断手输 changes／live 路由；普通构建的 Snapshot V1／live／B4 契约不变。
+
+Pages workflow 已改为手动 `workflow_dispatch`，`publish` boolean 默认 false；prepare 检查随源码提交的 JSON，运行普通与 preview 验证并上传 `replay-preview` artifact，只有显式 true 才允许 publish job 部署。本轮不运行 Actions 或公开部署，没有生成或验证可用的网站 URL。未来发布仍须确认 Pages Source 为 GitHub Actions、environment 权限与保护，以及默认分支已有可 dispatch 的 workflow、选定 ref 包含本轮实现。仅向 feature 分支推送不能保证新 workflow 名称或 UI 参数可用，此项待维护者确认，不代办 main 变更。
+
+操作、数据契约与发布前置见 [静态回放预览](replay-preview.md)。本轮 Python 全量 2540 passed／7 skipped、前端 529 passed／2 skipped，回放预览专项 91 项、59 项 HTTP 子路径检查与 6 次静态呈现检查通过，真实 wheel／sdist 通过；版本仍为 `0.1.0` prepared，公开发布与生产权限授权另行确认。
+
 ## 数据流回到同一评测链路
 
 ```text
@@ -108,7 +118,7 @@ B3 的有界观察默认关闭，主动开启后每 10 秒刷新，最多 5 分�
 
 ## 生产能力另设阶段门禁
 
-自动评测内部持久化报告当前不保存 query 或源全文，B1 仅提供安全汇总。未来用例级诊断须另设隐私与授权契约，当前历史证据导航不宣称根因判断。外部演示只用可公开的项目文档及独立副本；业务库只用于经授权的私密验收，demo 私有隔离不等于生产 SSO／RBAC。
+自动评测内部持久化报告当前不保存 query 或源全文，B1 仅提供安全汇总。未来用例级诊断须另设隐私与授权契约，当前历史证据导航不宣称根因判断。真实项目文档验收保留可公开项目文档与独立副本的范围；[静态回放预览](replay-preview.md) 只使用工具自建的固定安全合成语料，不导出业务库或自动脱敏业务原文。业务库只用于经授权的私密验收，demo 私有隔离不等于生产 SSO／RBAC。
 
 当前同步评测会增加变更耗时，演示仍是单库、小规模评测，未完成异步生产服务。后台调度、真实 embedding provider、向量／混合自动评测与 Agent 答案质量评测均为独立候选，需各自明确配置、隐私、成本和验收数据。B4 未增加候选批准写入、时效写入、LLM 答案评分或生产自治。
 

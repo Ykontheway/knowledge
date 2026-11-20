@@ -21,8 +21,10 @@ interface LayoutProps {
   readonly currentView: View;
   readonly currentSection: string;
   readonly currentTitle: string;
-  readonly currentTone: "demo" | "live";
+  readonly currentTone: "demo" | "live" | "replay";
   readonly onViewChange: (view: View) => void;
+  readonly replayHref: string;
+  readonly replayOnly?: boolean;
   readonly children: React.ReactNode;
 }
 
@@ -32,8 +34,12 @@ export const Layout: React.FC<LayoutProps> = ({
   currentTitle,
   currentTone,
   onViewChange,
+  replayHref,
+  replayOnly = false,
   children,
-}) => (
+}) => {
+  const workspaceReplay = replayOnly || currentTone === "replay";
+  return (
   <div className="flex min-h-screen flex-col bg-[#f4efe6] lg:h-screen lg:flex-row lg:overflow-hidden">
     <aside className="w-full flex-shrink-0 bg-[#1f2a44] text-[#f4efe6] lg:w-72 lg:flex lg:flex-col">
       <div className="border-b border-[#2d3b5a] p-6">
@@ -53,58 +59,48 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
 
         <div className="space-y-2">
-          <SectionLabel label="实时工作台 / 只读" tone="live" />
-          <NavItem
-            active={currentView === "lifecycle"}
-            badge="Live"
-            icon={<History size={18} />}
-            label="生命周期工作台"
-            onClick={() => onViewChange("lifecycle")}
-          />
-          <NavItem
-            active={currentView === "evaluation"}
-            badge="Live"
-            icon={<Scale size={18} />}
-            label="评测对照"
-            onClick={() => onViewChange("evaluation")}
-          />
-          <NavItem
-            active={currentView === "guide"}
-            badge="Live"
-            icon={<Map size={18} />}
-            label="演示导览"
-            onClick={() => onViewChange("guide")}
-          />
+          <SectionLabel label={workspaceReplay ? "静态回放 · 非实时" : "实时工作台 / 只读"} tone="live" />
+          <NavItem active={currentView === "lifecycle"} badge={workspaceReplay ? "Replay" : "Live"} icon={<History size={18} />} label="生命周期工作台" onClick={() => onViewChange("lifecycle")} />
+          <NavItem active={currentView === "evaluation"} badge={workspaceReplay ? "Replay" : "Live"} icon={<Scale size={18} />} label="评测对照" onClick={() => onViewChange("evaluation")} />
+          <NavItem active={currentView === "guide"} badge={workspaceReplay ? "Replay" : "Live"} icon={<Map size={18} />} label="演示导览" onClick={() => onViewChange("guide")} />
           <div className="rounded-xl border border-[#2d3b5a] bg-[#1a243b] p-3 text-xs leading-5 text-[#a0aec0]">
             <div className="flex items-center gap-2 font-semibold text-[#f4efe6]">
               <RadioTower size={14} className="text-[#d39b3b]" />
-              <span>接入 B1 管理 API</span>
+              <span>{workspaceReplay ? "静态 replay.json" : "接入 B1 管理 API"}</span>
             </div>
             <p className="mt-2">
-              没有管理服务时，静态演示页仍可访问；实时工作台会停在只读提示，不会伪造成功数据。
+              {workspaceReplay
+                ? "静态回放只读取 replay.json，非实时、只读，不会观察新任务。加载失败会显示错误，不连接实时服务。"
+                : "没有管理服务时，静态演示页仍可访问；实时工作台会停在只读提示，不会伪造成功数据。"}
             </p>
           </div>
+          {workspaceReplay ? null : (
+            <a className="block rounded-xl border border-[#2d3b5a] bg-[#152033] p-3 text-xs leading-5 text-[#d7e3f4] transition hover:border-[#d39b3b] hover:text-white" href={replayHref}>
+              <div className="font-semibold text-[#f4efe6]">打开静态回放预览</div>
+              <p className="mt-1 text-[#a0aec0]">只读回放包含真实评测任务、版本 Diff 和历史证据，使用固定的公开合成语料。</p>
+            </a>
+          )}
         </div>
 
-        <div className="space-y-2">
-          <SectionLabel label="受控更新 / 默认关闭" tone="live" />
-          <NavItem active={currentView === "changes"} badge="仅演示副本" icon={<GitCompare size={18} />} label="受控变更" onClick={() => onViewChange("changes")} />
-          <p className="px-3 text-xs leading-5 text-amber-200">仅演示副本。是否可更新以服务端授权为准，未启用时停在安全提示。</p>
-        </div>
+        {workspaceReplay ? null : (
+          <div className="space-y-2">
+            <SectionLabel label="受控更新 / 默认关闭" tone="live" />
+            <NavItem active={currentView === "changes"} badge="仅演示副本" icon={<GitCompare size={18} />} label="受控变更" onClick={() => onViewChange("changes")} />
+            <p className="px-3 text-xs leading-5 text-amber-200">仅演示副本。是否可更新以服务端授权为准，未启用时停在安全提示。</p>
+          </div>
+        )}
 
-        <div className="space-y-2">
-          <SectionLabel label="演示故事线" tone="muted" />
-          {snapshot.story?.map((step, index) => (
-            <div
-              key={index}
-              className="group relative cursor-default border-l border-[#2d3b5a] py-2 pl-6 transition-colors hover:border-[#d39b3b]"
-            >
-              <div className="absolute left-[-5px] top-[14px] h-2 w-2 rounded-full bg-[#2d3b5a] group-hover:bg-[#d39b3b]" />
-              <div className="text-[10px] text-[#a0aec0]">{formatMoment(step.at)}</div>
-              <div className="line-clamp-1 text-xs font-medium text-[#e2e8f0]">{step.title}</div>
-            </div>
-          ))}
-        </div>
+        {currentTone === "replay" ? null : (
+          <div className="space-y-2">
+            <SectionLabel label="Snapshot V1 历史故事" tone="muted" />
+            {snapshot.story?.map((step, index) => (
+              <div key={index} className="group relative cursor-default border-l border-[#2d3b5a] py-2 pl-6 transition-colors hover:border-[#d39b3b]">
+                <div className="text-xs text-[#a0aec0]">{formatMoment(step.at)}</div>
+                <div className="line-clamp-1 text-xs font-medium text-[#e2e8f0]">{step.title}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </nav>
 
       <div className="border-t border-[#2d3b5a] bg-[#1a243b] p-4">
@@ -131,9 +127,9 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${currentTone === "live" ? "border-[#d39b3b] bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+            <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${currentTone === "live" ? "border-[#d39b3b] bg-amber-50 text-amber-800" : currentTone === "replay" ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
               <Zap fill="currentColor" size={14} />
-              <span>{currentView === "changes" ? "受控更新 / 仅演示副本 / 以服务端授权为准" : currentTone === "live" ? "实时工作台 / 只读" : `Snapshot v${snapshot.schema_version} / 静态演示`}</span>
+              <span>{currentView === "changes" && !replayOnly ? "受控更新 / 仅演示副本 / 以服务端授权为准" : currentTone === "replay" ? "静态回放 · 非实时 / 仅合成公开语料" : currentTone === "live" ? "实时工作台 / 只读" : `Snapshot v${snapshot.schema_version} / 静态演示`}</span>
             </div>
           </div>
         </div>
@@ -143,6 +139,7 @@ export const Layout: React.FC<LayoutProps> = ({
     </main>
   </div>
 );
+};
 
 const SectionLabel: React.FC<{ label: string; tone: "demo" | "live" | "muted" }> = ({ label, tone }) => (
   <div className={`px-2 text-xs font-semibold uppercase tracking-[0.16em] ${tone === "live" ? "text-[#d39b3b]" : tone === "demo" ? "text-[#8fb0df]" : "text-[#718096]"}`}>

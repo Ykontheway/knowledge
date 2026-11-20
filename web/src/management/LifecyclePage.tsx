@@ -14,6 +14,7 @@ import {
   lifecycleDiffHash,
   lifecycleDocumentHash,
   lifecycleEvidenceHash,
+  lifecycleJobHash,
   lifecycleJobsHash,
   lifecycleLineageHash,
   lifecycleRevisionHash,
@@ -27,6 +28,7 @@ import { JobDetail } from "./components/JobDetail";
 import { JobList } from "./components/JobList";
 import { LineageView } from "./components/LineageView";
 import { ResourceState, type ResourceStateKind } from "./components/ResourceState";
+import { ReplayBanner } from "./components/ReplayBanner";
 import { RevisionDetail } from "./components/RevisionDetail";
 
 interface LifecyclePageProps {
@@ -49,6 +51,10 @@ type SingleRouteProps<RouteKind extends LifecycleRoute["kind"]> = {
   readonly route: Extract<LifecycleRoute, { kind: RouteKind }>;
   readonly navigate: (hash: string) => void;
 };
+
+function withReplayChrome(mode: LifecycleRoute["mode"], content: React.ReactElement): React.ReactElement {
+  return mode === "replay" ? <div className="space-y-5"><ReplayBanner />{content}</div> : content;
+}
 
 export const LifecyclePage: React.FC<LifecyclePageProps> = ({ route, navigate }) => {
   switch (route.kind) {
@@ -78,138 +84,138 @@ export const LifecyclePage: React.FC<LifecyclePageProps> = ({ route, navigate })
 
 const JobsRouteView: React.FC<JobsRouteProps> = ({ route, navigate }) => {
   const state = useJobsPage(route.status, route.offset);
-  return renderQuery(state, {
-    error: describeError(state.error, "jobs"),
+  return withReplayChrome(route.mode, renderQuery(state, {
+    error: describeError(state.error, "jobs", route.mode),
     ready: (page) => (
       <JobList
-        buildJobHref={lifecycleJobHash}
-        onPageChange={(offset) => navigate(lifecycleJobsHash({ offset, status: route.status }))}
+        buildJobHref={(id) => lifecycleJobHash(id, { mode: route.mode })}
+        onPageChange={(offset) => navigate(lifecycleJobsHash({ offset, status: route.status, mode: route.mode }))}
         onRefresh={state.reload}
-        onStatusChange={(status) => navigate(lifecycleJobsHash({ status, offset: 0 }))}
+        onStatusChange={(status) => navigate(lifecycleJobsHash({ status, offset: 0, mode: route.mode }))}
         page={page}
         refreshing={state.refreshing}
         selectedStatus={route.status}
       />
     ),
-  });
+  }));
 };
 
 const JobRouteView: React.FC<SingleRouteProps<"job">> = ({ route }) => {
   if (route.kind !== "job") return null;
   const state = useJobPage(route.id);
-  return renderQuery(state, {
-    error: describeError(state.error, "resource"),
+  return withReplayChrome(route.mode, renderQuery(state, {
+    error: describeError(state.error, "resource", route.mode),
     ready: (job) => (
       <JobDetail
-        buildJobHref={lifecycleJobHash}
-        buildRevisionHref={lifecycleRevisionHash}
+        buildJobHref={(id) => lifecycleJobHash(id, { mode: route.mode })}
+        buildRevisionHref={(id) => lifecycleRevisionHash(id, { mode: route.mode })}
         job={job}
-        jobsHref={lifecycleJobsHash()}
+        jobsHref={lifecycleJobsHash({ mode: route.mode })}
         onRefresh={state.reload}
         refreshing={state.refreshing}
       />
     ),
-  });
+  }));
 };
 
 const RevisionRouteView: React.FC<SingleRouteProps<"revision">> = ({ route }) => {
   if (route.kind !== "revision") return null;
   const state = useRevisionPage(route.id);
-  return renderQuery(state, {
-    error: describeError(state.error, "resource"),
+  return withReplayChrome(route.mode, renderQuery(state, {
+    error: describeError(state.error, "resource", route.mode),
     ready: (revision) => (
       <RevisionDetail
-        buildDiffHref={lifecycleDiffHash}
-        buildDocumentHref={lifecycleDocumentHash}
-        buildEvidenceHref={lifecycleEvidenceHash}
-        buildLineageHref={lifecycleLineageHash}
-        jobsHref={lifecycleJobsHash()}
+        buildDiffHref={(newId, oldId) => lifecycleDiffHash(newId, oldId, 0, { mode: route.mode })}
+        buildDocumentHref={(id) => lifecycleDocumentHash(id, 0, { mode: route.mode })}
+        buildEvidenceHref={(id) => lifecycleEvidenceHash(id, { mode: route.mode })}
+        buildLineageHref={(id) => lifecycleLineageHash(id, 0, { mode: route.mode })}
+        jobsHref={lifecycleJobsHash({ mode: route.mode })}
         onRefresh={state.reload}
         refreshing={state.refreshing}
         revision={revision}
       />
     ),
-  });
+  }));
 };
 
 const DocumentRouteView: React.FC<SingleRouteProps<"document">> = ({ route, navigate }) => {
   if (route.kind !== "document") return null;
   const state = useDocumentPage(route.id, route.offset);
-  return renderQuery(state, {
-    error: describeError(state.error, "resource"),
+  return withReplayChrome(route.mode, renderQuery(state, {
+    error: describeError(state.error, "resource", route.mode),
     ready: (document) => (
       <DocumentDetail
-        buildDiffHref={lifecycleDiffHash}
-        buildDocumentHref={lifecycleDocumentHash}
-        buildEvidenceHref={lifecycleEvidenceHash}
-        buildLineageHref={lifecycleLineageHash}
+        buildDiffHref={(newId, oldId) => lifecycleDiffHash(newId, oldId, 0, { mode: route.mode })}
+        buildDocumentHref={(id) => lifecycleDocumentHash(id, 0, { mode: route.mode })}
+        buildEvidenceHref={(id) => lifecycleEvidenceHash(id, { mode: route.mode })}
+        buildLineageHref={(id) => lifecycleLineageHash(id, 0, { mode: route.mode })}
         document={document}
-        jobsHref={lifecycleJobsHash()}
-        onPageChange={(offset) => navigate(lifecycleDocumentHash(route.id, offset))}
+        jobsHref={lifecycleJobsHash({ mode: route.mode })}
+        onPageChange={(offset) => navigate(lifecycleDocumentHash(route.id, offset, { mode: route.mode }))}
         onRefresh={state.reload}
         refreshing={state.refreshing}
       />
     ),
-  });
+  }));
 };
 
 const DiffRouteView: React.FC<SingleRouteProps<"diff">> = ({ route, navigate }) => {
   if (route.kind !== "diff") return null;
   const state = useDocumentDiffPage(route.newId, route.oldId, route.offset);
-  return renderQuery(state, {
-    error: describeError(state.error, "diff"),
+  return withReplayChrome(route.mode, renderQuery(state, {
+    error: describeError(state.error, "diff", route.mode),
     ready: (diff) => (
       <DiffView
-        buildDocumentHref={lifecycleDocumentHash}
-        buildEvidenceHref={lifecycleEvidenceHash}
-        buildLineageHref={lifecycleLineageHash}
+        buildDocumentHref={(id) => lifecycleDocumentHash(id, 0, { mode: route.mode })}
+        buildEvidenceHref={(id) => lifecycleEvidenceHash(id, { mode: route.mode })}
+        buildLineageHref={(id) => lifecycleLineageHash(id, 0, { mode: route.mode })}
         diff={diff}
-        jobsHref={lifecycleJobsHash()}
-        onPageChange={(offset) => navigate(lifecycleDiffHash(route.newId, route.oldId, offset))}
+        jobsHref={lifecycleJobsHash({ mode: route.mode })}
+        onPageChange={(offset) => navigate(lifecycleDiffHash(route.newId, route.oldId, offset, { mode: route.mode }))}
         onRefresh={state.reload}
         refreshing={state.refreshing}
       />
     ),
-  });
+  }));
 };
 
 const LineageRouteView: React.FC<SingleRouteProps<"lineage">> = ({ route, navigate }) => {
   if (route.kind !== "lineage") return null;
   const state = useLineagePage(route.id, route.offset);
-  return renderQuery(state, {
-    error: describeError(state.error, "resource"),
+  return withReplayChrome(route.mode, renderQuery(state, {
+    error: describeError(state.error, "resource", route.mode),
     ready: (lineage) => (
       <LineageView
-        buildDocumentHref={lifecycleDocumentHash}
-        buildEvidenceHref={lifecycleEvidenceHash}
-        buildLineageHref={lifecycleLineageHash}
-        jobsHref={lifecycleJobsHash()}
+        buildDocumentHref={(id) => lifecycleDocumentHash(id, 0, { mode: route.mode })}
+        buildEvidenceHref={(id) => lifecycleEvidenceHash(id, { mode: route.mode })}
+        buildLineageHref={(id) => lifecycleLineageHash(id, 0, { mode: route.mode })}
+        jobsHref={lifecycleJobsHash({ mode: route.mode })}
         lineage={lineage}
-        onPageChange={(offset) => navigate(lifecycleLineageHash(route.id, offset))}
+        onPageChange={(offset) => navigate(lifecycleLineageHash(route.id, offset, { mode: route.mode }))}
         onRefresh={state.reload}
         refreshing={state.refreshing}
       />
     ),
-  });
+  }));
 };
 
 const EvidenceRouteView: React.FC<SingleRouteProps<"evidence">> = ({ route }) => {
   if (route.kind !== "evidence") return null;
   const state = useEvidencePage(route.id);
-  return renderQuery(state, {
-    error: describeError(state.error, "evidence"),
+  return withReplayChrome(route.mode, renderQuery(state, {
+    error: describeError(state.error, "evidence", route.mode),
     ready: (evidence) => (
       <EvidenceView
-        buildDocumentHref={lifecycleDocumentHash}
-        buildLineageHref={lifecycleLineageHash}
-        buildRevisionHref={lifecycleRevisionHash}
+        buildDocumentHref={(id) => lifecycleDocumentHash(id, 0, { mode: route.mode })}
+        buildLineageHref={(id) => lifecycleLineageHash(id, 0, { mode: route.mode })}
+        buildRevisionHref={(id) => lifecycleRevisionHash(id, { mode: route.mode })}
         evidence={evidence}
-        jobsHref={lifecycleJobsHash()}
+        jobsHref={lifecycleJobsHash({ mode: route.mode })}
         onRefresh={state.reload}
         refreshing={state.refreshing}
       />
     ),
-  });
+  }));
 };
 
 function renderQuery<T>(
@@ -239,10 +245,15 @@ function renderQuery<T>(
   return <>{options.ready(state.data)}</>;
 }
 
-function describeError(error: unknown, context: "jobs" | "resource" | "diff" | "evidence" | "generic"): ErrorDescriptor {
+function describeError(
+  error: unknown,
+  context: "jobs" | "resource" | "diff" | "evidence" | "generic",
+  mode: LifecycleRoute["mode"],
+): ErrorDescriptor {
+  const bundleLabel = mode === "replay" ? "静态回放数据" : "管理服务";
   if (error instanceof ManagementError) {
     if (error.kind === "unauthorized") {
-      return { kind: "unauthorized", title: "管理服务需要授权", description: getManagementErrorMessage(error) };
+      return { kind: "unauthorized", title: mode === "replay" ? "静态回放资源不可授权" : "管理服务需要授权", description: getManagementErrorMessage(error) };
     }
     if (error.kind === "gone") {
       return { kind: "gone", title: "历史资源已不可用", description: getManagementErrorMessage(error) };
@@ -258,8 +269,10 @@ function describeError(error: unknown, context: "jobs" | "resource" | "diff" | "
       if (context === "jobs") {
         return {
           kind: "service-unavailable",
-          title: "当前站点未启用管理服务",
-          description: "静态演示页仍可用，但要查看实时工作台，需要同源启用 /v1/management 并带上 Bearer 认证。",
+          title: mode === "replay" ? "未找到静态回放文件" : "当前站点未启用管理服务",
+          description: mode === "replay"
+            ? "请先由父流程生成并放置 web/public/replay.json，再刷新本页。"
+            : "静态演示页仍可用，但要查看实时工作台，需要同源启用 /v1/management 并带上 Bearer 认证。",
         };
       }
       return { kind: "not-found", title: "未找到对应资源", description: getManagementErrorMessage(error) };
@@ -267,8 +280,10 @@ function describeError(error: unknown, context: "jobs" | "resource" | "diff" | "
     if (["unavailable", "network", "timeout", "invalid_response"].includes(error.kind)) {
       return {
         kind: "service-unavailable",
-        title: "管理服务暂不可用",
-        description: "页面没有回退到静态 fixture。请检查同源管理服务是否启用，再点重试。",
+        title: `${bundleLabel}暂不可用`,
+        description: mode === "replay"
+          ? "页面不会回退到 fixture。请检查 replay.json 的路径、体积、schema 与引用完整性后再点重试。"
+          : "页面没有回退到静态 fixture。请检查同源管理服务是否启用，再点重试。",
       };
     }
   }
@@ -277,8 +292,4 @@ function describeError(error: unknown, context: "jobs" | "resource" | "diff" | "
     title: context === "evidence" ? "证据读取失败" : "读取失败",
     description: getManagementErrorMessage(error),
   };
-}
-
-function lifecycleJobHash(id: string): string {
-  return `#lifecycle/jobs/${id}`;
 }

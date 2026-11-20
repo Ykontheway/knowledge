@@ -17,9 +17,10 @@ const clientMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("./client", () => ({
-  managementClient: clientMocks.managementClient,
-}));
+vi.mock("./client", async () => {
+  const actual = await vi.importActual<typeof import("./client")>("./client");
+  return { ...actual, managementClient: clientMocks.managementClient };
+});
 
 import { useJobPage, useJobsPage, useManagementQuery } from "./hooks";
 import type { JobDTO, JobStatus } from "./types";

@@ -254,9 +254,19 @@ def test_orchestrator_keeps_old_layout_and_sdk_only_in_new_extra_venvs(
 ) -> None:
     events: list[tuple[str, Any]] = []
     old_summary = {"passed": True, "checks": ["existing_check"]}
+    replay_summary = {"passed": True, "mode": "replay_core", "jobs": 3, "diffs": 16}
 
     def run(command: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
         events.append(("run", command))
+        if (
+            len(command) == 3
+            and command[1] == "-I"
+            and Path(command[2]).name == "installed_replay_smoke.py"
+        ):
+            assert command[0] == str(tmp_path / f"{distribution_format}-venv/bin/python")
+            assert Path(command[2]).is_file()
+            events.append(("replay", command[0]))
+            return subprocess.CompletedProcess(command, 0, json.dumps(replay_summary), "")
         return subprocess.CompletedProcess(command, 0, json.dumps(old_summary), "")
 
     def python_path(venv: Path) -> Path:
@@ -301,7 +311,10 @@ def test_orchestrator_keeps_old_layout_and_sdk_only_in_new_extra_venvs(
         "postgres_extra",
         "mcp_extra",
         "mcp_controlled_extra",
+        "replay_core",
     }
+    assert summary["replay_core"] == replay_summary
+    assert sum(kind == "replay" for kind, _ in events) == 1
     assert summary["mcp_controlled_extra"] == {"passed": True, "mode": "controlled_extra"}
     assert sum(kind == "controlled" for kind, _ in events) == 1
     for key in ("quality_acceptance", "api_extra", "tokens_extra", "postgres_extra"):

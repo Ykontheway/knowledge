@@ -131,6 +131,15 @@ AUTO_EVALUATION_MODULES = (
     "konwledge/newcli_auto_evaluation.py",
     "konwledge/storage/auto_evaluation.py",
 )
+REPLAY_MODULES = tuple(
+    f"konwledge/replay/{name}.py" for name in ("__init__", "bundle", "corpus", "files", "producer")
+)
+REPLAY_SDIST_FILES = (
+    "scripts/export_replay.py",
+    "scripts/installed_replay_smoke.py",
+    "tests/test_replay.py",
+    "tests/test_distribution_replay.py",
+)
 TOKEN_MODULES = ("konwledge/context/tokens.py",)
 DATABASE_SCHEMA_MODULES = (
     "konwledge/database_schema/__init__.py",
@@ -353,6 +362,7 @@ def inspect_wheel(
         *QUALITY_MODULES,
         *AUTO_EVALUATION_MODULES,
         *TOKEN_MODULES,
+        *REPLAY_MODULES,
         *expected_resources,
     }
     missing = sorted(required.difference(names))
@@ -415,6 +425,8 @@ def inspect_sdist(
             *(f"{root}/src/{module}" for module in QUALITY_MODULES),
             *(f"{root}/src/{module}" for module in AUTO_EVALUATION_MODULES),
             *(f"{root}/src/{module}" for module in TOKEN_MODULES),
+            *(f"{root}/src/{module}" for module in REPLAY_MODULES),
+            *(f"{root}/{filename}" for filename in REPLAY_SDIST_FILES),
             *(
                 f"{root}/src/{resource}"
                 for resource in expected_resources
@@ -748,6 +760,12 @@ def _smoke_install(
     )
     run_dir = scratch / f"{distribution_format}-run"
     run_dir.mkdir()
+    replay_script = run_dir / "installed_replay_smoke.py"
+    shutil.copyfile(PROJECT_ROOT / "scripts" / replay_script.name, replay_script)
+    replay_result = _run([str(python), "-I", str(replay_script)], cwd=run_dir)
+    replay_summary = json.loads(replay_result.stdout)
+    if replay_summary != {"passed": True, "mode": "replay_core", "jobs": 3, "diffs": 16}:
+        raise RuntimeError("installed core replay smoke failed safe summary validation")
     smoke_script = run_dir / SMOKE_SCRIPT.name
     shutil.copyfile(SMOKE_SCRIPT, smoke_script)
     result = _run(
@@ -771,6 +789,7 @@ def _smoke_install(
     if not isinstance(summary, dict):
         raise RuntimeError("installed smoke summary must be a JSON object")
 
+    summary["replay_core"] = replay_summary
     acceptance_script = run_dir / ACCEPTANCE_SMOKE_SCRIPT.name
     shutil.copyfile(ACCEPTANCE_SMOKE_SCRIPT, acceptance_script)
     acceptance_result = _run(
