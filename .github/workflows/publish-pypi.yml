@@ -275,6 +275,7 @@ jobs:
       - name: Test LanceDB adapter
         run: uv run pytest tests/test_indexing.py -k lance
 
+  # Preflight run 45151862632 passed every check; only marked commits opt into upload.
   publish:
     name: Upload the verified PyPI 0.1.0 artifacts
     needs: [quality, postgres, web, lancedb]
