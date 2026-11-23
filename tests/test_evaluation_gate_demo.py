@@ -235,6 +235,14 @@ def test_committed_policy_is_default_strict_with_same_time_and_passes(tmp_path: 
     assert all(delta.delta in (None, 0.0) for delta in comparison.deltas)
 
 
+def test_python_quality_job_keeps_non_color_environment_for_all_steps() -> None:
+    """pytest 与发行 smoke 共享 job 级非彩色环境，不依赖本机终端。"""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    quality = text.split("\n  quality:\n", 1)[1].split("\n  postgres:\n", 1)[0]
+    configuration = quality.split("\n    steps:\n", 1)[0]
+    assert "    env:\n      NO_COLOR: '1'\n      TERM: dumb\n" in configuration
+
+
 def test_workflow_keeps_strict_gate_and_report_only_always_artifacts() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "on:\n  push:\n    branches: [main]\n  pull_request:\n" in text

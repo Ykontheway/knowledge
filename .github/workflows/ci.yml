@@ -12,6 +12,10 @@ jobs:
   quality:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    # pytest 与发行 smoke 共享稳定的非彩色 CLI 帮助和诊断输出。
+    env:
+      NO_COLOR: '1'
+      TERM: dumb
     strategy:
       fail-fast: false
       matrix:

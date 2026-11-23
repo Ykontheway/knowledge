@@ -12,6 +12,7 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 - 页面与 CI 使用“版本快照”“使用导览”“隔离副本”和 Knowledge CI 工作台名称。兼容命令、协议、路径、role／actor、固定快照与回放数据保持不变；没有扩大写权限或改动核心状态机。
 - 记录 2026-11-23 首次静态只读预览发布及线上核验。发布提交为 `2ed4f9acda77118c582be709a681d51b34dffb56`，当前源码文案变更不自动更新线上版本；静态预览不代表实时后端或生产写服务上线。
 - pytest 显式配置仓库根目录导入路径，使测试辅助模块 `scripts` 不再依赖本机 `PYTHONPATH`。首次 PR CI 的三组 Python 检查暴露收集错误，清除环境变量后本机已复现；不将脚本加入运行包，不修改门禁或跳过条件。
+- Python quality CI 显式设置 `NO_COLOR=1` 与 `TERM=dumb`，使 pytest 和发行 smoke 的 CLI 帮助／诊断输出确定且不带颜色；保留原有断言与 `GITHUB_ACTIONS`。
 - 包版本保持 `0.1.0` prepared alpha，未正式发行。后续条目保留各 U／B 阶段的历史范围与验收数字，不改写为本次验证结果。
 
 ### 静态回放导出与预览准备（历史记录）
