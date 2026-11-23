@@ -16,14 +16,14 @@ from textwrap import dedent
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_SHA = "5812a3ed44a1364e9f32c396fd0b2662719cddab"
+SOURCE_SHA = "3768ceba0719cd21916ea80ae175151a92d4ded1"
 REPOSITORY = "Ykontheway/konwledge"
 BRANCH = "aime/1793676007-v02-demo-web"
 EXPECTED_DIGESTS = {
     "konwledge-0.1.0-py3-none-any.whl": (
-        "c9b40e175653b12366caae961a7eef4c837ca776e9ef3c738cd99705f63d8470"
+        "801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17"
     ),
-    "konwledge-0.1.0.tar.gz": ("38c8acbc34f1591b647d9a23dfcab32bba6df7bf78516be5ba2ce5ffa913aea5"),
+    "konwledge-0.1.0.tar.gz": ("2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee"),
 }
 
 

@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Ykontheway/konwledge
-          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
           persist-credentials: false
 
       - name: Install uv
@@ -103,8 +103,8 @@ jobs:
 
           build = Path(sys.argv[1])
           expected = {
-              "konwledge-0.1.0-py3-none-any.whl": "c9b40e175653b12366caae961a7eef4c837ca776e9ef3c738cd99705f63d8470",
-              "konwledge-0.1.0.tar.gz": "38c8acbc34f1591b647d9a23dfcab32bba6df7bf78516be5ba2ce5ffa913aea5",
+              "konwledge-0.1.0-py3-none-any.whl": "801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17",
+              "konwledge-0.1.0.tar.gz": "2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee",
           }
           if build.is_symlink() or not build.is_dir():
               raise SystemExit("Release build directory is missing or invalid")
@@ -192,7 +192,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Ykontheway/konwledge
-          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
           persist-credentials: false
 
       - name: Install uv
@@ -224,7 +224,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Ykontheway/konwledge
-          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
           persist-credentials: false
 
       - name: Install pnpm
@@ -259,7 +259,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Ykontheway/konwledge
-          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
           persist-credentials: false
 
       - name: Install uv
@@ -312,8 +312,8 @@ jobs:
 
           build = Path(sys.argv[1])
           expected = {
-              "konwledge-0.1.0-py3-none-any.whl": "c9b40e175653b12366caae961a7eef4c837ca776e9ef3c738cd99705f63d8470",
-              "konwledge-0.1.0.tar.gz": "38c8acbc34f1591b647d9a23dfcab32bba6df7bf78516be5ba2ce5ffa913aea5",
+              "konwledge-0.1.0-py3-none-any.whl": "801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17",
+              "konwledge-0.1.0.tar.gz": "2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee",
           }
           if build.is_symlink() or not build.is_dir():
               raise SystemExit("Release build directory is missing or invalid")
