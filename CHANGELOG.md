@@ -4,7 +4,20 @@ All notable changes to Konwledge are documented in this file.
 
 The project is in alpha. Minor releases may refine public and lower-level APIs as capabilities are added; v0.1.0 does not provide a complete backward-compatibility guarantee.
 
-## Unreleased - Knowledge CI
+## 0.1.0 - 2026-11-23（已发布到 PyPI）
+
+- 首次发布 Alpha 包 `konwledge==0.1.0`：[PyPI 页面](https://pypi.org/project/konwledge/0.1.0/)。原名可用，未追加后缀。
+- 发行源码固定为 `3768ceba0719cd21916ea80ae175151a92d4ded1`，上传流程提交为 `7e263833b4f2a316c87f4091306ea6def26ba865`。本次没有合并或推送 `main`、创建 tag、创建 GitHub Release，也没有更新在线预览。
+- [预检运行 45151862632](https://github.com/Ykontheway/konwledge/actions/runs/45151862632) 的检查全部通过，上传任务跳过；[正式发布运行 45154046544](https://github.com/Ykontheway/konwledge/actions/runs/45154046544) 的 8 个任务全部通过，包括上传。
+- 已核对正式 PyPI 元数据及下载文件的 SHA256：wheel 为 `801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17`，sdist 为 `2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee`。
+- 本地全量测试为 2590 通过、7 跳过，耗时 583.21 秒。远端三组 Python 检查已通过；匿名无法读取完整日志，不补写远端测试数量。
+- 从正式 PyPI 在仓库外的新环境中分别安装 wheel 和 sdist，确认导入来自 `site-packages`、CLI 别名输出 `0.1.0`。核心验收覆盖 9 项检查、8 个步骤、6 个评测用例和 42 项门禁检查；Replay 验证包含 3 个 job、16 个 diff。独立 MCP 安装及真实 stdio 验收通过，覆盖 5 个工具和 15 项检查，SDK 为 `1.30`；`pip check` 通过。
+- 发布后安装验收使用 Linux、Python 3.11.15、无缓存的隔离环境。MCP 首次安装超时未算通过，另建环境重试后通过；`[api]`、`[tokens]`、`[postgres]`、`[lancedb]` 的发布后安装未复跑，Windows 与 macOS 未验收。包发布不等于部署 GUI 或在线服务。
+- 后续文档更新只记录发布事实，不重新构建或覆盖已发布的 `0.1.0` 文件。
+
+## 0.1.0发布前开发记录（历史）
+
+以下条目记录 2026-11-23 首次正式发布之前的开发、验收与准备过程；其中 “Unreleased”“prepared”“未发布” 等表述均保留为当时历史事实，不改写为本次发布结果。
 
 ### 产品定位与开发逻辑整理
 

@@ -4,6 +4,29 @@ This document is a maintainer checklist. It separates a release-ready source tre
 
 ## Current v0.1.0 state
 
+v0.1.0 alpha was first published to PyPI on 2026-11-23: [konwledge 0.1.0](https://pypi.org/project/konwledge/0.1.0/). The published artifact set is bound to the fixed source commit `3768ceba0719cd21916ea80ae175151a92d4ded1`; the upload was executed by the publisher workflow commit `7e263833b4f2a316c87f4091306ea6def26ba865`. Treat that pair as the approved publication provenance for this PyPI release. It is a fixed-source publication record, not evidence that `main` was merged or pushed for this release, that a tag was created, that a GitHub Release exists, or that GitHub Pages was updated.
+
+Publication evidence and verified scope:
+
+- preflight run: [GitHub Actions run 45151862632](https://github.com/Ykontheway/konwledge/actions/runs/45151862632) — all checks succeeded and upload was skipped;
+- actual publish run: [GitHub Actions run 45154046544](https://github.com/Ykontheway/konwledge/actions/runs/45154046544) — all 8 jobs completed, including `UploadSuccess`;
+- verified artifact hashes: wheel SHA256 `801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17`; sdist SHA256 `2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee`;
+- the published index JSON and downloaded-byte hashes were independently verified;
+- local full validation was `2590 passed, 7 skipped` in `583.21s`;
+- three remote Python CI jobs succeeded, but anonymous complete logs were not readable, so this document does not invent remote test counts;
+- post-publication verification succeeded in a fresh external Linux Python 3.11.15 environment with no cache and isolated `pip` for both the wheel and `--no-binary konwledge` sdist install paths; imports came from `site-packages`, CLI aliases reported `0.1.0`, and the verified scope covered the core `9` checks / `8` steps / `6` cases / `42` gates plus Replay checks over `3` jobs and `16` diffs;
+- an independent PyPI MCP follow-up passed `15` additional checks across `5` tools using real stdio via SDK `1.30`, and `pip check` passed; the first MCP install attempt timed out and is not counted as passed, while a fresh retry succeeded;
+- post-publication install verification was not rerun for `[api]`, `[tokens]`, `[postgres]`, or `[lancedb]`;
+- Windows and macOS were not accepted, and package publication does not deploy a GUI, a web service, or a public live backend.
+
+README may now state that `konwledge==0.1.0` is available from PyPI, but release notes must still distinguish PyPI publication from merge-to-`main`, tagging, GitHub Release publication, and static-site publication.
+
+Operational note: the user secret `PYPI_API_TOKEN` was consumed only by the GitHub upload step through `UV_PUBLISH_TOKEN`; the plaintext token and its scope were not inspected here. If an account-wide token was used for first publication, replace it with a project-scoped token and revoke the original token. Prefer Trusted Publishing for future releases. These post-publication documentation updates do not change the immutable published artifacts; do not rebuild and upload a different artifact set as `0.1.0`.
+
+## Historical pre-publication note from 2026-11-12
+
+The following note is preserved exactly as a historical pre-publication snapshot.
+
 As of 2026-11-12, v0.1.0 is prepared as an alpha release candidate in source metadata. U14–U16 acceptance, automatic knowledge-change evaluation, and U18–U20 remain Unreleased additions and do not change the version. This work does not merge `main`, create a pull request, tag a commit, create a GitHub Release, publish to PyPI, or deploy/verify a public site. Local artifacts produced during verification are not a published release.
 
 No installation instructions should claim that `konwledge==0.1.0` is available from PyPI until the package index confirms it.

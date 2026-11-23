@@ -2,11 +2,30 @@
 
 Konwledge 是本地优先的 **Knowledge CI 知识生命周期与质量门禁基础设施**。它记录可追溯的版本事实，把知识变更接到质量验收，并向应用提供绑定精确版本的检索证据与上下文。
 
-当前核心开发与工作台实现已完成，版本为0.1.0，处于Alpha阶段。实现完成、包发布和生产部署是三个不同状态。
+当前核心开发与工作台实现已完成，版本为 0.1.0，处于 Alpha 阶段。`konwledge==0.1.0` 已于 2026-11-23 发布到 [PyPI](https://pypi.org/project/konwledge/0.1.0/)；实现完成、包发布和生产部署仍是三个不同状态。
 
 包名保留 `konwledge`，主 CLI 为 `knowledge`，兼容别名 `konwledge` 和模块入口 `python -m konwledge` 继续可用。项目面向本机、单库工程使用，不是自治答案系统或生产服务。
 
 2026-11-23 已发布 [在线只读预览](https://ykontheway.github.io/konwledge/#replay/guide)。页面只读取静态回放数据，不连接 live backend；导出、构建与发布边界见 [静态回放预览](docs/replay-preview.md)。
+
+## 安装已发布的 0.1.0
+
+需要 Python 3.11 或更新版本，建议在虚拟环境中安装。如果直接使用已发布包，无须先下载源码仓库：
+
+```bash
+pip install konwledge==0.1.0
+knowledge --version
+```
+
+也可以按需安装已发布的可选 extra：
+
+```bash
+pip install 'konwledge[api,mcp,tokens]==0.1.0'
+```
+
+这些 extra 只会补充本机 HTTP、stdio MCP 和精确 token 预算相关依赖，不会自动部署 GUI、Web 服务或公开站点。
+
+纯 `pip install` 不会把仓库里的 `examples/` 文件自动复制到你当前目录。下面基于 `examples/` 的命令需要先下载源码仓库，或自行准备等价的 `.md`／`.txt` 输入文件。
 
 ## 知识变更留下可验收的事实
 
@@ -47,9 +66,9 @@ normalized_content[unit.start_char:unit.end_char] == unit.text
 
 核心上下文的 `max_chars` 计算完整 `context_text`，可选 `[tokens]` 支持精确 token 预算。MCP 使用独立的字符／块数预算，不接受 `max_tokens`。两套预算不能混用，详情见 [核心参考](docs/core-reference.md) 和 [只读 MCP](docs/mcp-readonly.md)。
 
-## 从本地文档开始
+## 从源码 checkout 开始
 
-需要 Python 3.11 或更新版本，以及启用 FTS5 的 SQLite。以下命令在仓库根目录执行，从当前checkout安装，不依赖包索引：
+需要 Python 3.11 或更新版本，以及启用 FTS5 的 SQLite。以下命令在仓库根目录执行，从当前 checkout 安装，不依赖包索引：
 
 ```bash
 python -m pip install .
@@ -62,7 +81,7 @@ knowledge --version
 knowledge 0.1.0
 ```
 
-直接导入仓库自带文档，再查看、检索和组装上下文：
+以下示例直接使用仓库自带的 `examples/` 文件；只有在你已经下载源码仓库时，这些路径才会存在：
 
 ```bash
 knowledge import examples/getting-started.md -d .konwledge/knowledge.db
@@ -222,8 +241,8 @@ pnpm verify:preview
 - [参与贡献](CONTRIBUTING.md)／[变更记录](CHANGELOG.md)／[Apache License 2.0](LICENSE)。
 
 <!-- 文档校对记录
-本次仅整理 README 的结构与文案，保留知识生命周期、资格检索、精确引用、质量门禁和安全边界的原有含义。
-关键机制、示例命令、版本名词和兼容入口未改，技术代码块按原文保真。
-已做中文半角标点机械扫描，结果为 0；代码块、命令、路径、URL 等半角语法按规则保留。
-本记录只覆盖文档文字与链接核对，不代表代码测试、发布或部署状态。
+本次补记 PyPI 首次正式发布事实，并新增已发布版本安装段，同时保留从源码 checkout 安装与仓库 examples 的原有示例边界。
+关键机制、示例命令、版本名词和兼容入口未改；examples 仍要求先取得源码仓库，本记录不宣称 GUI、Web 服务或公开 live backend 已部署。
+已对本次新增中文做半角标点机械扫描，结果为 0；代码块、命令、路径、URL、hash、版本号与既有历史文本按规则保留。
+本记录只覆盖文档文字、链接与发布状态表述核对，不代表本次在本地重新执行 README 中的安装命令。
 -->
