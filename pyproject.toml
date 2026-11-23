@@ -77,6 +77,8 @@ packages = ["src/konwledge"]
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]
+# Repository-level scripts are test helpers, not runtime package contents.
+pythonpath = ["."]
 
 [tool.coverage.run]
 branch = true

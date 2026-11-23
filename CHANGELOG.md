@@ -11,6 +11,7 @@ The project is in alpha. Minor releases may refine public and lower-level APIs a
 - README 按知识生命周期、资格检索、精确证据、质量门禁与受控接口组织，详细 SDK／CLI 参考移入 `docs/core-reference.md`。新增 `docs/development.md`，按能力依赖和评审风险介绍开发逻辑；架构文档覆盖自动评测、工作台、MCP 和静态回放。
 - 页面与 CI 使用“版本快照”“使用导览”“隔离副本”和 Knowledge CI 工作台名称。兼容命令、协议、路径、role／actor、固定快照与回放数据保持不变；没有扩大写权限或改动核心状态机。
 - 记录 2026-11-23 首次静态只读预览发布及线上核验。发布提交为 `2ed4f9acda77118c582be709a681d51b34dffb56`，当前源码文案变更不自动更新线上版本；静态预览不代表实时后端或生产写服务上线。
+- pytest 显式配置仓库根目录导入路径，使测试辅助模块 `scripts` 不再依赖本机 `PYTHONPATH`。首次 PR CI 的三组 Python 检查暴露收集错误，清除环境变量后本机已复现；不将脚本加入运行包，不修改门禁或跳过条件。
 - 包版本保持 `0.1.0` prepared alpha，未正式发行。后续条目保留各 U／B 阶段的历史范围与验收数字，不改写为本次验证结果。
 
 ### 静态回放导出与预览准备（历史记录）
