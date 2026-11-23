@@ -1,0 +1,357 @@
+name: Publish PyPI 0.1.0
+
+on:
+  push:
+    branches: ['aime/1793676007-v02-demo-web']
+    paths: ['.github/workflows/publish-pypi.yml']
+  # 未来在 default branch 注册后才可手动触发；默认仍只检查。
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '通过所有门禁后上传固定的 0.1.0 产物到 PyPI'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-0.1.0
+  cancel-in-progress: false
+
+jobs:
+  # 所有检查只读取已核验发行源，不将新增自动化文件带入 sdist。
+  quality:
+    if: github.repository == 'Ykontheway/konwledge'
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # pytest 与发行 smoke 共享稳定的非彩色 CLI 帮助和诊断输出。
+    env:
+      NO_COLOR: '1'
+      TERM: dumb
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          repository: Ykontheway/konwledge
+          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.15"
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      # dev 包含 API 类型检查和离线 OpenAI/LangChain 验收依赖；SDK 不进入 wheel。
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy src tests scripts
+
+      - name: Test
+        run: uv run pytest --cov=konwledge --cov-report=term-missing
+
+      - name: Verify the versioned snapshot contract
+        run: |
+          uv run knowledge demo build --force --workspace "$RUNNER_TEMP/demo"
+          uv run knowledge demo export --workspace "$RUNNER_TEMP/demo" --check
+
+      - name: Import the fixed acceptance dataset
+        run: |
+          uv run knowledge evaluation import examples/evaluation-demo.json -d "$RUNNER_TEMP/demo/knowledge.db"
+
+      - name: Evaluate retrieval at a fixed time
+        run: |
+          uv run knowledge evaluation run 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 --mode lexical --top-k 5 --candidate-limit 50 --rrf-k 60 --at 2026-11-10T00:00:00Z -d "$RUNNER_TEMP/demo/knowledge.db" --json > "$RUNNER_TEMP/evaluation-candidate.json"
+
+      # 只读取已提交基线，不自动更新；三条 Python lane 均执行全量烟测。
+      - name: Gate retrieval against the committed baseline
+        run: |
+          uv run knowledge evaluation gate examples/evaluation-baseline.json "$RUNNER_TEMP/evaluation-candidate.json" --policy examples/evaluation-gate.json --json > "$RUNNER_TEMP/evaluation-gate.json"
+
+      - name: Run quality acceptance (30 cases, 1,000 active units, P95 <= 1.5s)
+        run: uv run python scripts/quality_acceptance.py --report "$RUNNER_TEMP/quality-acceptance.json"
+
+      - name: Verify wheel and source distribution (core-only, quality, api, postgres, and tokens)
+        run: uv run python scripts/verify_distribution.py --output-dir "$RUNNER_TEMP/distribution"
+
+      # 摘要以本地已核验产物为准；云端重建不一致必须失败，不能放宽或重建补救。
+      - name: Verify exact release digests
+        if: matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - "$RUNNER_TEMP/distribution/build" <<'PY'
+          import hashlib
+          import sys
+          from pathlib import Path
+
+          build = Path(sys.argv[1])
+          expected = {
+              "konwledge-0.1.0-py3-none-any.whl": "c9b40e175653b12366caae961a7eef4c837ca776e9ef3c738cd99705f63d8470",
+              "konwledge-0.1.0.tar.gz": "38c8acbc34f1591b647d9a23dfcab32bba6df7bf78516be5ba2ce5ffa913aea5",
+          }
+          if build.is_symlink() or not build.is_dir():
+              raise SystemExit("Release build directory is missing or invalid")
+          names = {path.name for path in build.iterdir()}
+          if ".gitignore" in names:
+              marker = build / ".gitignore"
+              if marker.is_symlink() or not marker.is_file() or marker.read_bytes() not in (b"*", b"*\n"):
+                  raise SystemExit("Invalid build-directory marker")
+              names.remove(".gitignore")
+          if names != set(expected):
+              raise SystemExit("Release build must contain exactly the two fixed files")
+          for name, digest in expected.items():
+              path = build / name
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit("Release artifact must be a regular file")
+              if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                  raise SystemExit("Release artifact SHA256 mismatch")
+          PY
+
+      - name: Check release metadata strictly
+        if: matrix.python-version == '3.11'
+        run: |
+          uvx --python 3.11 --from twine==7.0.0 twine check --strict \
+            "$RUNNER_TEMP/distribution/build/konwledge-0.1.0-py3-none-any.whl" \
+            "$RUNNER_TEMP/distribution/build/konwledge-0.1.0.tar.gz"
+
+      - name: Upload quality acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-acceptance-${{ matrix.python-version }}
+          path: ${{ runner.temp }}/quality-acceptance.json
+          if-no-files-found: ignore
+
+      - name: Upload evaluation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-${{ matrix.python-version }}
+          path: |
+            ${{ runner.temp }}/evaluation-candidate.json
+            ${{ runner.temp }}/evaluation-gate.json
+          if-no-files-found: ignore
+
+      # 多路径的公共根目录为 distribution/；下载后是 build/ 和根目录的摘要。
+      # 失败时仍保留证据；publish 的 needs 默认要求所有 lane 成功，不能发布失败证据。
+      - name: Upload verified distributions and smoke summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribution-${{ matrix.python-version }}
+          path: |
+            ${{ runner.temp }}/distribution/build/*.whl
+            ${{ runner.temp }}/distribution/build/*.tar.gz
+            ${{ runner.temp }}/distribution/*-smoke-summary.json
+          if-no-files-found: ignore
+
+  postgres:
+    if: github.repository == 'Ykontheway/konwledge'
+    name: PostgreSQL ${{ matrix.postgres-version }} schema capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres-version: ["16", "17"]
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}
+        env:
+          POSTGRES_USER: konwledge_test
+          POSTGRES_PASSWORD: konwledge_test
+          POSTGRES_DB: konwledge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U konwledge_test -d konwledge_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          repository: Ykontheway/konwledge
+          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.15"
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies with the PostgreSQL extra
+        run: uv sync --locked --dev --extra postgres
+
+      - name: Test PostgreSQL schema capture
+        env:
+          KNOWLEDGE_TEST_POSTGRES_DSN: postgresql+psycopg://konwledge_test:konwledge_test@127.0.0.1:5432/konwledge_test
+        run: uv run --no-sync pytest tests/test_database_schema_postgres.py
+
+  web:
+    if: github.repository == 'Ykontheway/konwledge'
+    name: Knowledge CI Workbench
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          repository: Ykontheway/konwledge
+          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify workbench types, tests, and production build
+        run: pnpm verify
+
+      - name: Verify the committed read-only replay preview
+        run: pnpm verify:preview
+
+  lancedb:
+    if: github.repository == 'Ykontheway/konwledge'
+    name: Optional LanceDB adapter
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          repository: Ykontheway/konwledge
+          ref: 5812a3ed44a1364e9f32c396fd0b2662719cddab
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.15"
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies with the lancedb extra
+        run: uv sync --locked --dev --extra lancedb
+
+      - name: Test LanceDB adapter
+        run: uv run pytest tests/test_indexing.py -k lance
+
+  publish:
+    name: Upload the verified PyPI 0.1.0 artifacts
+    needs: [quality, postgres, web, lancedb]
+    if: >-
+      ${{ github.repository == 'Ykontheway/konwledge' &&
+          github.ref == 'refs/heads/aime/1793676007-v02-demo-web' &&
+          ((github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
+           (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-pypi-0.1.0]'))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # 不 checkout、不运行仓库代码、不重建；只消费同一次 run 的已验证 artifact。
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.15"
+          python-version: "3.11"
+          enable-cache: false
+
+      - name: Download verified distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: distribution-3.11
+          path: verified-distribution
+
+      - name: Reverify exact release digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - "verified-distribution/build" <<'PY'
+          import hashlib
+          import sys
+          from pathlib import Path
+
+          build = Path(sys.argv[1])
+          expected = {
+              "konwledge-0.1.0-py3-none-any.whl": "c9b40e175653b12366caae961a7eef4c837ca776e9ef3c738cd99705f63d8470",
+              "konwledge-0.1.0.tar.gz": "38c8acbc34f1591b647d9a23dfcab32bba6df7bf78516be5ba2ce5ffa913aea5",
+          }
+          if build.is_symlink() or not build.is_dir():
+              raise SystemExit("Release build directory is missing or invalid")
+          names = {path.name for path in build.iterdir()}
+          if ".gitignore" in names:
+              marker = build / ".gitignore"
+              if marker.is_symlink() or not marker.is_file() or marker.read_bytes() not in (b"*", b"*\n"):
+                  raise SystemExit("Invalid build-directory marker")
+              names.remove(".gitignore")
+          if names != set(expected):
+              raise SystemExit("Release build must contain exactly the two fixed files")
+          for name, digest in expected.items():
+              path = build / name
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit("Release artifact must be a regular file")
+              if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                  raise SystemExit("Release artifact SHA256 mismatch")
+          PY
+
+      - name: Recheck release metadata strictly
+        run: |
+          uvx --python 3.11 --from twine==7.0.0 twine check --strict \
+            "verified-distribution/build/konwledge-0.1.0-py3-none-any.whl" \
+            "verified-distribution/build/konwledge-0.1.0.tar.gz"
+
+      - name: Upload to PyPI
+        shell: bash
+        # token 只给本步骤；不作为命令参数，不打印、不导出到后续步骤。
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          NO_COLOR: '1'
+          TERM: dumb
+        run: |
+          set -euo pipefail
+          if [ -z "${UV_PUBLISH_TOKEN:-}" ]; then
+            printf '%s\n' 'PYPI_API_TOKEN 未配置；拒绝上传。' >&2
+            exit 1
+          fi
+          uv publish --trusted-publishing never --check-url https://pypi.org/simple/ --no-progress \
+            "verified-distribution/build/konwledge-0.1.0-py3-none-any.whl" \
+            "verified-distribution/build/konwledge-0.1.0.tar.gz"
