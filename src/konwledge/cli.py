@@ -2,20 +2,59 @@
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import json
-from collections.abc import Sequence
+import os
+import sys
+import tempfile
+from collections.abc import Iterator, Sequence
+from contextvars import ContextVar
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated, Any, NoReturn
 from uuid import UUID
 
+import click
 import typer
+from pydantic import ValidationError
+from typer.core import TyperGroup
 
 from konwledge import __version__
 from konwledge.application import ImportPathError, KnowledgeLibrary, KnowledgeUnitNotFoundError
+from konwledge.auto_evaluation.notifications import notify_cli
+from konwledge.context import TokenContextPacket, assemble_context, validate_budget
+from konwledge.context.tokens import resolve_token_counter
+from konwledge.conversations import (
+    CandidateNotFoundError,
+    CandidateStateError,
+    CandidateStatus,
+    Conversation,
+    ConversationNotFoundError,
+    ConversationService,
+    ConversationVersionConflictError,
+    StoredConversation,
+    load_conversation_json,
+)
 from konwledge.demo import DemoWorkspaceError, build_demo, export_demo
 from konwledge.domain import ConflictStatus, FreshnessPolicy, KnowledgeUnit
+from konwledge.domain.conversations import MAX_CONVERSATION_BYTES
 from konwledge.embedding import EmbeddingService, HashEmbeddingProvider
+from konwledge.evaluation import (
+    EvaluationBaseline,
+    EvaluationComparison,
+    EvaluationReport,
+    EvaluationService,
+    EvaluationSet,
+    GatePolicy,
+    GateResult,
+    baseline_from_report,
+    compare_baseline,
+    dump_baseline,
+    dump_evaluation_set,
+    evaluate_gate,
+)
 from konwledge.indexing import IndexingService, InMemoryVectorIndex
 from konwledge.lifecycle import (
     DocumentNotFoundError,
@@ -23,11 +62,20 @@ from konwledge.lifecycle import (
     SourceNotFoundError,
     UnitState,
 )
-from konwledge.retrieval import RetrievalMode, RetrievalService
+from konwledge.newcli_auto_evaluation import auto_evaluation_app
+from konwledge.newcli_database_schema import database_app
+from konwledge.newcli_quality import quality_app
+from konwledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
 from konwledge.snapshot import dump_schema, dump_snapshot
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from konwledge.storage import (
+    ImmutableEntityError,
+    create_schema,
+    create_session_factory,
+    create_sqlite_engine,
+)
 
 DEFAULT_DATABASE = Path(".konwledge/knowledge.db")
+_CLI_CONTEXT: ContextVar[typer.Context | None] = ContextVar("konwledge_cli_context", default=None)
 
 app = typer.Typer(
     name="knowledge",
@@ -37,6 +85,41 @@ app = typer.Typer(
     no_args_is_help=False,
     pretty_exceptions_enable=False,
 )
+app.add_typer(database_app, name="database")
+app.add_typer(auto_evaluation_app, name="auto-evaluation")
+app.add_typer(quality_app, name="quality")
+
+
+# Typer 新版内置 Click，旧版使用独立 Click；通过公开 BadParameter 的
+# UsageError 基类兼容两者，避免依赖 typer._click 私有模块。
+_MCP_USAGE_ERRORS: tuple[type[Exception], ...] = (
+    click.UsageError,
+    typer.BadParameter.__bases__[0],
+)
+
+
+class _SafeMcpGroup(TyperGroup):
+    """MCP 专用参数错误不回显 argv；不改变其他 CLI 命令的错误格式。"""
+
+    def parse_args(self, ctx: Any, args: list[str]) -> list[str]:
+        try:
+            return super().parse_args(ctx, args)
+        except _MCP_USAGE_ERRORS:
+            _fail("MCP 参数无效。", code=2)
+
+    def invoke(self, ctx: Any) -> Any:
+        try:
+            return super().invoke(ctx)
+        except _MCP_USAGE_ERRORS:
+            _fail("MCP 参数无效。", code=2)
+
+
+mcp_app = typer.Typer(
+    help="默认只读 MCP stdio 服务与带外人工批准。",
+    cls=_SafeMcpGroup,
+    pretty_exceptions_enable=False,
+)
+app.add_typer(mcp_app, name="mcp")
 
 AtOption = Annotated[
     str | None,
@@ -80,16 +163,52 @@ def root(
 ) -> None:
     """Import and inspect traceable local knowledge."""
 
+    token = _CLI_CONTEXT.set(ctx)
+    ctx.call_on_close(lambda: _CLI_CONTEXT.reset(token))
     if ctx.invoked_subcommand is None and not version:
         typer.echo(ctx.get_help())
 
 
 def _open_library(database: Path) -> KnowledgeLibrary:
+    # Existing CLI handlers share the scoped path; Click closes its resource after
+    # rendering stdout, so a post-commit exit 3 cannot swallow a JSON result.
+    context = _CLI_CONTEXT.get()
+    if context is not None:
+        return context.with_resource(_open_scoped_library(database))
     database_path = database.expanduser().resolve()
     database_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_sqlite_engine(f"sqlite+pysqlite:///{database_path.as_posix()}")
     create_schema(engine)
     return KnowledgeLibrary(create_session_factory(engine))
+
+
+def _automatic_evaluation_exit() -> NoReturn:
+    raise typer.Exit(code=3)
+
+
+@contextlib.contextmanager
+def _open_scoped_library(database: Path) -> Iterator[KnowledgeLibrary]:
+    """Open one CLI-owned library and always release its SQLAlchemy engine."""
+
+    database_path = database.expanduser().resolve()
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    engine = create_sqlite_engine(f"sqlite+pysqlite:///{database_path.as_posix()}")
+    try:
+        create_schema(engine)
+        library = KnowledgeLibrary(create_session_factory(engine))
+        with library.automatic_evaluation.observe_changes() as observed:
+            yield library
+            unsuccessful = notify_cli(
+                observed.jobs, stderr=lambda message: typer.echo(message, err=True)
+            )
+            if unsuccessful:
+                context = _CLI_CONTEXT.get()
+                if context is None:
+                    _automatic_evaluation_exit()
+                # Defer until the handler has emitted its ordinary/JSON result.
+                context.call_on_close(_automatic_evaluation_exit)
+    finally:
+        engine.dispose()
 
 
 def _fail(message: str, *, code: int = 1) -> NoReturn:
@@ -107,6 +226,95 @@ def _parse_time(value: str | None) -> datetime | None:
     return parsed if parsed.tzinfo is not None else parsed.astimezone()
 
 
+def _build_demo_index(library: KnowledgeLibrary) -> IndexingService:
+    """Build one temporary hash index containing every stored unit version."""
+
+    typer.echo(
+        "Warning: demo hash embeddings test retrieval plumbing, not semantic quality. "
+        "Vectors are temporary and are not persisted.",
+        err=True,
+    )
+    provider = HashEmbeddingProvider()
+    indexing = IndexingService(
+        embedding_service=EmbeddingService(provider),
+        vector_index=InMemoryVectorIndex(dimension=provider.dimension),
+    )
+    indexing.index_units([unit for summary in library.list_documents() for unit in summary.units])
+    return indexing
+
+
+def _perform_retrieval(
+    query: str,
+    mode: RetrievalMode,
+    top_k: int,
+    candidate_limit: int | None,
+    rrf_k: int,
+    at: str | None,
+    include_stale: bool,
+    source_id: UUID | None,
+    demo_vectors: bool,
+    database: Path,
+) -> RetrievalResult:
+    moment = _parse_time(at)
+    if not query.strip():
+        _fail("query must contain non-whitespace content", code=2)
+    if candidate_limit is not None and candidate_limit < top_k:
+        _fail("candidate_limit must be greater than or equal to top_k", code=2)
+    if demo_vectors and mode is RetrievalMode.LEXICAL:
+        _fail("--demo-vectors requires --mode vector or hybrid", code=2)
+
+    library = _open_library(database)
+    search = library.search
+    if demo_vectors:
+        indexing = _build_demo_index(library)
+        engine = create_sqlite_engine(
+            f"sqlite+pysqlite:///{database.expanduser().resolve().as_posix()}"
+        )
+        try:
+            search = RetrievalService(
+                create_session_factory(engine), indexing_service=indexing
+            ).search
+            result = search(
+                query,
+                mode=mode,
+                top_k=top_k,
+                candidate_limit=candidate_limit,
+                rrf_k=rrf_k,
+                at=moment,
+                include_stale=include_stale,
+                source_id=source_id,
+            )
+        except (ValueError, RuntimeError) as error:
+            _fail(str(error), code=2)
+        finally:
+            engine.dispose()
+    else:
+        try:
+            result = search(
+                query,
+                mode=mode,
+                top_k=top_k,
+                candidate_limit=candidate_limit,
+                rrf_k=rrf_k,
+                at=moment,
+                include_stale=include_stale,
+                source_id=source_id,
+            )
+        except ValueError as error:
+            _fail(str(error), code=2)
+        except RuntimeError as error:
+            _fail(str(error))
+
+    if result.degraded:
+        typer.echo(
+            f"Warning: {len(result.missing_vector_ids)} eligible unit(s) lack usable vectors; "
+            "vector recall is incomplete. missing_vector_ids="
+            + ",".join(str(unit_id) for unit_id in result.missing_vector_ids),
+            err=True,
+        )
+    return result
+
+
 def _section(unit: KnowledgeUnit) -> str:
     return " / ".join(unit.section_path) or "<root>"
 
@@ -122,6 +330,155 @@ def _status_label(state: UnitState | None) -> str:
     if state.stale_reason:
         return f"{state.status.value} ({state.stale_reason})"
     return state.status.value
+
+
+@mcp_app.command("serve")
+def mcp_serve_command(
+    database: Annotated[
+        Path,
+        typer.Option("--database", "-d", help="已有 SQLite 数据库文件（默认不创建或升级）。"),
+    ] = DEFAULT_DATABASE,
+    controlled: Annotated[
+        bool, typer.Option("--controlled", help="显式启用五个受控演示工具；不签发批准。")
+    ] = False,
+    mutation_manifest: Annotated[
+        Path | None, typer.Option("--mutation-manifest", help="私有 mutation demo manifest JSON。")
+    ] = None,
+    actor: Annotated[
+        str | None, typer.Option("--actor", help="安全 ASCII 操作者标识（1-80 字符）。")
+    ] = None,
+    demo_root: Annotated[
+        Path | None, typer.Option("--demo-root", help="私有演示根目录（默认工作目录下）。")
+    ] = None,
+) -> None:
+    """stdio 默认五个只读工具；仅 --controlled 可启用受控正文更新。"""
+
+    # SDK 和 server 仅在真正启动时加载；不走会建库/升级的 _open_library。
+    try:
+        from konwledge.mcp.server import run_server
+
+        run_server(
+            database,
+            controlled=controlled,
+            mutation_manifest=mutation_manifest,
+            actor=actor,
+            demo_root=demo_root,
+        )
+    except ImportError:
+        _fail("缺少 MCP 可选依赖；请安装：pip install 'konwledge[mcp]'")
+    except KeyboardInterrupt:
+        raise typer.Exit(code=130) from None
+    except Exception:
+        _fail("MCP 服务无法启动或运行。")
+
+
+@mcp_app.command("approve")
+def mcp_approve_command(
+    database: Annotated[Path, typer.Option("--database", "-d", help="私有演示数据库。")],
+    mutation_manifest: Annotated[
+        Path, typer.Option("--mutation-manifest", help="私有 mutation demo manifest JSON。")
+    ],
+    actor: Annotated[str, typer.Option("--actor", help="与受控服务相同的操作者标识。")],
+    preview_id: Annotated[str, typer.Option("--preview-id", help="待人工审阅的 preview UUID。")],
+    idempotency_key: Annotated[
+        str, typer.Option("--idempotency-key", help="批准绑定的原 command UUID。")
+    ],
+    demo_root: Annotated[
+        Path | None, typer.Option("--demo-root", help="私有演示根目录（默认工作目录下）。")
+    ] = None,
+) -> None:
+    """带外 TTY 人工批准；无 --yes/--confirmed，不通过 MCP 签发或输出 token。"""
+
+    # UUID/actor/scope 校验由安全的批准入口完成，不由 Click 回显非法值。
+    # 本入口不读取批准文件/token，不连接 MCP，也不要求可选 SDK。
+    try:
+        from konwledge.mcp.approval_cli import main as approval_main
+
+        code = approval_main(
+            [
+                "--database",
+                str(database),
+                "--mutation-manifest",
+                str(mutation_manifest),
+                "--actor",
+                actor,
+                "--demo-root",
+                str(
+                    demo_root
+                    if demo_root is not None
+                    else Path.cwd() / ".konwledge" / "mutation-demo"
+                ),
+                "--preview-id",
+                preview_id,
+                "--idempotency-key",
+                idempotency_key,
+            ]
+        )
+    except KeyboardInterrupt:
+        raise typer.Exit(code=130) from None
+    except Exception:
+        _fail("MCP 人工批准无法启动或运行。")
+    raise typer.Exit(code=code)
+
+
+@app.command("serve")
+def serve_command(
+    database: Annotated[
+        Path,
+        typer.Option("--database", "-d", help="已有 SQLite 数据库文件（不会自动创建）。"),
+    ] = DEFAULT_DATABASE,
+    host: Annotated[
+        str, typer.Option("--host", help="仅允许 127.0.0.1、::1 或 localhost。")
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", min=1, max=65535)] = 8000,
+    enable_management: Annotated[
+        bool,
+        typer.Option(
+            "--enable-management",
+            help="显式启用只读 B1 管理 API；必须设置 KNOWLEDGE_API_KEY。",
+        ),
+    ] = False,
+    enable_mutations: Annotated[
+        bool,
+        typer.Option(
+            "--enable-mutations",
+            help="显式启用 B4 本机 mutation demo API；必须设置 KNOWLEDGE_MUTATION_KEY/ACTOR。",
+        ),
+    ] = False,
+    mutation_manifest: Annotated[
+        Path | None,
+        typer.Option("--mutation-manifest", help="B4 mutation demo manifest JSON。"),
+    ] = None,
+    mutation_origin: Annotated[
+        str | None,
+        typer.Option("--mutation-origin", help="允许的 loopback HTTP Origin。"),
+    ] = None,
+) -> None:
+    """运行本机只读上下文 API；密钥仅从 KNOWLEDGE_API_KEY 环境变量读取。"""
+
+    # 可选 HTTP 依赖不得影响 core-only 安装的 import/help/version。
+    from konwledge.api.server import run_server
+
+    try:
+        server_options: dict[str, Any] = {
+            "host": host,
+            "port": port,
+            "enable_management": enable_management,
+        }
+        if enable_mutations or mutation_manifest is not None or mutation_origin is not None:
+            server_options.update(
+                enable_mutations=enable_mutations,
+                mutation_manifest=mutation_manifest,
+                mutation_origin=mutation_origin,
+            )
+        run_server(database, **server_options)
+    except ValueError as error:
+        _fail(str(error), code=2)
+    except ImportError:
+        _fail("缺少 API 可选依赖；请安装：pip install 'konwledge[api]'")
+    except Exception:
+        # 包括路径解析与 engine 释放失败，统一隐藏底层异常内容。
+        _fail("本地 API 启动或运行失败；请检查数据库与端口配置")
 
 
 @app.command("import")
@@ -173,6 +530,493 @@ def import_command(
         typer.echo(f"skipped: {skipped}")
 
 
+class CandidateListStatus(StrEnum):
+    """CLI filter including the explicit unfiltered value."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    ALL = "all"
+
+
+def _require_nonblank(value: str, name: str) -> str:
+    if not value.strip():
+        _fail(f"{name} must contain non-whitespace content", code=2)
+    return value
+
+
+def _read_conversation_input(source: str) -> Conversation:
+    """Read at most the domain byte limit and validate before storage is opened."""
+
+    try:
+        if source == "-":
+            raw = sys.stdin.buffer.read(MAX_CONVERSATION_BYTES + 1)
+        else:
+            path = Path(source).expanduser()
+            if path.stat().st_size > MAX_CONVERSATION_BYTES:
+                _fail(
+                    f"conversation JSON exceeds {MAX_CONVERSATION_BYTES} bytes",
+                    code=2,
+                )
+            with path.open("rb") as stream:
+                raw = stream.read(MAX_CONVERSATION_BYTES + 1)
+    except (OSError, UnicodeError):
+        _fail("could not read conversation input")
+
+    if len(raw) > MAX_CONVERSATION_BYTES:
+        _fail(f"conversation JSON exceeds {MAX_CONVERSATION_BYTES} bytes", code=2)
+    try:
+        return load_conversation_json(raw)
+    except UnicodeError:
+        _fail("conversation input must be valid UTF-8", code=2)
+    except ValidationError:
+        _fail("conversation JSON does not match schema version 1", code=2)
+    except json.JSONDecodeError:
+        _fail("conversation input is not valid JSON", code=2)
+    except ValueError as error:
+        message = str(error)
+        if message.startswith("duplicate JSON object key"):
+            _fail("conversation JSON contains a duplicate object key", code=2)
+        if message.startswith("non-finite JSON number"):
+            _fail("conversation JSON contains a non-finite number", code=2)
+        if message.startswith("conversation JSON root") or message.startswith(
+            "conversation JSON exceeds"
+        ):
+            _fail(message, code=2)
+        _fail("conversation JSON does not match schema version 1", code=2)
+
+
+def _conversation_error(error: Exception) -> NoReturn:
+    if isinstance(error, ValidationError):
+        _fail("conversation storage operation failed")
+    if isinstance(
+        error,
+        (
+            CandidateNotFoundError,
+            CandidateStateError,
+            ConversationNotFoundError,
+            ConversationVersionConflictError,
+            ValueError,
+        ),
+    ):
+        _fail(str(error), code=2)
+    _fail("conversation storage operation failed")
+
+
+def _latest_conversation(service: ConversationService, conversation_id: str) -> StoredConversation:
+    # Kept narrow and local so conversation commands use only the existing service API.
+    conversations = service.conversation_history(conversation_id)
+    if not conversations:
+        raise ConversationNotFoundError(f"conversation {conversation_id!r} was not found")
+    return conversations[-1]
+
+
+conversation_app = typer.Typer(
+    name="conversation",
+    help="Import and inspect immutable conversation versions.",
+    no_args_is_help=True,
+)
+app.add_typer(conversation_app, name="conversation")
+
+
+@conversation_app.command("import")
+def conversation_import_command(
+    source: Annotated[str, typer.Argument(help="UTF-8 JSON file, or '-' for standard input.")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the complete import result as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Validate and import one immutable conversation version."""
+
+    conversation = _read_conversation_input(source)
+    try:
+        with _open_scoped_library(database) as library:
+            result = library.conversations.import_conversation(conversation)
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(result.model_dump_json(indent=2))
+        return
+    action = "imported" if result.created else "existing"
+    typer.echo(
+        f"{action}: conversation={result.stored.conversation.conversation_id} "
+        f"version={result.stored.conversation.version} "
+        f"candidates={len(result.candidates)} hash={result.stored.content_hash}"
+    )
+
+
+@conversation_app.command("list")
+def conversation_list_command(
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output all versions as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """List all stored conversation versions."""
+
+    try:
+        with _open_scoped_library(database) as library:
+            conversations = library.conversations.list_conversations()
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [item.model_dump(mode="json") for item in conversations],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+    if not conversations:
+        typer.echo("No conversations found.")
+        return
+    for stored in conversations:
+        conversation = stored.conversation
+        typer.echo(
+            f"{conversation.conversation_id} | version={conversation.version} "
+            f"messages={len(conversation.messages)} hash={stored.content_hash} "
+            f"imported_at={stored.imported_at.isoformat()}"
+        )
+
+
+@conversation_app.command("show")
+def conversation_show_command(
+    conversation_id: Annotated[str, typer.Argument(help="Conversation identifier.")],
+    version: Annotated[
+        int | None,
+        typer.Option("--version", min=1, help="Version to show (default: latest)."),
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the stored conversation as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Show one stored conversation version; the default is the latest version."""
+
+    _require_nonblank(conversation_id, "conversation_id")
+    try:
+        with _open_scoped_library(database) as library:
+            stored = (
+                _latest_conversation(library.conversations, conversation_id)
+                if version is None
+                else library.conversations.get_conversation(conversation_id, version)
+            )
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(stored.model_dump_json(indent=2))
+        return
+    conversation = stored.conversation
+    typer.echo(f"conversation: {conversation.conversation_id}")
+    typer.echo(f"version: {conversation.version}")
+    typer.echo(f"schema_version: {conversation.schema_version}")
+    typer.echo(f"hash: {stored.content_hash}")
+    typer.echo(f"imported_at: {stored.imported_at.isoformat()}")
+    typer.echo(f"messages: {len(conversation.messages)}")
+    for message in conversation.messages:
+        typer.echo(f"  {message.id} | role={message.role.value}")
+        typer.echo(message.content, nl=not message.content.endswith("\n"))
+
+
+@conversation_app.command("history")
+def conversation_history_command(
+    conversation_id: Annotated[str, typer.Argument(help="Conversation identifier.")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output every stored version as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Show the immutable version history of one conversation."""
+
+    _require_nonblank(conversation_id, "conversation_id")
+    try:
+        with _open_scoped_library(database) as library:
+            history = library.conversations.conversation_history(conversation_id)
+            if not history:
+                raise ConversationNotFoundError(f"conversation {conversation_id!r} was not found")
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [item.model_dump(mode="json") for item in history],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+    typer.echo(f"conversation: {conversation_id}")
+    typer.echo(f"versions: {len(history)}")
+    for stored in history:
+        typer.echo(
+            f"  version={stored.conversation.version} messages={len(stored.conversation.messages)} "
+            f"hash={stored.content_hash} imported_at={stored.imported_at.isoformat()}"
+        )
+
+
+@conversation_app.command("export")
+def conversation_export_command(
+    conversation_id: Annotated[str, typer.Argument(help="Conversation identifier.")],
+    version: Annotated[
+        int | None,
+        typer.Option("--version", min=1, help="Version to export (default: latest)."),
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write to a new file instead of stdout.")
+    ] = None,
+    overwrite: Annotated[
+        bool, typer.Option("--overwrite", help="Explicitly replace an existing output file.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Export one version as round-trippable canonical conversation JSON."""
+
+    _require_nonblank(conversation_id, "conversation_id")
+    if output is not None and output.exists() and not overwrite:
+        _fail("output already exists; pass --overwrite to replace it", code=2)
+    try:
+        with _open_scoped_library(database) as library:
+            if version is None:
+                stored = _latest_conversation(library.conversations, conversation_id)
+                content = library.conversations.export_conversation(
+                    conversation_id, stored.conversation.version
+                )
+            else:
+                content = library.conversations.export_conversation(conversation_id, version)
+    except Exception as error:
+        _conversation_error(error)
+
+    content += "\n"
+    if output is None:
+        typer.echo(content, nl=False)
+        return
+    try:
+        _atomic_write(output, content, overwrite=overwrite)
+    except FileExistsError:
+        _fail("output already exists; pass --overwrite to replace it", code=2)
+    except (OSError, UnicodeError):
+        _fail("could not write conversation output")
+    typer.echo(f"exported: {output}")
+
+
+candidate_app = typer.Typer(
+    name="candidate",
+    help="Inspect and review deterministic conversation candidates.",
+    no_args_is_help=True,
+)
+app.add_typer(candidate_app, name="candidate")
+
+
+@candidate_app.command("list")
+def candidate_list_command(
+    status: Annotated[
+        CandidateListStatus,
+        typer.Option("--status", help="Status filter; use 'all' to disable it."),
+    ] = CandidateListStatus.PENDING,
+    conversation_id: Annotated[
+        str | None, typer.Option("--conversation-id", help="Restrict to one conversation.")
+    ] = None,
+    version: Annotated[
+        int | None, typer.Option("--version", min=1, help="Restrict to one positive version.")
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the candidate list as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """List pending candidates by default, or an explicit status/all selection."""
+
+    if conversation_id is not None:
+        _require_nonblank(conversation_id, "conversation_id")
+    selected = None if status is CandidateListStatus.ALL else CandidateStatus(status.value)
+    try:
+        with _open_scoped_library(database) as library:
+            candidates = library.conversations.list_candidates(
+                status=selected,
+                conversation_id=conversation_id,
+                version=version,
+            )
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [candidate.model_dump(mode="json") for candidate in candidates],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+    if not candidates:
+        typer.echo("No conversation candidates found.")
+        return
+    for candidate in candidates:
+        typer.echo(
+            f"{candidate.id} | {candidate.status.value:<8} | {candidate.kind.value} | "
+            f"conversation={candidate.conversation_id} version={candidate.conversation_version} "
+            f"message={candidate.message_id} range=[{candidate.start_char}, {candidate.end_char})"
+        )
+        typer.echo(f"  {candidate.text}")
+
+
+@candidate_app.command("show")
+def candidate_show_command(
+    candidate_id: Annotated[UUID, typer.Argument(help="Candidate UUID.")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the complete candidate as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Show one candidate and its exact source-message span."""
+
+    try:
+        with _open_scoped_library(database) as library:
+            candidate = library.conversations.get_candidate(candidate_id)
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(candidate.model_dump_json(indent=2))
+        return
+    typer.echo(f"candidate: {candidate.id}")
+    typer.echo(f"status: {candidate.status.value}")
+    typer.echo(f"kind: {candidate.kind.value}")
+    typer.echo(
+        f"conversation: {candidate.conversation_id} version={candidate.conversation_version} "
+        f"hash={candidate.conversation_hash}"
+    )
+    typer.echo(
+        f"message: {candidate.message_id} ordinal={candidate.message_ordinal} "
+        f"role={candidate.role.value} range=[{candidate.start_char}, {candidate.end_char})"
+    )
+    typer.echo("text:")
+    typer.echo(candidate.text, nl=not candidate.text.endswith("\n"))
+
+
+@candidate_app.command("history")
+def candidate_history_command(
+    candidate_id: Annotated[UUID, typer.Argument(help="Candidate UUID.")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the review audit as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Show the terminal review audit for one candidate."""
+
+    try:
+        with _open_scoped_library(database) as library:
+            reviews = library.conversations.review_history(candidate_id)
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [review.model_dump(mode="json") for review in reviews],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+    typer.echo(f"candidate: {candidate_id}")
+    typer.echo(f"reviews: {len(reviews)}")
+    for review in reviews:
+        typer.echo(
+            f"  {review.id} | {review.decision.value} | reviewer={review.reviewer} "
+            f"reason={review.reason or '<none>'} at={review.reviewed_at.isoformat()}"
+        )
+
+
+def _review_candidate(
+    candidate_id: UUID,
+    *,
+    reviewer: str,
+    reason: str | None,
+    approve: bool,
+    json_output: bool,
+    database: Path,
+) -> None:
+    _require_nonblank(reviewer, "reviewer")
+    if reason is not None:
+        _require_nonblank(reason, "reason")
+    if not approve and reason is None:
+        _fail("rejection requires a non-empty reason", code=2)
+    try:
+        with _open_scoped_library(database) as library:
+            review = (
+                library.conversations.approve(candidate_id, reviewer, reason=reason)
+                if approve
+                else library.conversations.reject(candidate_id, reviewer, reason=reason or "")
+            )
+    except Exception as error:
+        _conversation_error(error)
+
+    if json_output:
+        typer.echo(review.model_dump_json(indent=2))
+        return
+    typer.echo(
+        f"reviewed: candidate={review.candidate_id} decision={review.decision.value} "
+        f"review={review.id} reviewer={review.reviewer}"
+    )
+
+
+@candidate_app.command("approve")
+def candidate_approve_command(
+    candidate_id: Annotated[UUID, typer.Argument(help="Candidate UUID.")],
+    reviewer: Annotated[
+        str, typer.Option("--reviewer", help="Audit attribution supplied by the caller.")
+    ],
+    reason: Annotated[
+        str | None, typer.Option("--reason", help="Optional non-blank review reason.")
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the review record as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Approve a pending candidate and materialize its exact text as knowledge."""
+
+    _review_candidate(
+        candidate_id,
+        reviewer=reviewer,
+        reason=reason,
+        approve=True,
+        json_output=json_output,
+        database=database,
+    )
+
+
+@candidate_app.command("reject")
+def candidate_reject_command(
+    candidate_id: Annotated[UUID, typer.Argument(help="Candidate UUID.")],
+    reviewer: Annotated[
+        str, typer.Option("--reviewer", help="Audit attribution supplied by the caller.")
+    ],
+    reason: Annotated[str, typer.Option("--reason", help="Required non-blank rejection reason.")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the review record as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Reject a pending candidate without creating searchable knowledge."""
+
+    _review_candidate(
+        candidate_id,
+        reviewer=reviewer,
+        reason=reason,
+        approve=False,
+        json_output=json_output,
+        database=database,
+    )
+
+
 @app.command("search")
 def search_command(
     query: Annotated[str, typer.Argument(help="Literal search text (not raw FTS syntax).")],
@@ -202,76 +1046,19 @@ def search_command(
 ) -> None:
     """Search eligible knowledge, keeping the original evidence and route ranks."""
 
-    moment = _parse_time(at)
-    if not query.strip():
-        _fail("query must contain non-whitespace content", code=2)
-    if candidate_limit is not None and candidate_limit < top_k:
-        _fail("candidate_limit must be greater than or equal to top_k", code=2)
-    if demo_vectors and mode is RetrievalMode.LEXICAL:
-        _fail("--demo-vectors requires --mode vector or hybrid", code=2)
-    library = _open_library(database)
-    search = library.search
-    if demo_vectors:
-        typer.echo(
-            "Warning: demo hash embeddings test retrieval plumbing, not semantic quality. "
-            "Vectors are temporary and are not persisted.",
-            err=True,
-        )
-        provider = HashEmbeddingProvider()
-        indexing = IndexingService(
-            embedding_service=EmbeddingService(provider),
-            vector_index=InMemoryVectorIndex(dimension=provider.dimension),
-        )
-        # Explicit demo setup, separate from the read-only retrieval service.
-        # Historical versions remain searchable without changing U09's index policy.
-        indexing.index_units(
-            [unit for summary in library.list_documents() for unit in summary.units]
-        )
-        engine = create_sqlite_engine(
-            f"sqlite+pysqlite:///{database.expanduser().resolve().as_posix()}"
-        )
-        try:
-            search = RetrievalService(
-                create_session_factory(engine), indexing_service=indexing
-            ).search
-            result = search(
-                query,
-                mode=mode,
-                top_k=top_k,
-                candidate_limit=candidate_limit,
-                rrf_k=rrf_k,
-                at=moment,
-                include_stale=include_stale,
-                source_id=source_id,
-            )
-        except (ValueError, RuntimeError) as error:
-            _fail(str(error), code=2)
-        finally:
-            engine.dispose()
-    else:
-        try:
-            result = search(
-                query,
-                mode=mode,
-                top_k=top_k,
-                candidate_limit=candidate_limit,
-                rrf_k=rrf_k,
-                at=moment,
-                include_stale=include_stale,
-                source_id=source_id,
-            )
-        except ValueError as error:
-            _fail(str(error), code=2)
-        except RuntimeError as error:
-            _fail(str(error))
+    result = _perform_retrieval(
+        query=query,
+        mode=mode,
+        top_k=top_k,
+        candidate_limit=candidate_limit,
+        rrf_k=rrf_k,
+        at=at,
+        include_stale=include_stale,
+        source_id=source_id,
+        demo_vectors=demo_vectors,
+        database=database,
+    )
 
-    if result.degraded:
-        typer.echo(
-            f"Warning: {len(result.missing_vector_ids)} eligible unit(s) lack usable vectors; "
-            "vector recall is incomplete. missing_vector_ids="
-            + ",".join(str(unit_id) for unit_id in result.missing_vector_ids),
-            err=True,
-        )
     if json_output:
         typer.echo(result.model_dump_json(indent=2))
         return
@@ -291,6 +1078,103 @@ def search_command(
             f"range=[{hit.unit.start_char}, {hit.unit.end_char}) section={_section(hit.unit)}"
         )
         typer.echo(hit.unit.text)
+
+
+@app.command("context")
+def context_command(
+    query: Annotated[str, typer.Argument(help="Literal search text (not raw FTS syntax).")],
+    mode: Annotated[
+        RetrievalMode, typer.Option("--mode", help="Retrieval route.")
+    ] = RetrievalMode.LEXICAL,
+    top_k: Annotated[int, typer.Option("--top-k", min=1, help="Maximum results.")] = 5,
+    candidate_limit: Annotated[int | None, typer.Option("--candidate-limit", min=1)] = None,
+    rrf_k: Annotated[int, typer.Option("--rrf-k", min=1)] = 60,
+    at: AtOption = None,
+    include_stale: Annotated[
+        bool, typer.Option("--include-stale", help="Also search stale head units.")
+    ] = False,
+    source_id: Annotated[
+        UUID | None, typer.Option("--source", help="Restrict to a source UUID.")
+    ] = None,
+    demo_vectors: Annotated[
+        bool,
+        typer.Option(
+            "--demo-vectors", help="Build temporary offline hash vectors; not semantic embeddings."
+        ),
+    ] = False,
+    max_chars: Annotated[
+        int, typer.Option("--max-chars", min=0, help="Maximum serialized context characters.")
+    ] = 8000,
+    max_units: Annotated[
+        int, typer.Option("--max-units", min=1, help="Maximum evidence units.")
+    ] = 10,
+    max_tokens: Annotated[
+        int | None, typer.Option("--max-tokens", min=0, help="Exact rendered-context token budget.")
+    ] = None,
+    token_encoding: Annotated[
+        str, typer.Option("--token-encoding", help="tiktoken encoding; requires konwledge[tokens].")
+    ] = "cl100k_base",
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the complete context packet as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Retrieve once and assemble bounded, source-backed context."""
+
+    try:
+        validate_budget(max_chars, max_units)
+        counter = resolve_token_counter(
+            max_tokens=max_tokens, token_encoding=token_encoding, token_counter=None
+        )
+    except (ValueError, ImportError) as error:
+        _fail(str(error), code=2)
+    except Exception:
+        _fail("could not initialize token encoding; check its local cache", code=2)
+    result = _perform_retrieval(
+        query=query,
+        mode=mode,
+        top_k=top_k,
+        candidate_limit=candidate_limit,
+        rrf_k=rrf_k,
+        at=at,
+        include_stale=include_stale,
+        source_id=source_id,
+        demo_vectors=demo_vectors,
+        database=database,
+    )
+    try:
+        packet = assemble_context(
+            result,
+            max_chars=max_chars,
+            max_units=max_units,
+            max_tokens=max_tokens,
+            token_encoding=token_encoding,
+            token_counter=counter,
+        )
+    except ValueError as error:
+        _fail(str(error), code=2)
+
+    if json_output:
+        typer.echo(packet.model_dump_json(indent=2))
+        return
+
+    typer.echo(
+        f"Context: mode={packet.mode.value} evidence={len(packet.blocks)} "
+        f"skipped={len(packet.skipped)} used_chars={packet.used_chars}/{packet.max_chars} "
+        f"at={packet.evaluated_at.isoformat()} degraded={str(packet.degraded).lower()}"
+    )
+    if isinstance(packet, TokenContextPacket):
+        typer.echo(
+            f"Tokens: {packet.used_tokens}/{packet.max_tokens} encoding={packet.token_encoding}"
+        )
+    if packet.context_text:
+        typer.echo(packet.context_text, nl=not packet.context_text.endswith("\n"))
+    elif result.hits:
+        typer.echo("No evidence fits the context limits.")
+    else:
+        typer.echo("No matching evidence found.")
+    for skipped in packet.skipped:
+        typer.echo(f"skipped: unit={skipped.unit_id} reason={skipped.reason.value}")
 
 
 @app.command("list")
@@ -657,6 +1541,543 @@ def publishable_command(
 
     for state in units:
         typer.echo(f"unit {state.unit.id} status={state.status.value}")
+
+
+evaluation_app = typer.Typer(
+    name="evaluation",
+    help="Manage evaluation datasets and run retrieval regressions.",
+    no_args_is_help=True,
+)
+app.add_typer(evaluation_app, name="evaluation")
+
+
+@evaluation_app.command("import")
+def evaluation_import_command(
+    path: Annotated[Path, typer.Argument(help="JSON file containing the evaluation set.")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the imported dataset as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Validate and import one evaluation dataset version."""
+
+    try:
+        content = path.read_text(encoding="utf-8")
+        dataset = EvaluationSet.model_validate_json(content)
+    except (OSError, UnicodeError, ValidationError) as error:
+        _fail(f"could not parse evaluation set: {error}", code=2)
+
+    library = _open_library(database)
+    try:
+        result = library.evaluation.import_set(dataset)
+    except (ImmutableEntityError, ValueError) as error:
+        _fail(str(error))
+
+    if json_output:
+        typer.echo(dump_evaluation_set(result.dataset), nl=False)
+        return
+
+    action = "imported" if result.created else "existing"
+    typer.echo(
+        f"{action}: {result.dataset.name} v{result.dataset.version} ({result.dataset.id}) | "
+        f"items={len(result.dataset.items)} hash={result.dataset.content_hash[:12]}"
+    )
+
+
+@evaluation_app.command("list")
+def evaluation_list_command(
+    json_output: Annotated[bool, typer.Option("--json", help="Output the list as JSON.")] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """List the latest version of each evaluation dataset."""
+
+    library = _open_library(database)
+    datasets = library.evaluation.list()
+
+    if json_output:
+        typer.echo(json.dumps([d.model_dump(mode="json") for d in datasets], indent=2))
+        return
+
+    if not datasets:
+        typer.echo("No evaluation datasets found.")
+        return
+
+    for dataset in datasets:
+        typer.echo(
+            f"{dataset.id} | v{dataset.version:<3} | {dataset.name} | "
+            f"items={len(dataset.items)} hash={dataset.content_hash[:12]}"
+        )
+
+
+@evaluation_app.command("show")
+def evaluation_show_command(
+    set_id: Annotated[UUID, typer.Argument(help="Evaluation set UUID.")],
+    version: Annotated[
+        int | None, typer.Option("--version", min=1, help="Explicit version.")
+    ] = None,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Show one evaluation dataset version in canonical JSON format."""
+
+    library = _open_library(database)
+    try:
+        dataset = library.evaluation.get(set_id, version=version)
+    except LookupError as error:
+        _fail(str(error))
+
+    typer.echo(dump_evaluation_set(dataset), nl=False)
+
+
+@evaluation_app.command("history")
+def evaluation_history_command(
+    set_id: Annotated[UUID, typer.Argument(help="Evaluation set UUID.")],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the history as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Show the version history of one evaluation dataset."""
+
+    library = _open_library(database)
+    try:
+        history = library.evaluation.history(set_id)
+    except LookupError as error:
+        _fail(str(error))
+
+    if json_output:
+        typer.echo(json.dumps([d.model_dump(mode="json") for d in history], indent=2))
+        return
+
+    typer.echo(f"dataset: {set_id} ({history[0].name})")
+    typer.echo(f"versions: {len(history)}")
+    for dataset in history:
+        typer.echo(
+            f"  v{dataset.version:<3} | hash={dataset.content_hash[:12]} | "
+            f"items={len(dataset.items)} at {dataset.created_at.isoformat()}"
+        )
+
+
+@evaluation_app.command("export")
+def evaluation_export_command(
+    set_id: Annotated[UUID, typer.Argument(help="Evaluation set UUID.")],
+    version: Annotated[
+        int | None, typer.Option("--version", min=1, help="Explicit version.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write to file instead of stdout.")
+    ] = None,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Export one evaluation dataset version to canonical JSON."""
+
+    library = _open_library(database)
+    try:
+        dataset = library.evaluation.get(set_id, version=version)
+    except LookupError as error:
+        _fail(str(error))
+
+    content = dump_evaluation_set(dataset)
+    if output:
+        try:
+            output.write_text(content, encoding="utf-8")
+            typer.echo(f"exported: {output}")
+        except OSError as error:
+            _fail(f"could not write output: {error}")
+    else:
+        typer.echo(content, nl=False)
+
+
+@evaluation_app.command("run")
+def evaluation_run_command(
+    set_id: Annotated[UUID, typer.Argument(help="Evaluation set UUID.")],
+    version: Annotated[
+        int | None, typer.Option("--version", min=1, help="Explicit version.")
+    ] = None,
+    mode: Annotated[
+        RetrievalMode, typer.Option("--mode", help="Retrieval route.")
+    ] = RetrievalMode.LEXICAL,
+    top_k: Annotated[int, typer.Option("--top-k", min=1, help="Maximum results.")] = 5,
+    candidate_limit: Annotated[int | None, typer.Option("--candidate-limit", min=1)] = None,
+    rrf_k: Annotated[int, typer.Option("--rrf-k", min=1)] = 60,
+    at: AtOption = None,
+    demo_vectors: Annotated[
+        bool,
+        typer.Option(
+            "--demo-vectors", help="Build temporary offline hash vectors; not semantic embeddings."
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the complete report as JSON.")
+    ] = False,
+    database: DatabaseOption = DEFAULT_DATABASE,
+) -> None:
+    """Run retrieval for every item in a dataset and compute aggregate metrics."""
+
+    moment = _parse_time(at)
+    if candidate_limit is not None and candidate_limit < top_k:
+        _fail("candidate_limit must be greater than or equal to top_k", code=2)
+    if demo_vectors and mode is RetrievalMode.LEXICAL:
+        _fail("--demo-vectors requires --mode vector or hybrid", code=2)
+
+    library = _open_library(database)
+    evaluation = library.evaluation
+
+    if demo_vectors:
+        indexing = _build_demo_index(library)
+        engine = create_sqlite_engine(
+            f"sqlite+pysqlite:///{database.expanduser().resolve().as_posix()}"
+        )
+        try:
+            # Re-construct service with temporary indexing
+            evaluation = EvaluationService(
+                create_session_factory(engine),
+                RetrievalService(create_session_factory(engine), indexing_service=indexing),
+            )
+            report = evaluation.run(
+                set_id,
+                version=version,
+                mode=mode,
+                top_k=top_k,
+                candidate_limit=candidate_limit,
+                rrf_k=rrf_k,
+                at=moment,
+            )
+        except (LookupError, ValueError, RuntimeError) as error:
+            _fail(str(error), code=2 if isinstance(error, ValueError) else 1)
+        finally:
+            engine.dispose()
+    else:
+        try:
+            report = evaluation.run(
+                set_id,
+                version=version,
+                mode=mode,
+                top_k=top_k,
+                candidate_limit=candidate_limit,
+                rrf_k=rrf_k,
+                at=moment,
+            )
+        except LookupError as error:
+            _fail(str(error))
+        except ValueError as error:
+            _fail(str(error), code=2)
+        except RuntimeError as error:
+            _fail(str(error))
+
+    _warn_evaluation_degradation(report)
+    if json_output:
+        typer.echo(report.model_dump_json(indent=2))
+        return
+
+    _print_evaluation_report(report)
+
+
+def _read_utf8(path: Path, *, kind: str) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        _fail(f"could not read {kind}: {error}")
+
+
+def _load_baseline(path: Path) -> EvaluationBaseline:
+    content = _read_utf8(path, kind="baseline")
+    try:
+        return EvaluationBaseline.model_validate_json(content)
+    except (ValidationError, ValueError) as error:
+        _fail(f"invalid evaluation baseline: {error}", code=2)
+
+
+def _load_report(path: Path) -> EvaluationReport:
+    content = _read_utf8(path, kind="candidate report")
+    try:
+        return EvaluationReport.model_validate_json(content)
+    except (ValidationError, ValueError) as error:
+        _fail(f"invalid evaluation report: {error}", code=2)
+
+
+def _load_policy(path: Path) -> GatePolicy:
+    content = _read_utf8(path, kind="gate policy")
+    try:
+        return GatePolicy.model_validate_json(content)
+    except (ValidationError, ValueError) as error:
+        _fail(f"invalid gate policy: {error}", code=2)
+
+
+def _atomic_write(path: Path, content: str, *, overwrite: bool) -> None:
+    """Write validated content in one publication step, cleaning every temporary file."""
+
+    parent = path.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=parent
+    )
+    temporary = Path(temporary_name)
+    published = False
+    try:
+        os.chmod(temporary, 0o644)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
+            descriptor = -1
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if overwrite:
+            os.replace(temporary, path)
+            published = True
+            return
+        try:
+            os.link(temporary, path)
+            published = True
+        except OSError as error:
+            if error.errno == errno.EEXIST:
+                raise FileExistsError(path) from error
+            # Hard links can be unavailable on some filesystems. O_EXCL still prevents
+            # replacement; remove only a target this call created if writing fails.
+            target_descriptor = -1
+            target_created = False
+            try:
+                target_descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                target_created = True
+                os.fchmod(target_descriptor, 0o644)
+                with os.fdopen(target_descriptor, "w", encoding="utf-8", newline="") as stream:
+                    target_descriptor = -1
+                    stream.write(content)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                published = True
+            except OSError:
+                if target_descriptor >= 0:
+                    os.close(target_descriptor)
+                if target_created:
+                    with contextlib.suppress(FileNotFoundError):
+                        path.unlink()
+                raise
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if not published or temporary.exists():
+            with contextlib.suppress(FileNotFoundError):
+                temporary.unlink()
+
+
+@evaluation_app.command("baseline")
+def evaluation_baseline_command(
+    report_path: Annotated[Path, typer.Argument(help="Complete evaluation report JSON file.")],
+    output: Annotated[
+        Path, typer.Option("--output", "-o", help="New portable baseline JSON file.")
+    ],
+    overwrite: Annotated[
+        bool, typer.Option("--overwrite", help="Explicitly replace an existing output file.")
+    ] = False,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the complete portable baseline as JSON.")
+    ] = False,
+) -> None:
+    """Create a healthy portable baseline from a complete report file."""
+
+    content = _read_utf8(report_path, kind="evaluation report")
+    try:
+        report = EvaluationReport.model_validate_json(content)
+        baseline = baseline_from_report(report)
+        serialized = dump_baseline(baseline)
+    except (ValidationError, ValueError) as error:
+        _fail(f"invalid evaluation report: {error}", code=2)
+
+    if output.exists() and not overwrite:
+        _fail("output already exists; pass --overwrite to replace it", code=2)
+    try:
+        _atomic_write(output, serialized, overwrite=overwrite)
+    except FileExistsError:
+        _fail("output already exists; pass --overwrite to replace it", code=2)
+    except (OSError, UnicodeError) as error:
+        _fail(f"could not write baseline: {error}")
+
+    if json_output:
+        typer.echo(serialized, nl=False)
+        return
+    typer.echo(
+        f"created baseline: {output} | dataset={baseline.dataset.id} "
+        f"version={baseline.dataset.version}"
+    )
+
+
+def _warn_comparison_degradation(comparison: EvaluationComparison) -> None:
+    for case in comparison.candidate.cases:
+        if not case.missing_vector_ids:
+            continue
+        ids = ",".join(str(vector_id) for vector_id in case.missing_vector_ids)
+        typer.echo(f"Warning: candidate case {case.item_id} has missing vectors: {ids}", err=True)
+
+
+def _delta_location(item_id: str | None) -> str:
+    return "aggregate" if item_id is None else f"case {item_id}"
+
+
+def _format_metric(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.6f}"
+
+
+def _print_comparison(comparison: EvaluationComparison) -> None:
+    baseline = comparison.baseline
+    typer.echo(
+        f"Comparison: dataset={baseline.dataset.id} version={baseline.dataset.version} "
+        f"degraded={str(comparison.degraded).lower()}"
+    )
+    for delta in comparison.deltas:
+        typer.echo(
+            f"  {_delta_location(delta.item_id)} | {delta.metric.value}: "
+            f"baseline={_format_metric(delta.baseline_value)} "
+            f"candidate={_format_metric(delta.candidate_value)} "
+            f"delta={_format_metric(delta.delta)}"
+        )
+
+
+def _make_comparison(baseline_path: Path, candidate_path: Path) -> EvaluationComparison:
+    baseline = _load_baseline(baseline_path)
+    candidate = _load_report(candidate_path)
+    try:
+        return compare_baseline(baseline, candidate)
+    except (ValidationError, ValueError) as error:
+        _fail(f"invalid evaluation comparison: {error}", code=2)
+    except Exception as error:
+        _fail(f"could not compare evaluations: {error}")
+
+
+@evaluation_app.command("compare")
+def evaluation_compare_command(
+    baseline_path: Annotated[Path, typer.Argument(help="Portable baseline JSON file.")],
+    candidate_report_path: Annotated[
+        Path, typer.Argument(help="Complete candidate evaluation report JSON file.")
+    ],
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the complete comparison as JSON.")
+    ] = False,
+) -> None:
+    """Compare a baseline with a complete candidate report without applying a policy."""
+
+    comparison = _make_comparison(baseline_path, candidate_report_path)
+    _warn_comparison_degradation(comparison)
+    if json_output:
+        typer.echo(comparison.model_dump_json(indent=2))
+        return
+    _print_comparison(comparison)
+
+
+def _print_gate_result(result: GateResult) -> None:
+    baseline = result.comparison.baseline
+    typer.echo(
+        f"Gate: {'PASSED' if result.passed else 'BLOCKED'} | dataset={baseline.dataset.id} "
+        f"version={baseline.dataset.version} checks={len(result.checks)}"
+    )
+    for check in result.checks:
+        label = _delta_location(check.item_id)
+        state = "n/a" if check.passed is None else ("pass" if check.passed else "fail")
+        typer.echo(
+            f"  {label} | {check.metric.value}: {state} "
+            f"({_format_metric(check.baseline_value)} -> {_format_metric(check.candidate_value)})"
+        )
+
+
+def _warn_gate_violations(result: GateResult) -> None:
+    for violation in result.violations:
+        typer.echo(f"Violation: {violation}", err=True)
+
+
+@evaluation_app.command("gate")
+def evaluation_gate_command(
+    baseline_path: Annotated[Path, typer.Argument(help="Portable baseline JSON file.")],
+    candidate_report_path: Annotated[
+        Path, typer.Argument(help="Complete candidate evaluation report JSON file.")
+    ],
+    policy_path: Annotated[
+        Path | None, typer.Option("--policy", help="Gate policy JSON; default is strict.")
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Output the complete gate result as JSON.")
+    ] = False,
+) -> None:
+    """Evaluate a candidate against a baseline and fail closed on policy violations."""
+
+    comparison = _make_comparison(baseline_path, candidate_report_path)
+    policy = _load_policy(policy_path) if policy_path is not None else None
+    try:
+        result = evaluate_gate(comparison, policy)
+    except (ValidationError, ValueError) as error:
+        _fail(f"invalid evaluation gate: {error}", code=2)
+    except Exception as error:
+        _fail(f"could not evaluate gate: {error}")
+
+    _warn_comparison_degradation(comparison)
+    if json_output:
+        typer.echo(result.model_dump_json(indent=2))
+    else:
+        _print_gate_result(result)
+    if not result.passed:
+        _warn_gate_violations(result)
+        raise typer.Exit(code=3)
+
+
+def _warn_evaluation_degradation(report: EvaluationReport) -> None:
+    for case in report.results:
+        if not case.retrieval.degraded:
+            continue
+        ids = ",".join(str(unit_id) for unit_id in case.retrieval.missing_vector_ids)
+        typer.echo(
+            f"Warning: evaluation set {report.dataset.id} item {case.item_id}: "
+            f"{len(case.retrieval.missing_vector_ids)} eligible unit(s) lack usable vectors; "
+            f"vector recall is incomplete. missing_vector_ids={ids}",
+            err=True,
+        )
+
+
+def _print_evaluation_report(report: EvaluationReport) -> None:
+    typer.echo(
+        f"Evaluation: {report.dataset.name} v{report.dataset.version} "
+        f"hash={report.dataset_hash[:12]}"
+    )
+    typer.echo(
+        f"Settings: mode={report.mode.value} top_k={report.top_k} "
+        f"candidate_limit={report.candidate_limit} rrf_k={report.rrf_k} "
+        f"at={report.evaluated_at.isoformat()}"
+    )
+
+    m = report.metrics
+    typer.echo(
+        f"Cases: total={m.case_count} answerable={m.answerable_count} no-answer={m.no_answer_count}"
+    )
+
+    def fmt(val: float | None) -> str:
+        return f"{val:.4f}" if val is not None else "n/a"
+
+    typer.echo(
+        f"Metrics: Recall={fmt(m.mean_recall)} Precision={fmt(m.mean_precision)} "
+        f"MRR={fmt(m.mean_reciprocal_rank)} nDCG={fmt(m.mean_ndcg)}"
+    )
+    typer.echo(
+        f"Summary: HitRate={fmt(m.hit_rate)} NoAnswerAcc={fmt(m.no_answer_accuracy)} "
+        f"degraded={str(report.degraded).lower()}"
+    )
+
+    if report.degraded:
+        typer.echo(
+            f"Vector coverage: missing={len(report.missing_vector_ids)} "
+            "(see per-case stderr warnings)"
+        )
+
+    item_by_id = {item.id: item for item in report.dataset.items}
+    for res in report.results:
+        case_status = "no-answer" if item_by_id[res.item_id].expect_no_answer else "answerable"
+        no_answer = (
+            "n/a"
+            if res.metrics.no_answer_success is None
+            else str(res.metrics.no_answer_success).lower()
+        )
+        line = (
+            f"  {res.item_id:<20} | status={case_status} recall={fmt(res.metrics.recall)} "
+            f"precision={fmt(res.metrics.precision)} mrr={fmt(res.metrics.reciprocal_rank)} "
+            f"ndcg={fmt(res.metrics.ndcg)} hit={fmt(res.metrics.hit_rate)} "
+            f"no_answer={no_answer} degraded={str(res.retrieval.degraded).lower()}"
+        )
+        typer.echo(line)
 
 
 freshness_app = typer.Typer(

@@ -1,0 +1,468 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MutationApiSchemaBundle",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {},
+  "$defs": {
+    "CommandDTO": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "format": "uuid",
+          "title": "Command Id",
+          "type": "string"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "previous_document_id": {
+          "format": "uuid",
+          "title": "Previous Document Id",
+          "type": "string"
+        },
+        "document_id": {
+          "format": "uuid",
+          "title": "Document Id",
+          "type": "string"
+        },
+        "new_checksum": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "New Checksum",
+          "type": "string"
+        },
+        "committed": {
+          "const": true,
+          "default": true,
+          "title": "Committed",
+          "type": "boolean"
+        },
+        "changed": {
+          "title": "Changed",
+          "type": "boolean"
+        },
+        "revision_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Revision Ids",
+          "type": "array"
+        },
+        "job_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Job Ids",
+          "type": "array"
+        },
+        "evaluation_status": {
+          "$ref": "#/$defs/EvaluationStatus"
+        }
+      },
+      "required": [
+        "command_id",
+        "scope_id",
+        "actor_id",
+        "source_id",
+        "previous_document_id",
+        "document_id",
+        "new_checksum",
+        "changed",
+        "revision_ids",
+        "job_ids",
+        "evaluation_status"
+      ],
+      "title": "CommandDTO",
+      "type": "object"
+    },
+    "CommandRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "preview_id": {
+          "format": "uuid",
+          "title": "Preview Id",
+          "type": "string"
+        },
+        "confirmation_token": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Confirmation Token",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "format": "uuid",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "confirmed": {
+          "const": true,
+          "title": "Confirmed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "preview_id",
+        "confirmation_token",
+        "idempotency_key",
+        "confirmed"
+      ],
+      "title": "CommandRequest",
+      "type": "object"
+    },
+    "ContentType": {
+      "enum": [
+        "markdown",
+        "text"
+      ],
+      "title": "ContentType",
+      "type": "string"
+    },
+    "DiffCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "added": {
+          "minimum": 0,
+          "title": "Added",
+          "type": "integer"
+        },
+        "modified": {
+          "minimum": 0,
+          "title": "Modified",
+          "type": "integer"
+        },
+        "moved": {
+          "minimum": 0,
+          "title": "Moved",
+          "type": "integer"
+        },
+        "unchanged": {
+          "minimum": 0,
+          "title": "Unchanged",
+          "type": "integer"
+        },
+        "removed": {
+          "minimum": 0,
+          "title": "Removed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "added",
+        "modified",
+        "moved",
+        "unchanged",
+        "removed"
+      ],
+      "title": "DiffCounts",
+      "type": "object"
+    },
+    "DiffEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/DiffKind"
+        },
+        "old_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Old Text"
+        },
+        "new_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "New Text"
+        }
+      },
+      "required": [
+        "kind",
+        "old_text",
+        "new_text"
+      ],
+      "title": "DiffEntry",
+      "type": "object"
+    },
+    "DiffKind": {
+      "enum": [
+        "added",
+        "modified",
+        "moved",
+        "unchanged",
+        "removed"
+      ],
+      "title": "DiffKind",
+      "type": "string"
+    },
+    "DocumentDTO": {
+      "additionalProperties": false,
+      "properties": {
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "document_id": {
+          "format": "uuid",
+          "title": "Document Id",
+          "type": "string"
+        },
+        "checksum": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Checksum",
+          "type": "string"
+        },
+        "content_type": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source_id",
+        "document_id",
+        "checksum",
+        "content_type",
+        "text"
+      ],
+      "title": "DocumentDTO",
+      "type": "object"
+    },
+    "EvaluationStatus": {
+      "enum": [
+        "passed",
+        "failed",
+        "pending",
+        "not_triggered",
+        "unavailable"
+      ],
+      "title": "EvaluationStatus",
+      "type": "string"
+    },
+    "PreviewDTO": {
+      "additionalProperties": false,
+      "properties": {
+        "preview_id": {
+          "format": "uuid",
+          "title": "Preview Id",
+          "type": "string"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "document_id": {
+          "format": "uuid",
+          "title": "Document Id",
+          "type": "string"
+        },
+        "expected_checksum": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Checksum",
+          "type": "string"
+        },
+        "new_checksum": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "New Checksum",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "confirmation_token": {
+          "maxLength": 128,
+          "minLength": 43,
+          "title": "Confirmation Token",
+          "type": "string"
+        },
+        "changed": {
+          "title": "Changed",
+          "type": "boolean"
+        },
+        "counts": {
+          "$ref": "#/$defs/DiffCounts"
+        },
+        "diff": {
+          "items": {
+            "$ref": "#/$defs/DiffEntry"
+          },
+          "title": "Diff",
+          "type": "array"
+        }
+      },
+      "required": [
+        "preview_id",
+        "scope_id",
+        "source_id",
+        "document_id",
+        "expected_checksum",
+        "new_checksum",
+        "expires_at",
+        "confirmation_token",
+        "changed",
+        "counts",
+        "diff"
+      ],
+      "title": "PreviewDTO",
+      "type": "object"
+    },
+    "PreviewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "document_id": {
+          "format": "uuid",
+          "title": "Document Id",
+          "type": "string"
+        },
+        "expected_checksum": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Checksum",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source_id",
+        "document_id",
+        "expected_checksum",
+        "text"
+      ],
+      "title": "PreviewRequest",
+      "type": "object"
+    },
+    "SessionDTO": {
+      "additionalProperties": false,
+      "properties": {
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "actor_id": {
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "role": {
+          "const": "demo_editor",
+          "default": "demo_editor",
+          "title": "Role",
+          "type": "string"
+        },
+        "capabilities": {
+          "items": {
+            "const": "document.update",
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceSessionDTO"
+          },
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scope_id",
+        "actor_id",
+        "capabilities",
+        "sources"
+      ],
+      "title": "SessionDTO",
+      "type": "object"
+    },
+    "SourceSessionDTO": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "format": "uuid",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "document_id": {
+          "format": "uuid",
+          "title": "Document Id",
+          "type": "string"
+        },
+        "checksum": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Checksum",
+          "type": "string"
+        },
+        "content_type": {
+          "$ref": "#/$defs/ContentType"
+        },
+        "label": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "document_id",
+        "checksum",
+        "content_type",
+        "label"
+      ],
+      "title": "SourceSessionDTO",
+      "type": "object"
+    }
+  }
+}

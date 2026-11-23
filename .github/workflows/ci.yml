@@ -27,6 +27,7 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
+      # dev 包含 API 类型检查和离线 OpenAI/LangChain 验收依赖；SDK 不进入 wheel。
       - name: Install dependencies
         run: uv sync --locked --dev
 
@@ -37,18 +38,108 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Type check
-        run: uv run mypy src tests
+        run: uv run mypy src tests scripts
 
       - name: Test
         run: uv run pytest --cov=konwledge --cov-report=term-missing
 
-      - name: Demo snapshot is up to date
+      - name: Verify the versioned snapshot contract
         run: |
           uv run knowledge demo build --force --workspace "$RUNNER_TEMP/demo"
           uv run knowledge demo export --workspace "$RUNNER_TEMP/demo" --check
 
+      - name: Import the fixed acceptance dataset
+        run: |
+          uv run knowledge evaluation import examples/evaluation-demo.json -d "$RUNNER_TEMP/demo/knowledge.db"
+
+      - name: Evaluate retrieval at a fixed time
+        run: |
+          uv run knowledge evaluation run 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 --mode lexical --top-k 5 --candidate-limit 50 --rrf-k 60 --at 2026-11-10T00:00:00Z -d "$RUNNER_TEMP/demo/knowledge.db" --json > "$RUNNER_TEMP/evaluation-candidate.json"
+
+      # 默认严格策略：六项指标同时检查汇总与逐 case，绝对降幅为零。
+      # 提交的 CI 策略另要求有效评测时间一致；CI 只读取基线，绝不自动更新。
+      - name: Gate retrieval against the committed baseline
+        run: |
+          uv run knowledge evaluation gate examples/evaluation-baseline.json "$RUNNER_TEMP/evaluation-candidate.json" --policy examples/evaluation-gate.json --json > "$RUNNER_TEMP/evaluation-gate.json"
+
+      - name: Run quality acceptance (30 cases, 1,000 active units, P95 <= 1.5s)
+        run: uv run python scripts/quality_acceptance.py --report "$RUNNER_TEMP/quality-acceptance.json"
+
+      - name: Verify wheel and source distribution (core-only, quality, api, postgres, and tokens)
+        run: uv run python scripts/verify_distribution.py --output-dir "$RUNNER_TEMP/distribution"
+
+      - name: Upload quality acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-acceptance-${{ matrix.python-version }}
+          path: ${{ runner.temp }}/quality-acceptance.json
+          if-no-files-found: ignore
+
+      - name: Upload evaluation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-${{ matrix.python-version }}
+          path: |
+            ${{ runner.temp }}/evaluation-candidate.json
+            ${{ runner.temp }}/evaluation-gate.json
+          if-no-files-found: ignore
+
+      - name: Upload verified distributions and smoke summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribution-${{ matrix.python-version }}
+          path: |
+            ${{ runner.temp }}/distribution/build/*.whl
+            ${{ runner.temp }}/distribution/build/*.tar.gz
+            ${{ runner.temp }}/distribution/*-smoke-summary.json
+          if-no-files-found: ignore
+
+  postgres:
+    name: PostgreSQL ${{ matrix.postgres-version }} schema capture
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres-version: ["16", "17"]
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}
+        env:
+          POSTGRES_USER: konwledge_test
+          POSTGRES_PASSWORD: konwledge_test
+          POSTGRES_DB: konwledge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U konwledge_test -d konwledge_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies with the PostgreSQL extra
+        run: uv sync --locked --dev --extra postgres
+
+      - name: Test PostgreSQL schema capture
+        env:
+          KNOWLEDGE_TEST_POSTGRES_DSN: postgresql+psycopg://konwledge_test:konwledge_test@127.0.0.1:5432/konwledge_test
+        run: uv run --no-sync pytest tests/test_database_schema_postgres.py
+
   web:
-    name: Demo site
+    name: Knowledge CI Workbench
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -73,8 +164,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify demo types, tests, and production build
+      - name: Verify workbench types, tests, and production build
         run: pnpm verify
+
+      - name: Verify the committed read-only replay preview
+        run: pnpm verify:preview
 
   lancedb:
     name: Optional LanceDB adapter

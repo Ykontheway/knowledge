@@ -1,712 +1,229 @@
 # Konwledge
 
-Konwledge is a local-first toolkit for managing the full lifecycle of knowledge used by AI applications. The project will track where knowledge came from, how it changed, when it became stale, and whether a change improved or degraded retrieval quality.
+Konwledge 是本地优先的 **Knowledge CI 知识生命周期与质量门禁基础设施**。它记录可追溯的版本事实，把知识变更接到质量验收，并向应用提供绑定精确版本的检索证据与上下文。
 
-> Status: pre-alpha. U13 adds lifecycle-aware FTS5/vector retrieval and RRF fusion, following U12's deterministic conflict candidates and review audit chain. The demo frontend remains paused at V2; these increments change only the Python core and CLI. The deterministic V1 snapshot and its schema stay unchanged.
+当前核心开发与工作台实现已完成，版本为 **`0.1.0` prepared alpha**，尚未创建发行 tag，也未正式发布到 PyPI。实现完成、包发布和生产部署是三个不同状态。
 
-## Implemented increments
+包名保留 `konwledge`，主 CLI 为 `knowledge`，兼容别名 `konwledge` 和模块入口 `python -m konwledge` 继续可用。项目面向本机、单库工程使用，不是自治答案系统或生产服务。
 
-| Increment | Completed | Outcome |
+2026-11-23 已发布 [在线只读预览](https://ykontheway.github.io/konwledge/#replay/guide)。页面只读取静态回放数据，不连接 live backend；导出、构建与发布边界见 [静态回放预览](docs/replay-preview.md)。
+
+## 知识变更留下可验收的事实
+
+导入文档后，Konwledge 保留来源、不可变文档版本、知识单元和 append-only revision。更新、移动、删除和重新发布历史版本都有记录，旧内容不会被静默覆盖。
+
+source publication timeline 与 lineage revision chain 是历史事实。`knowledge_units.status` 只是当前查询缓存；as-of 查询从日志重建当时可见的版本，不用今天的状态冒充历史状态。
+
+| 能力 | 当前实现 | 使用边界 |
 | --- | --- | --- |
-| U01 | 2026-10-12 | Installable package, CLI smoke test, linting, typing, tests, and CI |
-| U02 | 2026-10-13 | Frozen domain models with validation and JSON roundtrips |
-| U03 | 2026-10-15 | SQLite schema, typed repositories, explicit transactions, and persistence tests |
-| U04 | 2026-10-16 | UTF-8 Markdown/TXT loading, normalization, SHA-256 fingerprints, and idempotent ingestion |
-| U05 | 2026-10-19 | Heading-aware splitting, exact character ranges, section paths, and persisted traceability |
-| U06 | 2026-10-20 | Typer import/list/show CLI, recursive corpus discovery, examples, and automatic local database setup |
-| U07 | 2026-10-21 | Embedding provider protocol, deterministic hash test provider, batching service, and provider/model cache keys |
-| U08 | 2026-10-23 | `VectorIndex` protocol, in-memory top-K search with metadata filters, optional LanceDB adapter, and `IndexingService` for `KnowledgeUnit` vectors |
-| U09 | 2026-10-29 | Unit-level document diff, stable lineages, append-only revision chains, partial index rebuilds, `knowledge history`, and U08 LanceDB hardening |
-| U10 | 2026-10-30 | Publication timeline, `active`/`stale`/`superseded`/`deleted` statuses, as-of snapshots, revert handling, `knowledge asof`/`stale`/`refresh`/`reconcile` |
-| V1 | 2026-11-02 | Demo corpus and story, deterministic `knowledge demo build`, `knowledge demo export` with a Pydantic snapshot model, JSON Schema, golden-file tests, and a CI drift check |
-| V2 | 2026-11-03 | Static demo site in `web/` (Vite, React, TypeScript, Tailwind): overview, traceability, and version-diff pages rendered from the snapshot; types generated from the JSON Schema; Vitest; GitHub Pages workflow |
-| U11 | 2026-11-06 | Source-scoped TTL and known source-update policies; append-only configuration; atomic dry-run/apply stale scans; active-only publication API and CLI; controlled-clock regression tests |
-| U12 | 2026-11-09 | Deterministic service-port conflict candidates, frozen two-sided evidence, atomic persistence, human review states and audit chain, historical preview and conflict CLI |
-| U13 | 2026-11-09 | Transactionally synchronized SQLite FTS5, vector retrieval, deterministic RRF fusion, active-only/source/as-of filtering, missing-vector diagnostics, and search CLI |
+| 导入与版本化 | UTF-8 Markdown／TXT 规范化、精确拆分、幂等导入、单元级 Diff | 本地文件；文档版本和单元版本不可变 |
+| 生命周期 | `active`、`stale`、`superseded`、`deleted`，as-of、时效策略、冲突候选 | 冲突由人工审核，不自动选定正确来源 |
+| 检索与上下文 | lexical、可选 vector／hybrid、整块证据、exact citations | 不调用 LLM，不生成答案 |
+| 评测与门禁 | 不可变评测集、report、baseline、compare、gate、quality acceptance | 基线需人工审核并显式提升 |
+| 变更后自动评测 | 显式绑定评测集、持久化 job、history／retry／recover | 默认关闭；首版 lexical、同步执行 |
+| 工作台与集成 | 本机 HTTP、管理投影、只读 MCP、受控更新、静态回放 | 读写权限及数据模式分别校验 |
 
-Each increment builds on the preceding implementation. This branch contains U01-U13, V1, and V2. `U` slices grow the core library; `V` slices build the read-only demo site on top of it. Further frontend work is paused while the core lifecycle slices advance.
+这套记录让版本、检索结果和验收结论可以核对。引用完整性与检索指标不保证源事实正确，也不证明下游生成答案忠实。
 
-## Why this project
+## 先判资格，再检索
 
-Many RAG demos stop after documents can be chunked, embedded, and searched. Konwledge focuses on the work that follows:
+eligibility-first 检索先确定查询时点，按 publication／revision 日志还原 eligible head units，再进入 lexical、vector 或 hybrid 路由。资格判定发生在各路由的 `candidate_limit` 之前，避免旧版本挤占有效候选。
 
-- trace every knowledge unit back to its source;
-- preserve revisions instead of silently overwriting content;
-- identify stale, superseded, deleted, and conflicting knowledge;
-- evaluate retrieval after every knowledge or indexing change;
-- provide model-ready context with explicit citations.
+默认只召回 active published head units。核心 SDK／CLI 可显式使用 `--include-stale`、`--source` 或 `--at`；superseded、deleted 和尚未发布的版本不进入该时点的召回范围。
 
-## Planned delivery
+lexical 使用 SQLite FTS5，hybrid 使用确定性 RRF。vector／hybrid 需要调用方注入 `IndexingService`，或显式使用仅供链路验证的 `--demo-vectors`。缺少 provider／index 时明确失败，不静默回退；缺失向量会暴露 degraded 诊断。
 
-The initial roadmap is split into small, testable uploads:
+## 证据绑定精确版本
 
-| Milestone | Target | Outcome |
-| --- | --- | --- |
-| Project foundation | Days 1–5 | Installable package, tests, linting, typing, and CI |
-| Knowledge ingestion | Days 8–17 | Traceable Markdown and text ingestion |
-| Knowledge lifecycle | Days 20–32 | Revisions, freshness, status, and conflict candidates |
-| Retrieval | Days 35–38 | Hybrid retrieval and citation-aware context assembly |
-| Knowledge CI | Days 41–45 | Versioned evaluation set and regression gates |
-| Optional integrations | Days 46–60 | Model API, conversations, database schemas, UI, and MCP |
-
-The planned public checkpoints are `v0.0.1-mvp`, `v0.1.0`, and `v0.2.0`.
-
-## Quick start
-
-Konwledge requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
-
-```bash
-uv sync --dev
-uv run knowledge --version
-```
-
-Expected output:
+每个知识单元保存规范化原文的半开字符区间，满足：
 
 ```text
-knowledge 0.0.0
+normalized_content[unit.start_char:unit.end_char] == unit.text
 ```
 
-## Import CLI
+引用包含 source／document／unit ID、exact quote、字符范围和校验信息，绑定被检索的具体版本。citation ID 对同一证据保持稳定，不随重跑检索或排名变化而改变。
 
-The `knowledge` entry point creates the SQLite schema and parent directory automatically. Its
-default database is `.konwledge/knowledge.db`; pass `--database` (or `-d`) to every command when
-you want another explicit location. From an empty checkout, the shortest end-to-end path is:
+上下文按排名选择 whole-unit evidence，去重 lineage 并排除同一文档版本的重叠区间。放不进预算时跳过整块，不截断引用或合成摘要；空上下文是合法结果。
+
+核心上下文的 `max_chars` 计算完整 `context_text`，可选 `[tokens]` 支持精确 token 预算。MCP 使用独立的字符／块数预算，不接受 `max_tokens`。两套预算不能混用，详情见 [核心参考](docs/core-reference.md) 和 [只读 MCP](docs/mcp-readonly.md)。
+
+## 从本地文档开始
+
+需要 Python 3.11 或更新版本，以及启用 FTS5 的 SQLite。以下命令在仓库根目录执行，从当前 checkout 安装，不依赖尚未发布的 PyPI 包：
 
 ```bash
-uv run knowledge import examples --database .konwledge/demo.db
-uv run knowledge list --database .konwledge/demo.db
-uv run knowledge show <unit-id-from-list> --database .konwledge/demo.db
-uv run knowledge history <unit-id-from-list> --database .konwledge/demo.db
-uv run knowledge asof --all --database .konwledge/demo.db
-uv run knowledge search "deployment" --database .konwledge/demo.db
+python -m pip install .
+knowledge --version
 ```
 
-`import` accepts one `.md`, `.markdown`, or `.txt` file, or recursively discovers those formats in
-a directory. Files are processed in stable relative-path order; unrelated file formats in a
-directory are skipped and summarized. Reimporting unchanged content is idempotent, while changed
-content creates a new immutable document version whose units are diffed against the previous
-version (see [Incremental updates](#incremental-updates)).
+版本输出应为：
 
-The legacy `konwledge` executable remains an alias for compatibility. Local SQLite databases are
-runtime data: keep them under `.konwledge/` or use a `*.db`/`*.sqlite` name, and do not commit them.
-These paths are covered by `.gitignore`.
+```text
+knowledge 0.1.0
+```
 
-## Development checks
-
-Run the same checks used by GitHub Actions:
+直接导入仓库自带文档，再查看、检索和组装上下文：
 
 ```bash
+knowledge import examples/getting-started.md -d .konwledge/knowledge.db
+knowledge import examples/lifecycle.txt -d .konwledge/knowledge.db
+knowledge list -d .konwledge/knowledge.db
+knowledge search "character range" -d .konwledge/knowledge.db
+knowledge context "character range" --max-units 1 -d .konwledge/knowledge.db
+```
+
+`import` 接受 `.md`、`.markdown`、`.txt` 文件，也可递归导入目录；按稳定相对路径顺序处理，跳过并汇总无关格式。相同内容重导是幂等操作，正文变化创建新版本并与当前 head 做 Diff。
+
+默认库路径就是 `.konwledge/knowledge.db`，`--database` 与 `-d` 等价。已有普通 CLI 会自动创建父目录并执行增量 schema 初始化；HTTP `serve` 和默认只读 MCP 必须指向已准备好的库，不借查询启动修复或升级。
+
+运行时数据库留在 `.konwledge/` 或使用 `*.db`／`*.sqlite`，不要提交业务库、凭据或本机验收产物。后续 SDK／CLI 用法见 [核心参考](docs/core-reference.md)，事务与存储职责见 [架构](docs/architecture.md)。
+
+### 可选依赖按能力安装
+
+核心安装不强依赖 HTTP、MCP、tokenizer、PostgreSQL 或 LanceDB。所有 extra 都是可选项：
+
+| Extra | 从当前 checkout 安装 | 用途 |
+| --- | --- | --- |
+| `[api]` | `python -m pip install '.[api]'` | loopback HTTP 与显式启用的管理 API |
+| `[mcp]` | `python -m pip install '.[mcp]'` | 本机 stdio MCP |
+| `[tokens]` | `python -m pip install '.[tokens]'` | 核心上下文精确 token 预算 |
+| `[postgres]` | `python -m pip install '.[postgres]'` | PostgreSQL 只读 schema 捕获 |
+| `[lancedb]` | `python -m pip install '.[lancedb]'` | 可选 LanceDB 向量索引适配器 |
+
+开发环境可用 `uv sync --locked --dev`，按需追加 `--extra`。开发组中的测试依赖不等于核心运行时依赖；help／version 不需要 `[api]` 或 `[mcp]`。
+
+Python 公共入口为 `from konwledge import KnowledgeLibrary, __version__`，`KnowledgeLibrary` 与 `konwledge.application` 中的 facade 是同一实现。根导入延迟加载，不主动初始化数据库。`konwledge.domain`、`konwledge.evaluation` 和 PEP 561 `py.typed` 保留；alpha 阶段不承诺完整向后兼容。
+
+## 给知识变更绑定质量门禁
+
+先根据库中已导入的 source／lineage 制作业务评测集，再导入同一个知识库。下面的 `your-evaluation.json` 表示实际文件，`DATASET_UUID` 必须替换为导入结果或 `evaluation list` 中的 dataset UUID；`--version 1` 必须对应已导入的不可变版本。
+
+```bash
+knowledge evaluation import your-evaluation.json -d .konwledge/knowledge.db
+knowledge evaluation list -d .konwledge/knowledge.db --json
+knowledge evaluation run DATASET_UUID --version 1 --mode lexical \
+  --top-k 5 --candidate-limit 50 --rrf-k 60 \
+  -d .konwledge/knowledge.db --json
+knowledge auto-evaluation enable --set-id DATASET_UUID --version 1 \
+  -d .konwledge/knowledge.db
+knowledge auto-evaluation status -d .konwledge/knowledge.db
+knowledge auto-evaluation run -d .konwledge/knowledge.db
+```
+
+`enable` 固定 dataset ID／version／hash、检索参数与策略，仅保存配置，不认定已有知识合格。升级评测集版本后须显式重新绑定；`run` 用于检查当前知识。
+
+自动评测默认关闭。启用后，文件发布／更新／重新发布、对话候选人工批准、SQLite／PostgreSQL schema 新版本发布，以及 stale／refresh 和时效策略变更会触发任务。原样重导、查询和评测集导入不触发。
+
+写事务同时持久化 revision／publication 与 job outbox，提交成功后同步评测。同一外层事务合并为一个任务，事务回滚不留下任务。结果保留 dataset hash、config fingerprint 和 knowledge fingerprint，但不冻结完整 corpus／provider／backend 快照。
+
+**质量 failed 时 CLI 退出 `3`，不回滚已提交知识，也不替换基线。** stderr 会提示 `knowledge committed; evaluation did not pass`，stdout 保留普通结果或 JSON。不能据此假定导入未发生而盲目重试。
+
+```bash
+knowledge auto-evaluation history -d .konwledge/knowledge.db
+knowledge auto-evaluation show JOB_UUID -d .konwledge/knowledge.db
+knowledge auto-evaluation retry JOB_UUID -d .konwledge/knowledge.db
+knowledge auto-evaluation recover -d .konwledge/knowledge.db
+knowledge auto-evaluation disable -d .konwledge/knowledge.db
+```
+
+`JOB_UUID` 取自任务历史。retry 新建关联任务，不覆盖旧终态；recover 回收过期租约。评测任务恢复与知识写入恢复是不同操作，完整状态和安全报告规则见 [自动评测](docs/auto-evaluation.md)。
+
+### 比较前严格校验可比性
+
+baseline／compare／gate 只处理 JSON 文件，不打开知识库、不调用 provider、不重新检索。baseline 只接受经完整校验的健康 report，默认拒绝覆盖已有输出；提升和替换均须人工显式操作。
+
+比较要求 dataset ID、version、content hash、mode、`top_k`、`candidate_limit`、`rrf_k` 一致，并校验完整用例与重算指标。固定用例的 `at` 保持不变；需要所有时间一致时使用 `require_same_time`，可复现 CI 应选择共同显式时间。
+
+默认回归策略检查全部六类指标的 aggregate 和 case，任何适用检查退化都可阻断；无适用指标、degraded 或违反时间策略时也不会放行。输入有效但 gate 阻断退出 `3`，通过退出 `0`，输入无效退出 `2`，I/O 或运行失败退出 `1`。
+
+完整 report 由 `evaluation run --json` 输出到 stdout，交由调用方保存后再比较。下面的 `APPROVED_REPORT_JSON` 和 `CANDIDATE_REPORT_JSON` 分别表示已审核的健康 report 与新候选 report 的实际路径；已有基线不会被隐式替换：
+
+```bash
+knowledge evaluation baseline APPROVED_REPORT_JSON --output approved-baseline.json
+knowledge evaluation compare approved-baseline.json CANDIDATE_REPORT_JSON
+knowledge evaluation gate approved-baseline.json CANDIDATE_REPORT_JSON \
+  --policy examples/evaluation-gate.json --json
+```
+
+完整文件命令与 policy 格式见 [核心参考](docs/core-reference.md#evaluation-baselines-and-regression-gates)；独立质量门槛、token 与性能口径见 [后端验收](docs/acceptance.md)。
+
+## 默认只读，写入需要单独授权
+
+| 入口 | 权限与数据边界 |
+| --- | --- |
+| CLI／`KnowledgeLibrary` | 本地核心操作；写入由显式命令或 SDK 调用发起 |
+| `knowledge serve` | 可选 `[api]`，loopback HTTP、只读 `knowledge-context` 响应，不生成答案 |
+| `knowledge serve --enable-management` | 显式启用、Bearer 认证、GET only、独立只读管理连接 |
+| `knowledge mcp serve --database FILE` | 默认只有五个只读 stdio 工具，固定 lexical／active |
+| `knowledge mcp serve --controlled ...` | 默认关闭，只更新私有隔离 scope 的 allowlist 当前正文 |
+| 工作台与 `#replay/*` | 本机视图与静态回放分开；公开预览没有 live API fallback |
+
+默认 MCP 使用 SQLite `mode=ro`／`query_only`，不建表、不回填 FTS、不写 outbox 或批准审计。工具输入不接受数据库路径、SQL、凭据或 URL；`konwledge-mcp` 保留为等价独立 stdio 入口。
+
+受控 MCP 须显式 `--controlled`，由本机操作人员绑定 `--mutation-manifest`、`--actor`、`--demo-root` 与数据库。只接受已准备的私有 sandbox，不接任意业务库；候选批准、任意导入、retire／remove 和 SQL 写入未开放。
+
+批准通过独立 `knowledge mcp approve` TTY 完成，绑定 scope、actor、preview、checksum 和同一幂等键。没有 `--yes` 或 Agent 布尔确认捷径；批准 token 不进 URL 或日志。带外 TTY 不替代 OS 权限隔离，也不提供密码学人类身份证明或 SSO／RBAC。
+
+apply 在同一事务写知识、revision／publication、FTS、command、outbox 并消费 grant。评测失败仍表示知识已提交；响应丢失或结果未知时，只按原 command／幂等键回查，不自动换键补发写请求。
+
+证据文本与 Diff 仍是不可信输入，JSON 转义不保证下游模型免受提示注入。接入前阅读 [只读 MCP](docs/mcp-readonly.md)、[受控 MCP](docs/mcp-controlled.md) 和 [工作台说明](web/README.md)。
+
+## 兼容命令与路径保持原名
+
+产品定位调整不重命名已建立的命令、目录、flags 或协议。`demo` 继续用于打包语料、gold set、快照及隔离验收，不是业务知识库的唯一起点。
+
+- `knowledge demo build`、`knowledge demo export`、`--force`、`--check` 保留；数据仍使用 `.konwledge/demo/knowledge.db`、`demo/snapshot.json` 和 `demo/snapshot.schema.json`。
+- `knowledge show`／`history`／`asof`／`stale`／`refresh`／`reconcile`／`publishable`、`freshness`、`conflicts`、`conversation`／`candidate`、`database`、`evaluation`、`quality` 和 `auto-evaluation` 路径保留。
+- `--database`／`-d`、`--json`、`--at`、`--all`、`--document`、`--source`、`--include-stale`、`--mode`、`--demo-vectors` 及各命令原有 flags 保留，适用范围按原接口校验。
+- `scripts/workbench.py` 的 `list`／`demo`／`accept`、`--mode controlled --actor demo-editor --prepare-only` 与 `--with-distribution` 保留；统一入口只支持具备清理核验能力的 Linux，不接受外部业务库参数。
+- 旧前端 `#overview`、`#trace`、`#diff`，本机 `#lifecycle`、`#evaluation`、`#guide`，受控 `#changes` 及 `#replay/*` 路由保留，各模式仍独立限制访问。
+
+完整内置链路见 [核心参考](docs/core-reference.md#versioned-snapshot)。历史实现编号与验收数字已留在 CHANGELOG 和历史路线文档，不拿旧统计充当本轮测试结果。
+
+## 开发验证入口
+
+以下为仓库保留的验证命令，不代表本文编辑时已运行：
+
+```bash
+uv sync --locked --dev
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy src tests
+uv run mypy src tests scripts
 uv run pytest --cov=konwledge --cov-report=term-missing
-uv run knowledge demo build --force && uv run knowledge demo export --check
+uv run knowledge demo build --force
+uv run knowledge demo export --check
+uv run python scripts/export_management_schema.py --check
+uv run python scripts/export_mutation_schema.py --check
+uv run --frozen python scripts/export_replay.py --check --output web/public/replay.json
+uv run python scripts/verify_distribution.py
 ```
 
-The demo site has its own CI job:
+前端检查在 `web/` 下执行，普通构建与只读预览分别验证：
 
 ```bash
 cd web
 pnpm install --frozen-lockfile
-pnpm verify        # typecheck → schema sync → Vitest → production build
+pnpm check:replay
+pnpm verify
+pnpm verify:preview
 ```
 
-Both the CI job and the Pages deployment run `pnpm verify`; publishing stops if any
-check fails. Keep `strict`, `noUnusedLocals`, and `noUnusedParameters` enabled. During
-page development, run `pnpm typecheck` after each component change, then `pnpm verify`
-before committing. Vitest covers snapshot mapping, Unicode highlight ranges, and
-server-rendering smoke tests for the three demo pages; it does not replace browser
-interaction or visual testing.
-
-The optional LanceDB adapter has its own CI job. Run it locally with:
-
-```bash
-uv sync --dev --extra lancedb
-uv run pytest tests/test_indexing.py tests/test_lifecycle.py -k lance
-```
-
-## Repository layout
-
-```text
-.
-├── .github/workflows/
-│   ├── ci.yml
-│   └── deploy-demo.yml
-├── src/konwledge/
-│   ├── domain/
-│   │   ├── __init__.py
-│   │   └── models.py
-│   ├── embedding/
-│   │   ├── __init__.py
-│   │   ├── providers.py
-│   │   └── service.py
-│   ├── indexing/
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── lance.py
-│   │   ├── memory.py
-│   │   └── service.py
-│   ├── ingestion/
-│   │   ├── __init__.py
-│   │   ├── loaders.py
-│   │   ├── normalization.py
-│   │   ├── pipeline.py
-│   │   ├── service.py
-│   │   └── splitting.py
-│   ├── demo/
-│   │   ├── corpus/          # packaged story files (guide v1-v3, on-call FAQ)
-│   │   ├── __init__.py
-│   │   ├── builder.py
-│   │   └── scenario.py
-│   ├── lifecycle/
-│   │   ├── __init__.py
-│   │   ├── diff.py
-│   │   ├── revisions.py
-│   │   ├── service.py
-│   │   └── status.py
-│   ├── snapshot/
-│   │   ├── __init__.py
-│   │   ├── export.py
-│   │   └── models.py
-│   ├── storage/
-│   │   ├── __init__.py
-│   │   ├── database.py
-│   │   ├── repository.py
-│   │   ├── tables.py
-│   │   └── unit_of_work.py
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── application.py
-│   └── cli.py
-├── demo/
-│   ├── README.md
-│   ├── snapshot.json        # generated, committed, checked in CI
-│   └── snapshot.schema.json # generated, committed, checked in CI
-├── examples/
-│   ├── getting-started.md
-│   └── lifecycle.txt
-├── tests/
-├── web/                     # static demo site (V2)
-│   ├── scripts/gen-types.mjs
-│   └── src/
-│       ├── lib/             # snapshot views, code-point slicing, formatting (+ Vitest)
-│       ├── types/snapshot.gen.ts
-│       └── *Page.tsx
-├── LICENSE
-├── README.md
-└── pyproject.toml
-```
-
-The remaining modules will be added only when they gain executable behavior: `retrieval`, `evaluation`, `providers`, and `api`.
-
-## Domain models
-
-U02 introduces five immutable [Pydantic v2](https://docs.pydantic.dev/) models under `konwledge.domain`:
-
-- `Source` records where imported knowledge originated;
-- `Document` identifies one normalized source document and its checksum;
-- `KnowledgeUnit` stores a traceable, independently retrievable text range;
-- `Revision` records versioned changes without silently overwriting history;
-- `Citation` links model-ready context back to an exact knowledge unit.
-
-The models reject unknown fields, require timezone-aware timestamps, and support JSON roundtrips through `model_dump_json()` and `model_validate_json()`. Document checksums use lowercase SHA-256 hex strings. Knowledge units preserve exact text whitespace, use half-open character ranges, and carry their current heading and full section path.
-
-## SQLite metadata storage
-
-U03 persists the domain graph with SQLAlchemy 2.x and SQLite. `Source`, `Document`, `KnowledgeUnit`, `Revision`, and `Citation` each have a typed repository, while `UnitOfWork` keeps commit and rollback boundaries explicit. Revision history is append-only; lifecycle services will create revision records alongside future domain changes.
-
-SQLite foreign-key enforcement is enabled for every connection. Tests use an isolated in-memory database and cover roundtrips, updates, deletes, constraint failures, commits, and rollbacks. Create an application database with:
-
-```python
-from konwledge.storage import create_schema, create_sqlite_engine
-
-engine = create_sqlite_engine("sqlite:///konwledge.db")
-create_schema(engine)
-```
-
-## Text ingestion
-
-U04 loads one UTF-8 `.md`, `.markdown`, or `.txt` file from a stored file `Source`. The loader removes an optional UTF-8 BOM, converts CRLF and CR line endings to LF, applies Unicode NFC normalization, and calculates a lowercase SHA-256 fingerprint. It preserves all other whitespace so later character offsets remain traceable to the normalized text.
-
-`FileIngestionService` returns both the persisted `Document` metadata and the normalized content needed by the U05 splitter. Importing the same source path and normalized content again returns the existing document instead of inserting a duplicate.
-
-```python
-from konwledge.ingestion import FileIngestionService
-from konwledge.storage import create_session_factory
-
-session_factory = create_session_factory(engine)
-result = FileIngestionService(session_factory).ingest(source_id)
-print(result.document.checksum, result.created)
-```
-
-## Traceable splitting
-
-U05 turns normalized document content into persisted `KnowledgeUnit` records. Markdown headings define section boundaries and hierarchical paths; headings inside fenced code blocks are ignored. Plain text and heading-free Markdown fall back to paragraph boundaries.
-
-Every unit stores an exact half-open range `[start_char, end_char)`. The invariant `content[start_char:end_char] == unit.text` makes the original location directly recoverable. `TraceableIngestionService` connects U04 ingestion with idempotent unit creation, while an existing document version reuses its stored units.
-
-```python
-from konwledge.ingestion import (
-    FileIngestionService,
-    KnowledgeUnitService,
-    TraceableIngestionService,
-)
-
-service = TraceableIngestionService(
-    FileIngestionService(session_factory),
-    KnowledgeUnitService(session_factory),
-)
-result = service.ingest(source_id)
-for unit in result.units:
-    assert result.ingestion.content[unit.start_char : unit.end_char] == unit.text
-```
-
-## Embedding provider
-
-U07 introduces an offline-friendly embedding layer. The `EmbeddingProvider` protocol defines the minimal surface a backend must expose (`name`, `model`, `dimension`, and `embed`). `HashEmbeddingProvider` ships as a deterministic SHA-256 provider so tests never require network access or API keys.
-
-`EmbeddingService` adds batching, dimension checks, and a provider/model-aware cache key. Caching is opt-in: pass an `InMemoryEmbeddingCache` (or any object with `get`/`set`) to keep repeated calls cheap and idempotent; cache keys compose `(provider_name, model, text)` and remain stable across runs.
-
-```python
-from konwledge.embedding import (
-    EmbeddingService,
-    HashEmbeddingProvider,
-    InMemoryEmbeddingCache,
-    embedding_cache_key,
-)
-
-service = EmbeddingService(
-    HashEmbeddingProvider(dimension=32),
-    cache=InMemoryEmbeddingCache(),
-    batch_size=8,
-)
-vectors = service.embed(["alpha", "beta", "alpha"])
-assert vectors[0] == vectors[2]
-assert embedding_cache_key("hash", "sha256-v1", "alpha") == service.cache_key("alpha")
-```
-
-## Vector index
-
-U08 turns embeddings into a searchable store. The `VectorIndex` protocol captures `upsert`, `delete`, `get`, `search`, and `rebuild`; the default `InMemoryVectorIndex` ships a dependency-free cosine search with stable id-tiebreak ranking and metadata filters (`{"status": "active"}`, `{"tags": {"in": [...]}}`, `{"status": {"not": [...]}}`). An optional `LanceVectorIndex` adapter targets LanceDB when installed with `uv sync --extra lancedb` (or `pip install "konwledge[lancedb]"`); the module imports cleanly without the dependency and raises a clear install hint only when the adapter is instantiated. The adapter uses an explicit Arrow schema, so empty rebuilds keep the vector dimension, filtered searches scan every row instead of a fixed oversampling window, and reopening a table with another dimension fails with a clear error.
-
-`IndexingService` wires the embedding service and the vector index together so you can embed and persist `KnowledgeUnit` objects in one call, run top-K searches by raw text, and rebuild the entire index deterministically:
-
-```python
-from konwledge.embedding import EmbeddingService, HashEmbeddingProvider, InMemoryEmbeddingCache
-from konwledge.indexing import IndexingService, InMemoryVectorIndex
-
-embeddings = EmbeddingService(HashEmbeddingProvider(dimension=32), cache=InMemoryEmbeddingCache())
-indexing = IndexingService(
-    embedding_service=embeddings,
-    vector_index=InMemoryVectorIndex(dimension=32),
-)
-indexing.index_units(units)  # upsert vectors + traceable payload
-hits = indexing.search("python testing patterns", top_k=5, filters={"status": "active"})
-indexing.remove_units([units[0].id])  # delete a single unit by id
-indexing.rebuild(units)  # atomically replace the whole index
-```
-
-Repeating `search` with identical input always returns the same ranking: `InMemoryVectorIndex`
-breaks ties on `id` after sorting by descending cosine score, and the hash provider is
-deterministic, so vectors never silently drift between runs.
-
-## Incremental updates
-
-U09 answers "what actually changed?" when a file is imported again with new content. Each new
-document version is compared with the previous version of the same source at the knowledge-unit
-level:
-
-| Change | Rule | Re-embedded? |
-| --- | --- | --- |
-| `unchanged` | identical text in the same section (its position may shift) | no, vector reused |
-| `moved` | identical text in a different section | no, vector reused |
-| `modified` | similar text (≥ 0.5 ratio) or a rewrite inside the same named section | yes |
-| `added` | no matching unit in the previous version | yes |
-| `removed` | previous unit with no match in the new version | vector deleted |
-
-Every unit has a `lineage_id` that stays stable across versions, so "the Usage paragraph" can be
-followed through edits even though each immutable document version stores new unit ids. Lineage
-changes are written as append-only `Revision` records (`create`, `update`, `delete`) in the same
-transaction as the new units; unchanged units add no history. Databases created before U09 gain
-the nullable `lineage_id` column automatically, and legacy rows start their own lineage.
-
-```text
-$ knowledge import guide.md
-updated: guide.md | document=… | units=4 | changes=+1 ~1 >0 =2 -0 | re-embed=2
-
-$ knowledge history <unit-id>
-lineage: 9581…
-versions: 2
-revisions: 2
-  rev 1 create (added) unit=9581… at 2026-10-29T03:25:26+00:00
-  rev 2 update (modified) unit=ea17… at 2026-10-29T03:25:27+00:00
-```
-
-`IndexingService.apply_diff` turns the diff into a partial index rebuild. It embeds only `added`
-and `modified` units, copies stored vectors for `unchanged` and `moved` units (falling back to
-embedding if a vector is missing), refreshes their payload with the new `document_id`,
-`lineage_id`, and `content_hash`, and deletes the previous version's ids:
-
-```python
-service = TraceableIngestionService(ingestion, KnowledgeUnitService(session_factory))
-result = service.ingest(source_id)
-if result.diff is not None:
-    report = indexing.apply_diff(result.diff)
-    print(result.diff.summary(), report.embedded, report.reused, report.deleted)
-```
-
-Tests verify the acceptance criterion directly: with no embedding cache configured, the provider
-receives exactly the texts of the changed units. Statuses, as-of queries, and reverts build on this
-in U10 (see [Knowledge status and as-of queries](#knowledge-status-and-as-of-queries)).
-
-## Knowledge status and as-of queries
-
-U10 answers "which knowledge was valid at time T?". Each source keeps an append-only
-**publication timeline**: every time its head version changes, a `published` revision is recorded
-on the source. Because each document version is an immutable snapshot, the status of any unit
-version at any moment follows from that timeline plus the lineage's own revision chain:
-
-| Status | Meaning at time T |
-| --- | --- |
-| `active` | the unit belongs to the source's head version |
-| `stale` | head version, but the newest lineage revision at or before T is an explicit stale mark |
-| `superseded` | an older version whose lineage lives on in the head (edited, moved, or carried over) |
-| `deleted` | an older version whose lineage no longer exists in the head |
-
-Units of a version not yet published at T are invisible. A stale mark lasts until the next revision
-of the lineage: re-importing unchanged content keeps it, while an edit, a revert, or
-`knowledge refresh` clears it.
-
-```text
-$ knowledge asof --at 2026-10-30T15:11:51+08:00 --all
-as of: 2026-10-30T15:11:51+08:00
-source file /notes/guide.md
-  head: document 7f9c… published 2026-10-30T07:11:50+00:00
-  active     unit cd9f… section=Guide | # Guide Intro text.
-  active     unit 8401… section=Guide / Usage | ## Usage Run the CLI with --database.
-  active     unit 1868… section=Guide / FAQ | ## FAQ Ask in issues.
-  superseded unit f074… section=Guide | # Guide Intro text.
-  deleted    unit 8940… section=Guide / Install | ## Install Run uv sync.
-  superseded unit 6343… section=Guide / Usage | ## Usage Run the CLI.
-3 effective unit(s) across 1 source(s) | active=3 stale=0 superseded=2 deleted=1
-
-$ knowledge stale <unit-id> --reason "uv flags changed"
-$ knowledge show <unit-id> --at 2026-10-30T15:00:00+08:00
-$ knowledge asof --document <document-id>     # the moment that version was published
-$ knowledge refresh <unit-id> --reason "reviewed"
-```
-
-Other behaviour worth knowing:
-
-- **Reverts are real versions.** Restoring a file to content that was imported before republishes
-  the stored version (`reverted:` in the import output), diffs it against the head by lineage, and
-  appends `reverted` revisions, so `IndexingService.apply_diff` brings the index back as well. The
-  next new version is diffed against the head, not against the most recently created document.
-- **The revision log is the source of truth.** `knowledge_units.status` is a cache of the current
-  status, rewritten in the same transaction as every publication or mark so filters and vector
-  payloads can use it. As-of answers are always derived from the log.
-- **Older databases keep working.** Without publications, the timeline is inferred from ingestion
-  order (U09 behaviour). The next import of a source materializes that history as `backfilled`
-  publications, and `knowledge reconcile` rebuilds the cached statuses in one go.
-
-The Python API mirrors the CLI:
-
-```python
-library = KnowledgeLibrary(session_factory)
-snapshot = library.snapshot(at=datetime(2026, 10, 30, 7, 12, tzinfo=UTC), include_retired=True)
-print(snapshot.counts())  # {'active': 3, 'stale': 0, 'superseded': 2, 'deleted': 1}
-library.lifecycle.mark_stale(unit_id, reason="uv flags changed")
-```
-
-## Freshness policies
-
-U11 builds on U10's explicit `stale`/`refresh` revisions. A `FreshnessPolicy` is configured
-per source and stored as an append-only `freshness_policy` source revision, so configuration
-survives restarts and historical scans read the policy that existed at that time. No new
-SQLite columns or demo schema changes are required.
-
-| Rule | When it flags a current head unit |
-| --- | --- |
-| `ttl_expired` | Scan time is at or after the last content confirmation plus `ttl_seconds` |
-| `source_updated` | A supplied source-update time has arrived and is later than both head publication and the lineage's last review |
-
-The TTL reference is the lineage's latest `added`, `modified`, or `refreshed` revision.
-Moving a unit or carrying identical content into a new version does **not** renew its TTL.
-A revert renews only lineages whose content actually changes. Older histories without these
-revisions fall back to the head publication time. Timestamps must be timezone-aware; the
-boundary is inclusive (`checked_at >= expires_at`), and a CLI day is exactly 86,400 seconds.
-Deadlines are computed in UTC so daylight-saving transitions do not shorten or lengthen the
-TTL. Unsupported intervals/deadlines are rejected with a validation error rather than overflowing.
-
-```bash
-uv run knowledge list                         # includes source UUIDs
-uv run knowledge freshness configure <source-id> --ttl-days 30
-uv run knowledge freshness show <source-id>
-uv run knowledge freshness scan               # preview; does not write stale marks
-uv run knowledge freshness scan --apply       # append marks atomically
-uv run knowledge publishable                  # only active head units
-uv run knowledge publishable --include-stale  # opt in to stale knowledge
-uv run knowledge refresh <unit-id> --reason "reviewed against source"
-uv run knowledge freshness configure <source-id> --disable
-```
-
-A configuration command replaces the whole policy. To keep both rules, supply both
-`--ttl-days` and `--source-updated-at`, for example:
-
-```bash
-uv run knowledge freshness configure <source-id> --ttl-days 30 \
-  --source-updated-at 2026-11-06T12:00:00+08:00
-uv run knowledge freshness scan --source <source-id> \
-  --at 2026-11-06T13:00:00+08:00                 # historical preview only
-```
-
-Source-update times are **known inputs**, not a filesystem watcher, HTTP poller, or automatic
-external-source synchronization. Future update times do not flag units until that time arrives.
-An empty/disabled policy skips scanning; it does not clear existing stale marks. Review those
-units with `refresh`. Already-stale units are not marked twice, and retired/unpublished versions
-are never scanned. Stale marks retain the rule codes, TTL reference/deadline, and applied policy
-in their revision payload.
-
-Applying a scan writes all marks and cached statuses in one transaction, at the observed scan
-time rather than backdating them to the TTL deadline. This preserves earlier as-of answers.
-`--at` is read-only and cannot be combined with `--apply`; a regressing clock is rejected.
-No background task runs by itself: schedule the CLI externally if periodic scans are wanted.
-
-```python
-from konwledge.domain import FreshnessPolicy
-
-library.freshness.configure(source_id, FreshnessPolicy(ttl_seconds=30 * 86400))
-preview = library.freshness.scan()  # dry_run=True by default
-expired = [item for item in preview.decisions if item.expired]
-applied = library.freshness.scan(dry_run=False)
-ready = library.publishable_units()  # active only
-historical = library.publishable_units(at=aware_datetime)
-```
-
-`KnowledgeSnapshot.effective_units` still includes active **and stale** head units for U10
-compatibility. `publishable_units` is the new active-only boundary for future retrieval/context
-assembly. U11 does not automatically filter the lower-level `VectorIndex` or implement the U13
-retrieval pipeline. The controlled-clock tests cover deadlines, review/updates/reverts, policy
-history, dry-run/apply, batch rollback, CLI validation, and historical publication filtering.
-
-## Conflict detection
-
-U12 detects **candidates**, not which source is correct. Its first deterministic rule,
-`port_mismatch`, compares different sources asserting different scalar ports for the same
-named `*-service`. It scans only the published head's active and stale units; superseded,
-deleted, and unpublished units do not participate. Stale evidence stays visible because an
-outdated FAQ may be the contradictory source that needs review.
-
-The service name must be unambiguous in the unit, its section path, or the document (in that
-order). Recognized forms include `order-service listens on port 8080`, the Chinese listening
-form used in the demo, and `PORT=8080`. Negations, examples, alternatives, ranges, missing
-service names, and invalid port numbers are skipped rather than guessed. These conservative
-rules can miss natural-language conflicts; U12 does not provide general semantic detection.
-
-```bash
-uv run knowledge conflicts scan               # preview; no conflict records are written
-uv run knowledge conflicts scan --apply       # persist new candidates atomically
-uv run knowledge conflicts list --status pending
-uv run knowledge conflicts show <conflict-id>  # JSON with both exact evidence quotes
-uv run knowledge conflicts review <conflict-id> --status confirmed \
-  --reason "Verified that the current sources disagree" --reviewer "reviewer@example.com"
-uv run knowledge conflicts history <conflict-id>
-uv run knowledge conflicts scan --at 2026-10-20T12:00:00+08:00  # historical preview only
-```
-
-Each record freezes both sources, documents, units, lineages, quotes, character offsets,
-section paths, and observed unit statuses. A key based on the rule, subject, predicate,
-lineages, and values deduplicates repeated scans and unchanged assertions across versions.
-Changing a value creates a new key. Existing records and their original evidence are never
-automatically deleted, overwritten, reopened, or resolved when content changes.
-
-| Status | Meaning |
-| --- | --- |
-| `pending` | Awaiting review, or explicitly reopened |
-| `confirmed` | A reviewer confirmed that the sources disagree |
-| `dismissed` | A reviewer rejected this candidate |
-| `resolved` | A reviewer recorded that the conflict was handled |
-
-Any explicit status change requires a non-empty reason and appends a conflict revision;
-repeating the current status is rejected. Review time cannot precede detection or earlier
-reviews. Review does not choose a winning source, modify knowledge-unit statuses, or filter
-retrieval results. The caller is responsible for recording reviewer identity accurately.
-
-`scan --at` evaluates both publication state and conflict-review state at that time, without
-exposing future review fields. It cannot be combined with `--apply`. The scan summary exposes
-stable `candidates=`, `created=`, and `existing=` counts; persisted entries also show their UUID
-and status. `list`, `show`, and `history` display the current record and complete audit chain.
-
-```python
-preview = library.conflicts.scan()  # dry_run=True by default
-applied = library.conflicts.scan(dry_run=False)
-created = applied.created
-existing = applied.existing
-historical = library.conflicts.scan(at=aware_datetime)
-```
-
-The CLI's existing schema initialization adds the new `conflicts` table to older libraries;
-no existing columns or demo snapshot schema change. To try the demo conflict:
-
-```bash
-uv run knowledge demo build
-uv run knowledge conflicts scan -d .konwledge/demo/knowledge.db
-```
-
-This finds exactly the current guide's active `8080` assertion versus the FAQ's stale `8000`
-assertion, with both original quotes and offsets. Old guide versions are not treated as
-current contradictory evidence. The static frontend and demo snapshot remain unchanged.
-
-## Hybrid retrieval
-
-U13 adds `library.search(...)` and `library.retrieval` with three explicit modes:
-
-| Mode | Candidate routes | Configuration |
-| --- | --- | --- |
-| `lexical` (default) | SQLite FTS5, ordered by BM25 | No model or vector index required |
-| `vector` | Exact cosine over eligible stored vectors | An injected `IndexingService` |
-| `hybrid` | Both routes, merged with reciprocal rank fusion | An injected `IndexingService` |
-
-The default query scope is **active published head units only**. `--include-stale` opts into
-stale head units, and `--source` restricts the source UUID. Eligibility is resolved from the
-publication/revision log at one timezone-aware time, before either route's candidate limit.
-Cached vector status or text never controls eligibility or result evidence. Superseded,
-deleted, and unpublished versions are excluded; `--at` selects the head that existed then.
-The hit's top-level `status` is authoritative for the requested time; its nested `unit.status`
-is the persisted current cache and may differ in a historical answer.
-
-```bash
-uv run knowledge search "order-service"                    # full-text, active only
-uv run knowledge search "服务端口" --include-stale
-uv run knowledge search "监听" --at 2026-10-10T12:00:00+08:00
-uv run knowledge search "deployment" --top-k 3 --candidate-limit 20 --json
-uv run knowledge search "port" --source <source-id>
-uv run knowledge search "order-service" --mode hybrid --demo-vectors
-```
-
-The standalone CLI has no production embedding provider configured. `--demo-vectors` builds
-an **ephemeral hash-vector index** of stored versions, does not write it to disk, and warns on
-stderr that hash embeddings test the retrieval pipeline rather than semantic quality.
-Without that flag or an injected SDK index, `vector` and `hybrid` fail explicitly rather than
-silently switching to full-text. Normal search is read-only: it does not embed the corpus,
-write revisions, change statuses, repair vectors, or modify the original index. Opening the
-CLI still performs the existing additive schema initialization.
-
-RRF scores are `sum(1 / (rrf_k + route_rank))`, with 1-based ranks and `rrf_k=60` by default.
-Each unit counts at most once per route; ties are broken by UUID. Raw BM25 and cosine scores
-are diagnostic fields, not quantities added together or confidence probabilities. Single-route
-search uses the same rank-derived score. `candidate_limit` defaults to `max(50, top_k)`, applies
-to each route, and must be at least `top_k`.
-
-FTS5 indexes every stored unit version. Insert/text-update/delete triggers synchronize it in
-the same SQLite transaction; existing libraries are backfilled on initialization. CJK text is
-split into single-character tokens, with contiguous CJK query runs compiled as phrases. Other
-terms are quoted and combined with AND, so user input is literal text, not FTS operators or
-SQL. This supports short Chinese substrings without an extra dependency, but does not provide
-Chinese linguistic segmentation, stemming, synonym expansion, or general semantic matching.
-Writes through raw SQLite connections must register `knowledge_fts_text`; use the supplied
-`create_sqlite_engine` for normal writes. A SQLite build without FTS5 fails with a clear error.
-
-For a small local library, vector retrieval fetches eligible records and performs an exact
-cosine scan in a temporary in-memory index. This avoids retired/stale vectors crowding out
-valid candidates, but is O(N) over eligible units, not a large-scale ANN solution. U09 still
-removes old-version vectors on incremental updates. Missing vectors or conflicting stored
-content hashes are exposed in `missing_vector_ids` and `result.degraded`; hybrid can still
-return historical FTS evidence, while the CLI warns that vector recall is incomplete. Provider
-or backend failures are not silently treated as missing coverage. Callers must use the same
-embedding provider/model for stored vectors and queries.
-
-```python
-from konwledge.application import KnowledgeLibrary
-from konwledge.retrieval import RetrievalMode
-
-# `indexing` is an IndexingService using your provider and a Memory/Lance VectorIndex.
-# Populate it explicitly with index_units/rebuild/apply_diff; import does not auto-index.
-library = KnowledgeLibrary(session_factory, indexing_service=indexing)
-result = library.search("deployment port", mode=RetrievalMode.HYBRID, top_k=5)
-for hit in result.hits:
-    print(hit.unit.text, hit.source.uri, hit.unit.start_char, hit.unit.end_char)
-    print(hit.lexical_rank, hit.vector_rank, hit.score)
-if result.degraded:
-    print("Missing usable vectors:", result.missing_vector_ids)
-```
-
-Results preserve original units, source/document/lineage IDs, section paths and character
-ranges, along with resolved status, route ranks and raw scores. `--json` emits the complete
-result on stdout; diagnostics stay on stderr. U13 does not generate answers, create citations,
-assemble model context, resolve conflicts, or apply evaluation gates; those remain later slices.
-The static frontend and V1 snapshot contract are unchanged.
-
-## Demo snapshot
-
-The demo site (V2-V4) is a static page that only renders data; every number it shows comes from a
-JSON snapshot exported by the CLI. V1 provides that data pipeline.
-
-```bash
-uv run knowledge demo build            # plays the story into .konwledge/demo/
-uv run knowledge demo export           # writes demo/snapshot.json and demo/snapshot.schema.json
-uv run knowledge demo export --check   # exit 1 if the committed files are out of date
-```
-
-The story ("the life of one piece of knowledge") follows a fictional service deployment guide
-through three versions while an on-call FAQ keeps quoting the old port:
-
-```text
-2026-10-05T10:00:00+08:00 | 导入《服务部署手册》v1 | units=8 | embedded=8 reused=0 deleted=0
-2026-10-05T10:30:00+08:00 | 导入《值班 FAQ》 | units=3 | embedded=3 reused=0 deleted=0
-2026-10-12T14:00:00+08:00 | 发布《服务部署手册》v2 | changes=+2 ~1 >1 =5 -1 | embedded=3 reused=6 deleted=8
-2026-10-15T09:30:00+08:00 | 标记“监控告警”过期 | stale: 监控告警
-2026-10-16T11:00:00+08:00 | 标记“健康检查”过期 | stale: 健康检查
-2026-10-17T15:00:00+08:00 | 确认“健康检查”仍然有效 | refreshed: 健康检查
-2026-10-19T16:00:00+08:00 | 发布《服务部署手册》v3 | changes=+0 ~2 >0 =7 -0 | embedded=2 reused=7 deleted=9
-2026-10-20T11:00:00+08:00 | 标记 FAQ 端口答案过期 | stale: 服务端口是多少？
-Demo library built in .../.konwledge/demo (8 steps, 12 vectors in the index).
-```
-
-The v1 -> v2 diff contains all five change kinds, and the final state contains all four statuses.
-The embedding numbers above come from a real `IndexingService` run during the build and match the
-`embedding` block the exporter computes for each diff.
-
-- **Deterministic by construction.** The builder injects a sequential UUID factory and a scripted
-  clock into `KnowledgeLibrary` (which now passes both to every layer), and the corpus ships inside
-  the package. Two builds in different directories export byte-identical files.
-- **Derived, not duplicated.** `export_snapshot` reads only the metadata store: statuses and the
-  per-event as-of `timepoints` come from `LifecycleService`, diffs are recomputed by lineage
-  between consecutive head versions, and document text is rebuilt from the units and kept only
-  when it reproduces the stored checksum. File URIs are made relative so no machine paths leak.
-- **A versioned contract.** `LibrarySnapshot` (Pydantic) is the single contract with the front end;
-  `demo/snapshot.schema.json` is generated from it. Breaking changes bump `schema_version`.
-- **Guarded against drift.** `tests/test_demo.py` compares a fresh export with the committed golden
-  files, validates the snapshot against the schema, and CI repeats the check through the CLI.
-
-See [demo/README.md](demo/README.md) for the snapshot layout.
-
-## Demo site
-
-`web/` is a static Vite + React + TypeScript + Tailwind site that renders `demo/snapshot.json`
-(bundled at build time). It has no backend and re-implements no lifecycle rule.
-
-| Page | Shows | Backed by |
-| --- | --- | --- |
-| Overview | Source, version, unit, lineage, and revision counts; vector reuse across incremental updates | `stats`, `sources[].diffs[].embedding` |
-| Traceability | Document text and its units side by side; clicking a unit highlights its character range and mirrors `knowledge show` | `sources[].documents[]` |
-| Version diff | Unit-level changes between consecutive versions, colored by the five kinds, with re-embedded/reused vectors | `sources[].diffs[]`, `lineages[]` |
-
-```bash
-cd web
-pnpm install
-pnpm dev           # http://localhost:5173
-pnpm gen:types     # regenerate src/types/snapshot.gen.ts after a schema change
-```
-
-- **Typed by the schema.** `src/types/snapshot.gen.ts` is generated from `demo/snapshot.schema.json`;
-  CI fails when it drifts.
-- **Ranges match the CLI.** Snapshot offsets are Python code points, so the site slices by code
-  point, not UTF-16 unit; Vitest checks that every unit's range reproduces its stored text and that
-  the segments tile each document exactly.
-- **Deployed by Actions.** `.github/workflows/deploy-demo.yml` builds `web/` and publishes it to
-  GitHub Pages on every push to `main` (enable *Settings → Pages → Source: GitHub Actions* once).
-
-## License
-
-Licensed under the [Apache License 2.0](LICENSE).
+分层职责、可选服务验收与发行 smoke 见 [开发说明](docs/development.md)。当前没有后台自动评测调度、分布式协调、生产 ANN 或高可用治理；Linux 以外的 MCP／工作台平台实测也尚不完整。
+
+## 文档导航
+
+- [架构](docs/architecture.md)：领域分层、事务与读写边界。
+- [开发说明](docs/development.md)：依赖、模块职责、代码阅读与验证。
+- [核心参考](docs/core-reference.md)：原 README 自 Public Python API 起的完整 SDK／CLI 技术章节。
+- [自动评测](docs/auto-evaluation.md)：评测集绑定、触发范围、状态与恢复。
+- [后端验收](docs/acceptance.md)：默认质量门槛、token 预算与性能口径。
+- [只读 MCP](docs/mcp-readonly.md)／[受控 MCP](docs/mcp-controlled.md)：查询契约与带外批准。
+- [静态回放预览](docs/replay-preview.md)／[工作台说明](web/README.md)：静态、实时与受控模式。
+- [参与贡献](CONTRIBUTING.md)／[变更记录](CHANGELOG.md)／[Apache License 2.0](LICENSE)。
+
+<!-- 文档校对记录
+本次仅整理 README 的结构与文案，保留知识生命周期、资格检索、精确引用、质量门禁和安全边界的原有含义。
+关键机制、示例命令、版本名词和兼容入口未改，技术代码块按原文保真。
+已做中文半角标点机械扫描，结果为 0；代码块、命令、路径、URL 等半角语法按规则保留。
+本记录只覆盖文档文字与链接核对，不代表代码测试、发布或部署状态。
+-->

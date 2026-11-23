@@ -1,7 +1,10 @@
-# Demo snapshot
+# Versioned snapshot contract
 
-`snapshot.json` is everything the static demo site renders. It is generated, committed, and
-checked: `tests/test_demo.py` and CI fail when a fresh export differs from these files.
+`snapshot.json` supplies the workbench's version-snapshot views. It is generated from fixed
+synthetic acceptance inputs, committed, and checked: `tests/test_demo.py` and CI fail when a
+fresh export differs from these files. The `demo/` path and `knowledge demo` commands remain
+compatibility names, not the project's product positioning. Live management resources and
+[the static replay bundle](../docs/replay-preview.md) use separate contracts.
 
 ```bash
 uv run knowledge demo build --force   # replay the story into .konwledge/demo/

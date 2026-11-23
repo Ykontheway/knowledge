@@ -10,7 +10,11 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
 
+from konwledge.auto_evaluation import AutoEvaluationService
 from konwledge.conflicts import ConflictService
+from konwledge.context import ContextPacket, ContextService, TokenCounter
+from konwledge.conversations import ConversationService
+from konwledge.database_schema import DatabaseSchemaService
 from konwledge.domain import (
     Document,
     KnowledgeUnit,
@@ -20,6 +24,7 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
+from konwledge.evaluation import EvaluationService
 from konwledge.indexing import IndexingService
 from konwledge.ingestion import (
     FileIngestionService,
@@ -35,11 +40,13 @@ from konwledge.lifecycle import (
     LifecycleService,
     UnitState,
 )
+from konwledge.quality import QualityService
 from konwledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
 from konwledge.storage import SessionFactory, UnitOfWork
 
 __all__ = [
     "SUPPORTED_SUFFIXES",
+    "ConversationService",
     "DocumentSummary",
     "FileDiscovery",
     "ImportPathError",
@@ -191,9 +198,17 @@ class KnowledgeLibrary:
         self._lifecycle = LifecycleService(session_factory, id_factory=id_factory, clock=clock)
         self._freshness = FreshnessService(session_factory, id_factory=id_factory, clock=clock)
         self._conflicts = ConflictService(session_factory, id_factory=id_factory, clock=clock)
+        self._conversations = ConversationService(session_factory, clock=clock)
+        self._database_schema = DatabaseSchemaService(
+            session_factory, id_factory=id_factory, clock=clock
+        )
         self._retrieval = RetrievalService(
             session_factory, indexing_service=indexing_service, clock=clock
         )
+        self._evaluation = EvaluationService(session_factory, self._retrieval, clock=self._clock)
+        self._quality = QualityService(session_factory, self._retrieval, clock=self._clock)
+        self._automatic_evaluation = AutoEvaluationService(session_factory, clock=self._clock)
+        self._context = ContextService(self._retrieval)
 
     @property
     def lifecycle(self) -> LifecycleService:
@@ -212,6 +227,36 @@ class KnowledgeLibrary:
         """Deterministic conflict candidates, frozen evidence, and human review."""
 
         return self._conflicts
+
+    @property
+    def conversations(self) -> ConversationService:
+        """Immutable conversation import, candidate queue, and terminal review."""
+
+        return self._conversations
+
+    @property
+    def database_schema(self) -> DatabaseSchemaService:
+        """Read-only external schema capture with atomic local version publication."""
+
+        return self._database_schema
+
+    @property
+    def evaluation(self) -> EvaluationService:
+        """Immutable evaluation datasets and read-only retrieval scoring."""
+
+        return self._evaluation
+
+    @property
+    def quality(self) -> QualityService:
+        """Absolute retrieval quality checks with optional baseline regression."""
+
+        return self._quality
+
+    @property
+    def automatic_evaluation(self) -> AutoEvaluationService:
+        """Crash-safe quality checks after committed knowledge changes."""
+
+        return self._automatic_evaluation
 
     @property
     def retrieval(self) -> RetrievalService:
@@ -242,6 +287,47 @@ class KnowledgeLibrary:
             at=at,
             include_stale=include_stale,
             source_id=source_id,
+        )
+
+    @property
+    def context(self) -> ContextService:
+        """Exact citations and bounded context built from one retrieval result."""
+
+        return self._context
+
+    def build_context(
+        self,
+        query: str,
+        *,
+        mode: RetrievalMode = RetrievalMode.LEXICAL,
+        top_k: int = 5,
+        candidate_limit: int | None = None,
+        rrf_k: int = 60,
+        at: datetime | None = None,
+        include_stale: bool = False,
+        source_id: UUID | None = None,
+        max_chars: int = 8000,
+        max_units: int = 10,
+        max_tokens: int | None = None,
+        token_encoding: str = "cl100k_base",
+        token_counter: TokenCounter | None = None,
+    ) -> ContextPacket:
+        """Retrieve once and assemble whole, source-backed evidence without writes."""
+
+        return self._context.build(
+            query,
+            mode=mode,
+            top_k=top_k,
+            candidate_limit=candidate_limit,
+            rrf_k=rrf_k,
+            at=at,
+            include_stale=include_stale,
+            source_id=source_id,
+            max_chars=max_chars,
+            max_units=max_units,
+            max_tokens=max_tokens,
+            token_encoding=token_encoding,
+            token_counter=token_counter,
         )
 
     def publishable_units(
