@@ -51,10 +51,10 @@ AT_TEXT = "2026-11-10T00:00:00Z"
 AT = datetime(2026, 11, 10, tzinfo=UTC)
 HISTORICAL_AT = datetime.fromisoformat("2026-10-10T12:00:00+08:00")
 CI_STEPS = (
-    "Demo snapshot is up to date",
-    "Import demo evaluation dataset",
-    "Evaluate demo retrieval at a fixed time",
-    "Gate demo retrieval against the committed baseline",
+    "Verify the versioned snapshot contract",
+    "Import the fixed acceptance dataset",
+    "Evaluate retrieval at a fixed time",
+    "Gate retrieval against the committed baseline",
 )
 
 

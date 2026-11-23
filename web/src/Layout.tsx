@@ -52,7 +52,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
       <nav className="flex-1 space-y-6 overflow-y-auto p-4" aria-label="主导航">
         <div className="space-y-2">
-          <SectionLabel label="静态演示" tone="demo" />
+          <SectionLabel label="版本快照" tone="demo" />
           <NavItem active={currentView === "overview"} icon={<BarChart3 size={18} />} label="总览" onClick={() => onViewChange("overview")} />
           <NavItem active={currentView === "trace"} icon={<BookOpen size={18} />} label="原文溯源" onClick={() => onViewChange("trace")} />
           <NavItem active={currentView === "diff"} icon={<GitCompare size={18} />} label="版本 Diff" onClick={() => onViewChange("diff")} />
@@ -62,16 +62,16 @@ export const Layout: React.FC<LayoutProps> = ({
           <SectionLabel label={workspaceReplay ? "静态回放 · 非实时" : "实时工作台 / 只读"} tone="live" />
           <NavItem active={currentView === "lifecycle"} badge={workspaceReplay ? "Replay" : "Live"} icon={<History size={18} />} label="生命周期工作台" onClick={() => onViewChange("lifecycle")} />
           <NavItem active={currentView === "evaluation"} badge={workspaceReplay ? "Replay" : "Live"} icon={<Scale size={18} />} label="评测对照" onClick={() => onViewChange("evaluation")} />
-          <NavItem active={currentView === "guide"} badge={workspaceReplay ? "Replay" : "Live"} icon={<Map size={18} />} label="演示导览" onClick={() => onViewChange("guide")} />
+          <NavItem active={currentView === "guide"} badge={workspaceReplay ? "Replay" : "Live"} icon={<Map size={18} />} label="使用导览" onClick={() => onViewChange("guide")} />
           <div className="rounded-xl border border-[#2d3b5a] bg-[#1a243b] p-3 text-xs leading-5 text-[#a0aec0]">
             <div className="flex items-center gap-2 font-semibold text-[#f4efe6]">
               <RadioTower size={14} className="text-[#d39b3b]" />
-              <span>{workspaceReplay ? "静态 replay.json" : "接入 B1 管理 API"}</span>
+              <span>{workspaceReplay ? "静态 replay.json" : "只读管理 API"}</span>
             </div>
             <p className="mt-2">
               {workspaceReplay
                 ? "静态回放只读取 replay.json，非实时、只读，不会观察新任务。加载失败会显示错误，不连接实时服务。"
-                : "没有管理服务时，静态演示页仍可访问；实时工作台会停在只读提示，不会伪造成功数据。"}
+                : "没有管理服务时，版本快照页仍可访问；实时工作台会停在只读提示，不会伪造成功数据。"}
             </p>
           </div>
           {workspaceReplay ? null : (
@@ -85,8 +85,8 @@ export const Layout: React.FC<LayoutProps> = ({
         {workspaceReplay ? null : (
           <div className="space-y-2">
             <SectionLabel label="受控更新 / 默认关闭" tone="live" />
-            <NavItem active={currentView === "changes"} badge="仅演示副本" icon={<GitCompare size={18} />} label="受控变更" onClick={() => onViewChange("changes")} />
-            <p className="px-3 text-xs leading-5 text-amber-200">仅演示副本。是否可更新以服务端授权为准，未启用时停在安全提示。</p>
+            <NavItem active={currentView === "changes"} badge="仅隔离副本" icon={<GitCompare size={18} />} label="受控变更" onClick={() => onViewChange("changes")} />
+            <p className="px-3 text-xs leading-5 text-amber-200">仅隔离副本。是否可更新以服务端授权为准，未启用时停在安全提示。</p>
           </div>
         )}
 
@@ -129,7 +129,7 @@ export const Layout: React.FC<LayoutProps> = ({
           <div className="flex flex-wrap items-center gap-3">
             <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${currentTone === "live" ? "border-[#d39b3b] bg-amber-50 text-amber-800" : currentTone === "replay" ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
               <Zap fill="currentColor" size={14} />
-              <span>{currentView === "changes" && !replayOnly ? "受控更新 / 仅演示副本 / 以服务端授权为准" : currentTone === "replay" ? "静态回放 · 非实时 / 仅合成公开语料" : currentTone === "live" ? "实时工作台 / 只读" : `Snapshot v${snapshot.schema_version} / 静态演示`}</span>
+              <span>{currentView === "changes" && !replayOnly ? "受控更新 / 仅隔离副本 / 以服务端授权为准" : currentTone === "replay" ? "静态回放 · 非实时 / 仅合成公开语料" : currentTone === "live" ? "实时工作台 / 只读" : `Snapshot v${snapshot.schema_version} / 版本快照`}</span>
             </div>
           </div>
         </div>

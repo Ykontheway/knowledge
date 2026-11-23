@@ -43,7 +43,7 @@ export const JobList: React.FC<JobListProps> = ({
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#d39b3b]">实时工作台 / 只读</p>
           <h2 className="text-2xl font-semibold text-slate-900">任务时间线</h2>
           <p className="max-w-3xl text-sm leading-6 text-slate-600">
-            分页读取 B1 管理 API 返回的真实任务历史。列表可能随着新任务进入而变化，跨请求分页不视为冻结快照。
+            分页读取只读管理 API 返回的真实任务历史。列表可能随着新任务进入而变化，跨请求分页不视为冻结快照。
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

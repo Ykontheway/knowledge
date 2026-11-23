@@ -4,9 +4,16 @@ All notable changes to Konwledge are documented in this file.
 
 The project is in alpha. Minor releases may refine public and lower-level APIs as capabilities are added; v0.1.0 does not provide a complete backward-compatibility guarantee.
 
-## Unreleased - U14-U20、U22 and B1-B6, B-R1, B-R2
+## Unreleased - Knowledge CI
 
-### 静态回放导出与预览准备
+### 产品定位与开发逻辑整理
+
+- README 按知识生命周期、资格检索、精确证据、质量门禁与受控接口组织，详细 SDK／CLI 参考移入 `docs/core-reference.md`。新增 `docs/development.md`，按能力依赖和评审风险介绍开发逻辑；架构文档覆盖自动评测、工作台、MCP 和静态回放。
+- 页面与 CI 使用“版本快照”“使用导览”“隔离副本”和 Knowledge CI 工作台名称。兼容命令、协议、路径、role／actor、固定快照与回放数据保持不变；没有扩大写权限或改动核心状态机。
+- 记录 2026-11-23 首次静态只读预览发布及线上核验。发布提交为 `2ed4f9acda77118c582be709a681d51b34dffb56`，当前源码文案变更不自动更新线上版本；静态预览不代表实时后端或生产写服务上线。
+- 包版本保持 `0.1.0` prepared alpha，未正式发行。后续条目保留各 U／B 阶段的历史范围与验收数字，不改写为本次验证结果。
+
+### 静态回放导出与预览准备（历史记录）
 
 - 回放导出、页面整合和独立 preview 构建已完成实现，仍归入 Unreleased，版本保持 `0.1.0` prepared；本任务不新增 B 系列或 P 系列编号。本轮只准备发布预览，不执行 Actions、公开部署、PR／main、tag、Release 或 PyPI 发布。
 - 新增 `src/konwledge/replay/{bundle,corpus,files,producer}.py` 与 `scripts/export_replay.py --output FILE`／`--check --output FILE`。只在工具自建 `.konwledge/replay/<UUID>` 私有 scope 生成固定可公开合成语料，经正式 SDK 发布与自动评测 outbox 产生真实的 `passed → failed → passed` 任务；同一 dataset／config、固定 4 条 cases，Recall 为 `1 → 2/3 → 1`。质量失败 `QUALITY_GATE_FAILED` 不回滚已提交知识，不声明业务原因或生成答案质量。

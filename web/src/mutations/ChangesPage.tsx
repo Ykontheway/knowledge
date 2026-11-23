@@ -7,7 +7,7 @@ import { MAX_TEXT_BYTES, textMetrics } from "./validation";
 export function ChangesPage({ route, navigate }: { route: ChangesHashRoute; navigate: (hash: string) => void }) {
   return <div className="mx-auto max-w-5xl space-y-5">
     <Panel>
-      <h2 className="text-2xl font-bold">受控变更 <strong className="ml-2 rounded-lg bg-amber-200 px-2 py-1 text-base text-amber-950">仅演示副本</strong></h2>
+      <h2 className="text-2xl font-bold">受控变更 <strong className="ml-2 rounded-lg bg-amber-200 px-2 py-1 text-base text-amber-950">仅隔离副本</strong></h2>
       <p className="mt-3 text-sm text-slate-700">默认关闭，只有服务端明确授权的当前文档才可更新。预览不会提交；确认后只更新文档，不提供评测重试或回滚操作。</p>
       <p className="mt-2 text-sm text-slate-600">身份和凭据由服务端绑定。浏览器不接收或保存密钥，确认令牌仅短暂保留在内存，不进入 URL、存储或日志。</p>
       <p className="mt-2 text-sm text-amber-900">导航、超时或停止等待不能取消后端提交。结果不确定时，服务器可能已提交。</p>
@@ -70,9 +70,9 @@ function Editor({ documentId, navigate }: { documentId?: string; navigate: (hash
         <p className="my-3">内容无变更，无需提交，也不会触发评测。</p>
         <button type="button" className={buttonClass} onClick={flow.finishNoChange}>结束无变更预览</button>
       </> : <>
-        <label className="my-4 flex gap-3 text-sm"><input aria-label="确认更新演示副本" type="checkbox" checked={flow.checked}
+        <label className="my-4 flex gap-3 text-sm"><input aria-label="确认更新隔离副本" type="checkbox" checked={flow.checked}
           disabled={!!expired || !!flow.busy} onChange={e => flow.setChecked(e.target.checked)} />
-          我确认更新演示副本，已核对操作者、范围、原文差异和 checksum；已知门禁失败不回滚。</label>
+          我确认更新隔离副本，已核对操作者、范围、原文差异和 checksum；已知门禁失败不回滚。</label>
         <button type="button" className={`${buttonClass} bg-amber-300 text-amber-950`} disabled={!flow.checked || !!expired || !!flow.busy || flow.uncertain}
           onClick={() => { void flow.submit(); }}>确认并提交</button>
         {flow.busy === "apply" && <p role="status" className="mt-3">正在等待提交结果。服务器可能已提交，请勿另开新请求。</p>}

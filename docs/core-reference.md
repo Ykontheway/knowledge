@@ -1,0 +1,753 @@
+# 核心参考
+
+核心 SDK 与 CLI 详细参考，代码和命令从仓库根目录运行，当前安装与运行边界见 [README](../README.md)，架构边界见 [架构](architecture.md)，开发依赖与阅读顺序见 [开发说明](development.md)。英文正文保留技术细节和历史兼容说明；章节开场改为当前能力描述，发行状态以 README 为准。
+
+## Public Python API
+
+`KnowledgeLibrary` is the root application facade and is lazily exported, so importing `konwledge` does not eagerly initialize application services or a database:
+
+```python
+from konwledge import KnowledgeLibrary, __version__
+from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+
+engine = create_sqlite_engine("sqlite+pysqlite:///knowledge.db")
+create_schema(engine)
+library = KnowledgeLibrary(create_session_factory(engine))
+
+results = library.search("deployment")
+packet = library.build_context("deployment", max_units=3)
+```
+
+The wheel and source distribution include a PEP 561 `py.typed` marker so installed consumers can use the inline type annotations.
+
+The established typed models and evaluation helpers remain importable from `konwledge.domain` and `konwledge.evaluation`. Subpackages such as `storage`, `ingestion`, `indexing`, `retrieval`, and `context` expose lower-level composition points used by the facade and tests. At alpha, those lower-level boundaries (and even the core APIs as capabilities are added) may change between minor releases; v0.1.0 does not promise complete backward compatibility.
+
+For design and project workflow details, see:
+
+- [Architecture](architecture.md)
+- [受控变更工作台](controlled-mutations.md)
+- [对话导入与人工审核](conversations.md)
+- [Contributing](../CONTRIBUTING.md)
+- [Release process](releasing.md)
+- [Changelog](../CHANGELOG.md)
+
+## Domain models
+
+The domain layer exposes five immutable [Pydantic v2](https://docs.pydantic.dev/) models under `konwledge.domain`:
+
+- `Source` records where imported knowledge originated;
+- `Document` identifies one normalized source document and its checksum;
+- `KnowledgeUnit` stores a traceable, independently retrievable text range;
+- `Revision` records versioned changes without silently overwriting history;
+- `Citation` links model-ready context back to an exact knowledge unit.
+
+The models reject unknown fields, require timezone-aware timestamps, and support JSON roundtrips through `model_dump_json()` and `model_validate_json()`. Document checksums use lowercase SHA-256 hex strings. Knowledge units preserve exact text whitespace, use half-open character ranges, and carry their current heading and full section path.
+
+## SQLite metadata storage
+
+The storage layer persists the domain graph with SQLAlchemy 2.x and SQLite. `Source`, `Document`, `KnowledgeUnit`, `Revision`, and `Citation` each have a typed repository, while `UnitOfWork` keeps commit and rollback boundaries explicit. Revision history is append-only; lifecycle services create revision records alongside domain changes.
+
+SQLite foreign-key enforcement is enabled for every connection. Tests use an isolated in-memory database and cover roundtrips, updates, deletes, constraint failures, commits, and rollbacks. Create an application database with:
+
+```python
+from konwledge.storage import create_schema, create_sqlite_engine
+
+engine = create_sqlite_engine("sqlite:///konwledge.db")
+create_schema(engine)
+```
+
+## Text ingestion
+
+The file loader loads one UTF-8 `.md`, `.markdown`, or `.txt` file from a stored file `Source`. The loader removes an optional UTF-8 BOM, converts CRLF and CR line endings to LF, applies Unicode NFC normalization, and calculates a lowercase SHA-256 fingerprint. It preserves all other whitespace so later character offsets remain traceable to the normalized text.
+
+`FileIngestionService` returns both the persisted `Document` metadata and the normalized content needed by the U05 splitter. Importing the same source path and normalized content again returns the existing document instead of inserting a duplicate.
+
+```python
+from konwledge.ingestion import FileIngestionService
+from konwledge.storage import create_session_factory
+
+session_factory = create_session_factory(engine)
+result = FileIngestionService(session_factory).ingest(source_id)
+print(result.document.checksum, result.created)
+```
+
+## Traceable splitting
+
+The traceable splitter turns normalized document content into persisted `KnowledgeUnit` records. Markdown headings define section boundaries and hierarchical paths; headings inside fenced code blocks are ignored. Plain text and heading-free Markdown fall back to paragraph boundaries.
+
+Every unit stores an exact half-open range `[start_char, end_char)`. The invariant `content[start_char:end_char] == unit.text` makes the original location directly recoverable. `TraceableIngestionService` connects U04 ingestion with idempotent unit creation, while an existing document version reuses its stored units.
+
+```python
+from konwledge.ingestion import (
+    FileIngestionService,
+    KnowledgeUnitService,
+    TraceableIngestionService,
+)
+
+service = TraceableIngestionService(
+    FileIngestionService(session_factory),
+    KnowledgeUnitService(session_factory),
+)
+result = service.ingest(source_id)
+for unit in result.units:
+    assert result.ingestion.content[unit.start_char : unit.end_char] == unit.text
+```
+
+## Embedding provider
+
+The embedding layer supports offline use. The `EmbeddingProvider` protocol defines the minimal surface a backend must expose (`name`, `model`, `dimension`, and `embed`). `HashEmbeddingProvider` ships as a deterministic SHA-256 provider so tests never require network access or API keys.
+
+`EmbeddingService` adds batching, dimension checks, and a provider/model-aware cache key. Caching is opt-in: pass an `InMemoryEmbeddingCache` (or any object with `get`/`set`) to keep repeated calls cheap and idempotent; cache keys compose `(provider_name, model, text)` and remain stable across runs.
+
+```python
+from konwledge.embedding import (
+    EmbeddingService,
+    HashEmbeddingProvider,
+    InMemoryEmbeddingCache,
+    embedding_cache_key,
+)
+
+service = EmbeddingService(
+    HashEmbeddingProvider(dimension=32),
+    cache=InMemoryEmbeddingCache(),
+    batch_size=8,
+)
+vectors = service.embed(["alpha", "beta", "alpha"])
+assert vectors[0] == vectors[2]
+assert embedding_cache_key("hash", "sha256-v1", "alpha") == service.cache_key("alpha")
+```
+
+## Vector index
+
+The vector index turns embeddings into a searchable store. The `VectorIndex` protocol captures `upsert`, `delete`, `get`, `search`, and `rebuild`; the default `InMemoryVectorIndex` ships a dependency-free cosine search with stable id-tiebreak ranking and metadata filters (`{"status": "active"}`, `{"tags": {"in": [...]}}`, `{"status": {"not": [...]}}`). An optional `LanceVectorIndex` adapter targets LanceDB when the local checkout is synchronized with `uv sync --extra lancedb`; the module imports cleanly without the dependency and raises a clear install hint only when the adapter is instantiated. The adapter uses an explicit Arrow schema, so empty rebuilds keep the vector dimension, filtered searches scan every row instead of a fixed oversampling window, and reopening a table with another dimension fails with a clear error.
+
+`IndexingService` wires the embedding service and the vector index together so you can embed and persist `KnowledgeUnit` objects in one call, run top-K searches by raw text, and rebuild the entire index deterministically:
+
+```python
+from konwledge.embedding import EmbeddingService, HashEmbeddingProvider, InMemoryEmbeddingCache
+from konwledge.indexing import IndexingService, InMemoryVectorIndex
+
+embeddings = EmbeddingService(HashEmbeddingProvider(dimension=32), cache=InMemoryEmbeddingCache())
+indexing = IndexingService(
+    embedding_service=embeddings,
+    vector_index=InMemoryVectorIndex(dimension=32),
+)
+indexing.index_units(units)  # upsert vectors + traceable payload
+hits = indexing.search("python testing patterns", top_k=5, filters={"status": "active"})
+indexing.remove_units([units[0].id])  # delete a single unit by id
+indexing.rebuild(units)  # atomically replace the whole index
+```
+
+Repeating `search` with identical input always returns the same ranking: `InMemoryVectorIndex`
+breaks ties on `id` after sorting by descending cosine score, and the hash provider is
+deterministic, so vectors never silently drift between runs.
+
+## Incremental updates
+
+Incremental ingestion identifies what changed when a file is imported again with new content. Each new
+document version is compared with the previous version of the same source at the knowledge-unit
+level:
+
+| Change | Rule | Re-embedded? |
+| --- | --- | --- |
+| `unchanged` | identical text in the same section (its position may shift) | no, vector reused |
+| `moved` | identical text in a different section | no, vector reused |
+| `modified` | similar text (≥ 0.5 ratio) or a rewrite inside the same named section | yes |
+| `added` | no matching unit in the previous version | yes |
+| `removed` | previous unit with no match in the new version | vector deleted |
+
+Every unit has a `lineage_id` that stays stable across versions, so "the Usage paragraph" can be
+followed through edits even though each immutable document version stores new unit ids. Lineage
+changes are written as append-only `Revision` records (`create`, `update`, `delete`) in the same
+transaction as the new units; unchanged units add no history. Databases created before U09 gain
+the nullable `lineage_id` column automatically, and legacy rows start their own lineage.
+
+```text
+$ knowledge import guide.md
+updated: guide.md | document=… | units=4 | changes=+1 ~1 >0 =2 -0 | re-embed=2
+
+$ knowledge history <unit-id>
+lineage: 9581…
+versions: 2
+revisions: 2
+  rev 1 create (added) unit=9581… at 2026-10-29T03:25:26+00:00
+  rev 2 update (modified) unit=ea17… at 2026-10-29T03:25:27+00:00
+```
+
+`IndexingService.apply_diff` turns the diff into a partial index rebuild. It embeds only `added`
+and `modified` units, copies stored vectors for `unchanged` and `moved` units (falling back to
+embedding if a vector is missing), refreshes their payload with the new `document_id`,
+`lineage_id`, and `content_hash`, and deletes the previous version's ids:
+
+```python
+service = TraceableIngestionService(ingestion, KnowledgeUnitService(session_factory))
+result = service.ingest(source_id)
+if result.diff is not None:
+    report = indexing.apply_diff(result.diff)
+    print(result.diff.summary(), report.embedded, report.reused, report.deleted)
+```
+
+Tests verify the acceptance criterion directly: with no embedding cache configured, the provider
+receives exactly the texts of the changed units. Statuses, as-of queries, and reverts build on this
+in U10 (see [Knowledge status and as-of queries](#knowledge-status-and-as-of-queries)).
+
+## Knowledge status and as-of queries
+
+Lifecycle snapshots resolve which knowledge is valid at time T. Each source keeps an append-only
+**publication timeline**: every time its head version changes, a `published` revision is recorded
+on the source. Because each document version is an immutable snapshot, the status of any unit
+version at any moment follows from that timeline plus the lineage's own revision chain:
+
+| Status | Meaning at time T |
+| --- | --- |
+| `active` | the unit belongs to the source's head version |
+| `stale` | head version, but the newest lineage revision at or before T is an explicit stale mark |
+| `superseded` | an older version whose lineage lives on in the head (edited, moved, or carried over) |
+| `deleted` | an older version whose lineage no longer exists in the head |
+
+Units of a version not yet published at T are invisible. A stale mark lasts until the next revision
+of the lineage: re-importing unchanged content keeps it, while an edit, a revert, or
+`knowledge refresh` clears it.
+
+```text
+$ knowledge asof --at 2026-10-30T15:11:51+08:00 --all
+as of: 2026-10-30T15:11:51+08:00
+source file /notes/guide.md
+  head: document 7f9c… published 2026-10-30T07:11:50+00:00
+  active     unit cd9f… section=Guide | # Guide Intro text.
+  active     unit 8401… section=Guide / Usage | ## Usage Run the CLI with --database.
+  active     unit 1868… section=Guide / FAQ | ## FAQ Ask in issues.
+  superseded unit f074… section=Guide | # Guide Intro text.
+  deleted    unit 8940… section=Guide / Install | ## Install Run uv sync.
+  superseded unit 6343… section=Guide / Usage | ## Usage Run the CLI.
+3 effective unit(s) across 1 source(s) | active=3 stale=0 superseded=2 deleted=1
+
+$ knowledge stale <unit-id> --reason "uv flags changed"
+$ knowledge show <unit-id> --at 2026-10-30T15:00:00+08:00
+$ knowledge asof --document <document-id>     # the moment that version was published
+$ knowledge refresh <unit-id> --reason "reviewed"
+```
+
+Other behaviour worth knowing:
+
+- **Reverts are real versions.** Restoring a file to content that was imported before republishes
+  the stored version (`reverted:` in the import output), diffs it against the head by lineage, and
+  appends `reverted` revisions, so `IndexingService.apply_diff` brings the index back as well. The
+  next new version is diffed against the head, not against the most recently created document.
+- **The revision log is the source of truth.** `knowledge_units.status` is a cache of the current
+  status, rewritten in the same transaction as every publication or mark so filters and vector
+  payloads can use it. As-of answers are always derived from the log.
+- **Older databases keep working.** Without publications, the timeline is inferred from ingestion
+  order (U09 behaviour). The next import of a source materializes that history as `backfilled`
+  publications, and `knowledge reconcile` rebuilds the cached statuses in one go.
+
+The Python API mirrors the CLI:
+
+```python
+library = KnowledgeLibrary(session_factory)
+snapshot = library.snapshot(at=datetime(2026, 10, 30, 7, 12, tzinfo=UTC), include_retired=True)
+print(snapshot.counts())  # {'active': 3, 'stale': 0, 'superseded': 2, 'deleted': 1}
+library.lifecycle.mark_stale(unit_id, reason="uv flags changed")
+```
+
+## Freshness policies
+
+Freshness policies build on explicit `stale`/`refresh` revisions. A `FreshnessPolicy` is configured
+per source and stored as an append-only `freshness_policy` source revision, so configuration
+survives restarts and historical scans read the policy that existed at that time. No new
+SQLite columns or demo schema changes are required.
+
+| Rule | When it flags a current head unit |
+| --- | --- |
+| `ttl_expired` | Scan time is at or after the last content confirmation plus `ttl_seconds` |
+| `source_updated` | A supplied source-update time has arrived and is later than both head publication and the lineage's last review |
+
+The TTL reference is the lineage's latest `added`, `modified`, or `refreshed` revision.
+Moving a unit or carrying identical content into a new version does **not** renew its TTL.
+A revert renews only lineages whose content actually changes. Older histories without these
+revisions fall back to the head publication time. Timestamps must be timezone-aware; the
+boundary is inclusive (`checked_at >= expires_at`), and a CLI day is exactly 86,400 seconds.
+Deadlines are computed in UTC so daylight-saving transitions do not shorten or lengthen the
+TTL. Unsupported intervals/deadlines are rejected with a validation error rather than overflowing.
+
+```bash
+uv run knowledge list                         # includes source UUIDs
+uv run knowledge freshness configure <source-id> --ttl-days 30
+uv run knowledge freshness show <source-id>
+uv run knowledge freshness scan               # preview; does not write stale marks
+uv run knowledge freshness scan --apply       # append marks atomically
+uv run knowledge publishable                  # only active head units
+uv run knowledge publishable --include-stale  # opt in to stale knowledge
+uv run knowledge refresh <unit-id> --reason "reviewed against source"
+uv run knowledge freshness configure <source-id> --disable
+```
+
+A configuration command replaces the whole policy. To keep both rules, supply both
+`--ttl-days` and `--source-updated-at`, for example:
+
+```bash
+uv run knowledge freshness configure <source-id> --ttl-days 30 \
+  --source-updated-at 2026-11-06T12:00:00+08:00
+uv run knowledge freshness scan --source <source-id> \
+  --at 2026-11-06T13:00:00+08:00                 # historical preview only
+```
+
+Source-update times are **known inputs**, not a filesystem watcher, HTTP poller, or automatic
+external-source synchronization. Future update times do not flag units until that time arrives.
+An empty/disabled policy skips scanning; it does not clear existing stale marks. Review those
+units with `refresh`. Already-stale units are not marked twice, and retired/unpublished versions
+are never scanned. Stale marks retain the rule codes, TTL reference/deadline, and applied policy
+in their revision payload.
+
+Applying a scan writes all marks and cached statuses in one transaction, at the observed scan
+time rather than backdating them to the TTL deadline. This preserves earlier as-of answers.
+`--at` is read-only and cannot be combined with `--apply`; a regressing clock is rejected.
+No background task runs by itself: schedule the CLI externally if periodic scans are wanted.
+
+```python
+from konwledge.domain import FreshnessPolicy
+
+library.freshness.configure(source_id, FreshnessPolicy(ttl_seconds=30 * 86400))
+preview = library.freshness.scan()  # dry_run=True by default
+expired = [item for item in preview.decisions if item.expired]
+applied = library.freshness.scan(dry_run=False)
+ready = library.publishable_units()  # active only
+historical = library.publishable_units(at=aware_datetime)
+```
+
+`KnowledgeSnapshot.effective_units` still includes active **and stale** head units for U10
+compatibility. `publishable_units` is the new active-only boundary for future retrieval/context
+assembly. U11 does not automatically filter the lower-level `VectorIndex` or implement the U13
+retrieval pipeline. The controlled-clock tests cover deadlines, review/updates/reverts, policy
+history, dry-run/apply, batch rollback, CLI validation, and historical publication filtering.
+
+## Conflict detection
+
+Conflict detection identifies **candidates**, not which source is correct. Its first deterministic rule,
+`port_mismatch`, compares different sources asserting different scalar ports for the same
+named `*-service`. It scans only the published head's active and stale units; superseded,
+deleted, and unpublished units do not participate. Stale evidence stays visible because an
+outdated FAQ may be the contradictory source that needs review.
+
+The service name must be unambiguous in the unit, its section path, or the document (in that
+order). Recognized forms include `order-service listens on port 8080`, the Chinese listening
+form used in the demo, and `PORT=8080`. Negations, examples, alternatives, ranges, missing
+service names, and invalid port numbers are skipped rather than guessed. These conservative
+rules can miss natural-language conflicts; U12 does not provide general semantic detection.
+
+```bash
+uv run knowledge conflicts scan               # preview; no conflict records are written
+uv run knowledge conflicts scan --apply       # persist new candidates atomically
+uv run knowledge conflicts list --status pending
+uv run knowledge conflicts show <conflict-id>  # JSON with both exact evidence quotes
+uv run knowledge conflicts review <conflict-id> --status confirmed \
+  --reason "Verified that the current sources disagree" --reviewer "reviewer@example.com"
+uv run knowledge conflicts history <conflict-id>
+uv run knowledge conflicts scan --at 2026-10-20T12:00:00+08:00  # historical preview only
+```
+
+Each record freezes both sources, documents, units, lineages, quotes, character offsets,
+section paths, and observed unit statuses. A key based on the rule, subject, predicate,
+lineages, and values deduplicates repeated scans and unchanged assertions across versions.
+Changing a value creates a new key. Existing records and their original evidence are never
+automatically deleted, overwritten, reopened, or resolved when content changes.
+
+| Status | Meaning |
+| --- | --- |
+| `pending` | Awaiting review, or explicitly reopened |
+| `confirmed` | A reviewer confirmed that the sources disagree |
+| `dismissed` | A reviewer rejected this candidate |
+| `resolved` | A reviewer recorded that the conflict was handled |
+
+Any explicit status change requires a non-empty reason and appends a conflict revision;
+repeating the current status is rejected. Review time cannot precede detection or earlier
+reviews. Review does not choose a winning source, modify knowledge-unit statuses, or filter
+retrieval results. The caller is responsible for recording reviewer identity accurately.
+
+`scan --at` evaluates both publication state and conflict-review state at that time, without
+exposing future review fields. It cannot be combined with `--apply`. The scan summary exposes
+stable `candidates=`, `created=`, and `existing=` counts; persisted entries also show their UUID
+and status. `list`, `show`, and `history` display the current record and complete audit chain.
+
+```python
+preview = library.conflicts.scan()  # dry_run=True by default
+applied = library.conflicts.scan(dry_run=False)
+created = applied.created
+existing = applied.existing
+historical = library.conflicts.scan(at=aware_datetime)
+```
+
+The CLI's existing schema initialization adds the new `conflicts` table to older libraries;
+no existing columns or demo snapshot schema change. To try the demo conflict:
+
+```bash
+uv run knowledge demo build
+uv run knowledge conflicts scan -d .konwledge/demo/knowledge.db
+```
+
+This finds exactly the current guide's active `8080` assertion versus the FAQ's stale `8000`
+assertion, with both original quotes and offsets. Old guide versions are not treated as
+current contradictory evidence. The static frontend and demo snapshot remain unchanged.
+
+## Hybrid retrieval
+
+`library.search(...)` and `library.retrieval` support three explicit modes:
+
+| Mode | Candidate routes | Configuration |
+| --- | --- | --- |
+| `lexical` (default) | SQLite FTS5, ordered by BM25 | No model or vector index required |
+| `vector` | Exact cosine over eligible stored vectors | An injected `IndexingService` |
+| `hybrid` | Both routes, merged with reciprocal rank fusion | An injected `IndexingService` |
+
+The default query scope is **active published head units only**. `--include-stale` opts into
+stale head units, and `--source` restricts the source UUID. Eligibility is resolved from the
+publication/revision log at one timezone-aware time, before either route's candidate limit.
+Cached vector status or text never controls eligibility or result evidence. Superseded,
+deleted, and unpublished versions are excluded; `--at` selects the head that existed then.
+The hit's top-level `status` is authoritative for the requested time; its nested `unit.status`
+is the persisted current cache and may differ in a historical answer.
+
+```bash
+uv run knowledge search "order-service"                    # full-text, active only
+uv run knowledge search "服务端口" --include-stale
+uv run knowledge search "监听" --at 2026-10-10T12:00:00+08:00
+uv run knowledge search "deployment" --top-k 3 --candidate-limit 20 --json
+uv run knowledge search "port" --source <source-id>
+uv run knowledge search "order-service" --mode hybrid --demo-vectors
+```
+
+The standalone CLI has no production embedding provider configured. `--demo-vectors` builds
+an **ephemeral hash-vector index** of stored versions, does not write it to disk, and warns on
+stderr that hash embeddings test the retrieval pipeline rather than semantic quality.
+Without that flag or an injected SDK index, `vector` and `hybrid` fail explicitly rather than
+silently switching to full-text. Normal search is read-only: it does not embed the corpus,
+write revisions, change statuses, repair vectors, or modify the original index. Opening the
+CLI still performs the existing additive schema initialization.
+
+RRF scores are `sum(1 / (rrf_k + route_rank))`, with 1-based ranks and `rrf_k=60` by default.
+Each unit counts at most once per route; ties are broken by UUID. Raw BM25 and cosine scores
+are diagnostic fields, not quantities added together or confidence probabilities. Single-route
+search uses the same rank-derived score. `candidate_limit` defaults to `max(50, top_k)`, applies
+to each route, and must be at least `top_k`.
+
+FTS5 indexes every stored unit version. Insert/text-update/delete triggers synchronize it in
+the same SQLite transaction; existing libraries are backfilled on initialization. CJK text is
+split into single-character tokens, with contiguous CJK query runs compiled as phrases. Other
+terms are quoted and combined with AND, so user input is literal text, not FTS operators or
+SQL. This supports short Chinese substrings without an extra dependency, but does not provide
+Chinese linguistic segmentation, stemming, synonym expansion, or general semantic matching.
+Writes through raw SQLite connections must register `knowledge_fts_text`; use the supplied
+`create_sqlite_engine` for normal writes. A SQLite build without FTS5 fails with a clear error.
+
+For a small local library, vector retrieval fetches eligible records and performs an exact
+cosine scan in a temporary in-memory index. This avoids retired/stale vectors crowding out
+valid candidates, but is O(N) over eligible units, not a large-scale ANN solution. U09 still
+removes old-version vectors on incremental updates. Missing vectors or conflicting stored
+content hashes are exposed in `missing_vector_ids` and `result.degraded`; hybrid can still
+return historical FTS evidence, while the CLI warns that vector recall is incomplete. Provider
+or backend failures are not silently treated as missing coverage. Callers must use the same
+embedding provider/model for stored vectors and queries.
+
+```python
+from konwledge.application import KnowledgeLibrary
+from konwledge.retrieval import RetrievalMode
+
+# `indexing` is an IndexingService using your provider and a Memory/Lance VectorIndex.
+# Populate it explicitly with index_units/rebuild/apply_diff; import does not auto-index.
+library = KnowledgeLibrary(session_factory, indexing_service=indexing)
+result = library.search("deployment port", mode=RetrievalMode.HYBRID, top_k=5)
+for hit in result.hits:
+    print(hit.unit.text, hit.source.uri, hit.unit.start_char, hit.unit.end_char)
+    print(hit.lexical_rank, hit.vector_rank, hit.score)
+if result.degraded:
+    print("Missing usable vectors:", result.missing_vector_ids)
+```
+
+Results preserve original units, source/document/lineage IDs, section paths and character
+ranges, along with resolved status, route ranks and raw scores. `--json` emits the complete
+result on stdout; diagnostics stay on stderr. U13 does not generate answers, create citations,
+assemble model context, resolve conflicts, or apply evaluation gates; those remain later slices.
+The static frontend and V1 snapshot contract are unchanged.
+
+## Context assembly and citations
+
+Context assembly turns one retrieval snapshot into a `ContextPacket`: ranked whole-unit evidence,
+exact citations, explicit skip reasons, and bounded `context_text`. It does not generate
+an answer or call an LLM.
+
+```bash
+uv run knowledge context "deployment" --max-chars 8000 --max-units 3
+uv run knowledge context "deployment" --top-k 10 --candidate-limit 20 --json
+uv run knowledge context "监听" --at 2026-10-10T12:00:00+08:00 \
+  -d .konwledge/demo/knowledge.db --json
+uv run knowledge context "order-service" --mode hybrid --demo-vectors --include-stale
+```
+
+The CLI accepts the same retrieval options as `search`. Vector/hybrid modes still require
+an injected SDK index or the explicit offline `--demo-vectors` flag. The latter only tests
+pipeline wiring, not semantic quality. Diagnostics remain on stderr; `--json` writes exactly
+one full packet to stdout. Human output includes a summary, the rendered context, and skips.
+
+Selection preserves retrieval order and applies the following rules:
+
+- Include only `active` evidence, or `stale` when explicitly requested. Historical packets
+  use the hit's status at `evaluated_at`, not today's nested unit-status cache.
+- Never repeat a unit or lineage. Reject overlapping spans inside one document version;
+  adjacent spans and evidence from different documents are allowed.
+- Keep each accepted unit's complete original text. When a record does not fit, skip the
+  whole unit and consider the next hit; do not truncate quotes or synthesize summaries.
+- Assign continuous labels `[1]`, `[2]`, etc. Return skipped unit IDs with `status`,
+  `duplicate`, `overlap`, `budget`, or `max_units` reasons.
+
+`max_chars` remains a character limit. The Unreleased `max_tokens` option adds an exact,
+optional tokenizer budget alongside it; see [token budget and acceptance](acceptance.md).
+
+`max_chars` defaults to **8,000 Python Unicode code points**, not bytes or model tokens.
+It measures `len(context_text)`, including the fixed preamble, labels, metadata, JSON escapes,
+and record newlines. It excludes the query, CLI summary, outer packet JSON, and any caller
+system prompt. `max_chars=0` returns empty context and budget skips; `max_units` must be
+positive and defaults to 10. `top_k` caps retrieved hits **before** assembly: increase it if
+more alternatives should be available after budget skips. Selection is greedy, not an
+optimal packing algorithm. An empty packet is a valid result, never a reason to fabricate
+an answer.
+
+Each block carries a `Citation` with source/document/unit IDs, the source locator, exact
+`[start_char, end_char)` offsets, and `quote == unit.text`. Offsets refer to the **normalized
+imported document version**, not raw-file byte offsets. Original whitespace and Unicode are
+preserved. Citation IDs are deterministic UUID5 values derived from source, document, unit,
+range, and quote hash: rerunning retrieval or changing ranks does not change the ID for the
+same evidence. A new document/unit version gets its own citation. Retrieval scores are
+selection diagnostics, not citation confidence; `confidence` stays `None`.
+
+Rendered context is a fixed trust-boundary notice followed by one compact JSON record per
+block. Source quotes are escaped JSON strings, so embedded newlines or fake markup do not
+create additional records. This identifies source text as untrusted evidence; it is **not**
+a guarantee that a downstream model will resist prompt injection. Callers still need their
+own system instructions and tool authorization boundaries.
+
+```python
+from konwledge.context import assemble_context, verify_citation
+
+packet = library.build_context("deployment", top_k=10, max_chars=8000, max_units=3)
+print(packet.context_text, packet.used_chars)
+for label, citation in packet.citation_map.items():
+    print(label, citation.locator, citation.start_char, citation.end_char)
+
+# Reuse an existing retrieval result without another search or clock read.
+result = library.search("deployment")
+packet = assemble_context(result, max_chars=8000, max_units=3)
+assert packet == library.context.assemble(result, max_chars=8000, max_units=3)
+for block in packet.blocks:
+    hit = next(hit for hit in result.hits if hit.unit.id == block.citation.knowledge_unit_id)
+    verify_citation(block.citation, hit)
+```
+
+`ContextPacket` validates continuous labels, allowed statuses, unique units/lineages,
+non-overlapping spans, exact offset lengths, rendered text, and both limits on JSON roundtrip.
+`packet.citations`, `packet.citation_map`, and `packet.degraded` are SDK properties, not
+serialized fields; JSON contains `blocks[].citation`, `skipped`, and `missing_vector_ids`.
+Missing-vector diagnostics propagate unchanged even if all evidence is skipped.
+
+Assembly is read-only: it does not persist citations, add revisions, change statuses,
+repair vectors, or read live source files. CLI opening still performs the existing additive
+schema initialization, and explicit demo mode builds temporary vectors. The generic
+`CitationRepository` remains available for callers who explicitly choose persistence, but
+U14 never writes to it. No evaluation gates, frontend changes, or demo snapshot/schema
+changes are included in this increment.
+
+## Retrieval evaluation
+
+Retrieval evaluation stores evaluation sets as immutable, contiguous versions and runs retrieval against that pinned
+gold version, with a shared default evaluation time, without persisting reports. Build the packaged
+demo first, then import and run its gold set:
+
+```bash
+uv run knowledge demo build
+uv run knowledge evaluation import examples/evaluation-demo.json \
+  -d .konwledge/demo/knowledge.db
+uv run knowledge evaluation list -d .konwledge/demo/knowledge.db --json
+uv run knowledge evaluation show 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 \
+  -d .konwledge/demo/knowledge.db
+uv run knowledge evaluation export 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 \
+  --output exported-evaluation.json -d .konwledge/demo/knowledge.db
+uv run knowledge evaluation run 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 \
+  --top-k 5 -d .konwledge/demo/knowledge.db --json
+```
+
+The JSON file is the complete gold snapshot: its set UUID identifies a logical dataset, `version`
+identifies immutable gold at that point, and stable item IDs identify cases across versions. Each
+case carries its own optional source, historical `at`, and `include_stale` scope; the runner does
+not replace those fields with blanket CLI filters. Imports reject unknown gold lineages/sources.
+Historical and stale cases are therefore compared only within the scope encoded by the author,
+which keeps lifecycle comparisons fair. Re-importing identical content is idempotent; changing an
+existing version is rejected. `list` returns only latest versions, while `history`, `show`, and
+`export` expose exact versions.
+
+Reports are read-only and contain the dataset/hash, full retrieval results, per-case scores, and
+macro aggregates. Recall, MRR, and nDCG use binary lineage matches; duplicate ranked slots do not
+inflate credit. Precision@k always divides by `k`. Answerable aggregates exclude no-answer cases,
+and no-answer accuracy excludes answerable cases, so unavailable aggregates are `null` in JSON
+and `n/a` in human output. A no-answer success means retrieval returned no hits; it does not mean an
+LLM generated a refusal. Lineage matching measures whether the intended knowledge was retrieved;
+it does not prove that an edited fact is correct or that a generated answer is faithful. Gold labels
+still need human review. Reproducible comparisons require the same dataset version, query scopes,
+retrieval settings, corpus versions, and embedding provider/model/index; U15 does not freeze or
+version the entire corpus or vector backend.
+
+The CLI has no production vector provider. Vector/hybrid evaluation requires an SDK-configured
+`IndexingService` or explicit `--demo-vectors`, which creates one temporary hash index over all
+stored versions for the run and warns that it is not a semantic-quality measurement. Missing
+vectors remain visible per case and are never repaired automatically. U15 reports are the complete,
+validated candidate input consumed by U16's file-only comparison and gate commands.
+
+```python
+from konwledge.evaluation import EvaluationSet
+
+created = library.evaluation.import_set(EvaluationSet.model_validate_json(text))
+report = library.evaluation.run(created.dataset.id, version=1, top_k=5)
+print(report.metrics.mean_recall, report.dataset_hash, report.degraded)
+```
+
+## Evaluation baselines and regression gates
+
+The baseline and gate tools turn an approved, healthy retrieval evaluation report into a compact portable baseline, compare a new complete
+report with it, and optionally apply a fail-closed policy. These commands only read and write JSON
+files: they do not open SQLite, initialize a provider, use the network, rerun retrieval, or modify the
+source report.
+
+```bash
+# Capture a complete candidate report from the U15 runner.
+uv run knowledge evaluation run <set-id> --version 1 --top-k 5 --json \
+  -d .konwledge/demo/knowledge.db > candidate.json
+
+# Promote a reviewed healthy report explicitly; existing outputs are never replaced implicitly.
+uv run knowledge evaluation baseline candidate.json --output approved-baseline.json
+uv run knowledge evaluation baseline candidate.json --output approved-baseline.json --overwrite
+
+# Inspect every aggregate and per-case delta, then enforce the strict default or a policy file.
+uv run knowledge evaluation compare approved-baseline.json candidate.json
+uv run knowledge evaluation gate approved-baseline.json candidate.json --json
+uv run knowledge evaluation gate approved-baseline.json candidate.json \
+  --policy examples/evaluation-gate.json
+```
+
+`baseline` validates the complete report and recomputes every metric before creating any output
+parent or file. It refuses degraded reports and existing destinations (including input/output being
+the same path) unless `--overwrite` is explicit, then publishes atomically in the destination
+directory. A baseline keeps dataset scopes, case ranks and scores, but omits hit quotes, source
+locators, document/unit IDs, and absolute corpus paths. Dataset-authored strings such as names and
+queries remain. This makes it portable, not a signed proof that retrieval really ran; gold review
+and baseline replacement are human decisions and are never passed automatically.
+
+`compare` requires exactly the same dataset ID, version, content hash, retrieval mode, `top_k`,
+`candidate_limit`, and `rrf_k`, plus complete cases and recomputed scores. Normal run times may
+differ so monitoring can observe corpus changes; fixed case-level `at` anchors remain fixed. Set
+`require_same_time` in a policy when all effective times must match. For reproducible CI, run both
+sides at a common explicit time such as `--at 2026-11-10T00:00:00Z`.
+
+The default policy covers all six metrics (recall, precision, MRR, nDCG, hit rate, and no-answer
+accuracy) at both aggregate and case scopes with zero allowed absolute drop. Thus an average gain
+cannot hide one bad case. Rules may set an inclusive `min_value`, `max_abs_drop`, and/or
+`max_relative_drop`; all configured numeric checks are conjunctive with an epsilon of `1e-12`.
+Relative thresholds are unit fractions (`0.01` means 1%). Relative drop from a zero baseline is zero,
+while an absolute floor still applies. A metric unavailable for a cohort is `null`, not zero, and its
+check has `passed: null`; a policy producing no applicable numeric checks blocks rather than passing.
+Missing vectors/degraded candidates, time-policy violations, and metric regressions also block.
+
+The stable process exit codes are:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Valid comparison, or a gate that passed |
+| `1` | File I/O or unexpected runtime failure |
+| `2` | Malformed, incomplete, tampered, mismatched, or otherwise invalid input/configuration |
+| `3` | Inputs were valid, but the gate blocked the candidate |
+
+With `--json`, stdout is exactly one parseable baseline, comparison, or `GateResult`, including on
+exit 3; diagnostics and candidate missing-vector IDs stay on stderr. Human gate output labels
+aggregate and `case <item-id>` checks and prints clear violations. Comparison itself always exits 0
+for a valid degraded or regressed candidate because it applies no threshold.
+
+The committed `examples/evaluation-baseline.json` and `examples/evaluation-gate.json` provide the CI
+wiring. CI builds/imports the demo, runs at `2026-11-10T00:00:00Z` with `--top-k 5`, writes the full
+candidate report, and gates it against those files. The normal workflow trigger remains pushes to
+`main` and pull requests. The hash-vector demo tests plumbing only: neither these retrieval metrics
+nor their gates assess source correctness, content quality, generation quality, answer faithfulness,
+or production embedding quality.
+
+## Versioned snapshot
+
+V2 静态演示继续读取 CLI 导出的 JSON snapshot，V1 提供这条数据管线。B2／B3 本机实时视图另用独立 management schema，B3 评测对照与导览不修改 Snapshot V1 或 demo golden。
+
+```bash
+uv run knowledge demo build            # plays the story into .konwledge/demo/
+uv run knowledge demo export           # writes demo/snapshot.json and demo/snapshot.schema.json
+uv run knowledge demo export --check   # exit 1 if the committed files are out of date
+```
+
+The story ("the life of one piece of knowledge") follows a fictional service deployment guide
+through three versions while an on-call FAQ keeps quoting the old port:
+
+```text
+2026-10-05T10:00:00+08:00 | 导入《服务部署手册》v1 | units=8 | embedded=8 reused=0 deleted=0
+2026-10-05T10:30:00+08:00 | 导入《值班 FAQ》 | units=3 | embedded=3 reused=0 deleted=0
+2026-10-12T14:00:00+08:00 | 发布《服务部署手册》v2 | changes=+2 ~1 >1 =5 -1 | embedded=3 reused=6 deleted=8
+2026-10-15T09:30:00+08:00 | 标记“监控告警”过期 | stale: 监控告警
+2026-10-16T11:00:00+08:00 | 标记“健康检查”过期 | stale: 健康检查
+2026-10-17T15:00:00+08:00 | 确认“健康检查”仍然有效 | refreshed: 健康检查
+2026-10-19T16:00:00+08:00 | 发布《服务部署手册》v3 | changes=+0 ~2 >0 =7 -0 | embedded=2 reused=7 deleted=9
+2026-10-20T11:00:00+08:00 | 标记 FAQ 端口答案过期 | stale: 服务端口是多少？
+Demo library built in .../.konwledge/demo (8 steps, 12 vectors in the index).
+```
+
+The v1 -> v2 diff contains all five change kinds, and the final state contains all four statuses.
+The embedding numbers above come from a real `IndexingService` run during the build and match the
+`embedding` block the exporter computes for each diff.
+
+- **Deterministic by construction.** The builder injects a sequential UUID factory and a scripted
+  clock into `KnowledgeLibrary` (which now passes both to every layer), and the corpus ships inside
+  the package. Two builds in different directories export byte-identical files.
+- **Derived, not duplicated.** `export_snapshot` reads only the metadata store: statuses and the
+  per-event as-of `timepoints` come from `LifecycleService`, diffs are recomputed by lineage
+  between consecutive head versions, and document text is rebuilt from the units and kept only
+  when it reproduces the stored checksum. File URIs are made relative so no machine paths leak.
+- **A versioned contract.** `LibrarySnapshot` (Pydantic) is the single contract with the front end;
+  `demo/snapshot.schema.json` is generated from it. Breaking changes bump `schema_version`.
+  Snapshot V1 keeps its origin-kind enum frozen at `url`, `file`, `repository`, and `manual` even as
+  the domain grows. Approved `conversation` sources retain that kind and provenance, so V1 export
+  fails explicitly instead of omitting or reclassifying them. The committed goldens and generated
+  frontend types were not regenerated for U19.
+- **Guarded against drift.** `tests/test_demo.py` compares a fresh export with the committed golden
+  files, validates the snapshot against the schema, and CI repeats the check through the CLI.
+
+See [demo/README.md](../demo/README.md) for the snapshot layout.
+
+## Knowledge workbench
+
+`web/` 保留 Vite + React + TypeScript + Tailwind 静态演示，仍在构建时打包 `demo/snapshot.json`，不自行实现生命周期规则。下面三页使用 Snapshot；实时工作台通过本机 B1 API 展示真实历史、评测对照和手动导览，B4 受控变更页通过默认关闭的 `/v1/mutations` 与 Vite dev proxy 接线。运行与边界见 [本机工作台](live-workbench.md)、[受控变更工作台](controlled-mutations.md) 和 [评测工作台](evaluation-workbench.md)。
+
+| Page | Shows | Backed by |
+| --- | --- | --- |
+| Overview | Source, version, unit, lineage, and revision counts; vector reuse across incremental updates | `stats`, `sources[].diffs[].embedding` |
+| Traceability | Document text and its units side by side; clicking a unit highlights its character range and mirrors `knowledge show` | `sources[].documents[]` |
+| Version diff | Unit-level changes between consecutive versions, colored by the five kinds, with re-embedded/reused vectors | `sources[].diffs[]`, `lineages[]` |
+
+```bash
+cd web
+pnpm install --frozen-lockfile
+pnpm dev           # http://localhost:5173
+pnpm gen:types     # regenerate src/types/snapshot.gen.ts after a schema change
+```
+
+- **Typed by the schema.** `src/types/snapshot.gen.ts` is generated from `demo/snapshot.schema.json`;
+  CI fails when it drifts.
+- **Ranges match the CLI.** Snapshot offsets are Python code points, so the site slices by code
+  point, not UTF-16 unit; Vitest checks that every unit's range reproduces its stored text and that
+  the segments tile each document exactly.
+- **公开入口使用静态回放预览。** 2026-11-23 已发布 [只读回放页](https://ykontheway.github.io/konwledge/#replay/guide)，不连接 live backend。`.github/workflows/deploy-demo.yml` 为手动 `workflow_dispatch`，`publish` 默认 false，只准备并上传 `replay-preview` artifact；只有显式 true 才允许 Pages publish job。后续发布仍须确认默认分支 workflow dispatch、所选 ref 与 Pages 权限，配置本身不证明部署成功。`web/` 原页面继续承担 Snapshot V1 与本机联调职责；导出、构建及权限边界见 [静态回放预览](replay-preview.md)。
+
+## License
+
+Licensed under the [Apache License 2.0](../LICENSE).
+
+<!-- 文档校对记录：与 HEAD README 自 Public Python API 至文末的 747 行逐项核对，仅改 14 个技术章节的增量开场及静态预览发布状态，共 15 处差异；所有其余技术正文保留，26 个代码块逐字一致。SDK／CLI、机制、数值、预算和历史证据未删减；docs 内链接及 CONTRIBUTING／CHANGELOG／LICENSE／demo README 的上级路径均已校正，示例命令仍从仓库根目录执行。全页行数含页头和本注释，不等同于技术正文行数。未运行 pytest 或发行验证。 -->

@@ -22,7 +22,7 @@ export const OverviewPage: React.FC = () => {
           <div>
             <h2 className="text-3xl font-bold text-gray-900">{snapshot.title}</h2>
             <p className="text-gray-500 mt-2 max-w-2xl text-lg">
-              自动化的知识生命周期系统。此演示页基于预置的示例语料，展示系统在版本演进、切片追踪和状态维护方面的核心能力。
+              自动化的知识生命周期系统。本页基于预置示例语料的版本快照，展示版本演进、切片追踪和状态维护结果，不代表实时状态。
             </p>
           </div>
           <div className="text-right">
@@ -105,7 +105,7 @@ export const OverviewPage: React.FC = () => {
           <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-dashed flex items-start gap-3">
             <AlertCircle className="text-gray-400 mt-0.5" size={16} />
             <p className="text-xs text-gray-500 leading-relaxed">
-              演示快照通过 <code className="bg-gray-200 px-1 rounded">knowledge demo export --check</code> 在 CI 中强制校验，确保演示效果与核心库逻辑完全同步。
+              版本快照通过 <code className="bg-gray-200 px-1 rounded">knowledge demo export --check</code> 在 CI 中强制校验，核对快照与核心库导出结果是否一致。
             </p>
           </div>
         </div>

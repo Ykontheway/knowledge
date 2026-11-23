@@ -17,6 +17,9 @@ describe("Demo page rendering", () => {
     const html = renderToStaticMarkup(createElement(OverviewPage));
     expect(html).toContain(snapshot.title);
     expect(html).toContain("增量索引优化");
+    expect(html).toContain("预置示例语料的版本快照");
+    expect(html).toContain("不代表实时状态");
+    expect(html).toContain("knowledge demo export --check");
   });
 
   it("renders traceability with a source and document content", () => {
@@ -38,7 +41,7 @@ describe("Demo page rendering", () => {
     const html = renderToStaticMarkup(
       createElement(Layout, {
         currentView: "overview",
-        currentSection: "静态演示",
+        currentSection: "版本快照",
         currentTitle: "总览",
         currentTone: "demo",
         onViewChange: () => {},
@@ -48,6 +51,10 @@ describe("Demo page rendering", () => {
     );
     expect(html).toContain("原文溯源");
     expect(html).toContain("生命周期工作台");
+    expect(html).toContain("版本快照");
+    expect(html).toContain("使用导览");
+    expect(html).toContain("只读管理 API");
+    expect(html).toContain("仅隔离副本");
     expect(html).toContain("https://github.com/Ykontheway/konwledge");
   });
 });

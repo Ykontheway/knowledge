@@ -399,20 +399,20 @@ function breadcrumbSection(mode: ManagementMode): { readonly section: string; re
 export function getBreadcrumbMeta(route: HashRoute): BreadcrumbMeta {
   switch (route.view) {
     case "overview":
-      return { section: "静态演示", title: "总览", tone: "demo" };
+      return { section: "版本快照", title: "总览", tone: "demo" };
     case "trace":
-      return { section: "静态演示", title: "原文溯源", tone: "demo" };
+      return { section: "版本快照", title: "原文溯源", tone: "demo" };
     case "diff":
-      return { section: "静态演示", title: "版本 Diff", tone: "demo" };
+      return { section: "版本快照", title: "版本 Diff", tone: "demo" };
     case "changes":
-      return { section: "受控更新 / 仅演示副本", title: route.kind === "invalid" ? "安全提示" : "受控变更", tone: "live" };
+      return { section: "受控更新 / 仅隔离副本", title: route.kind === "invalid" ? "安全提示" : "受控变更", tone: "live" };
     case "evaluation": {
       const meta = breadcrumbSection(route.mode);
       return { ...meta, title: route.kind === "invalid" ? "安全提示" : "评测对照" };
     }
     case "guide": {
       const meta = breadcrumbSection(route.mode);
-      return { ...meta, title: route.kind === "invalid" ? "安全提示" : "演示导览" };
+      return { ...meta, title: route.kind === "invalid" ? "安全提示" : "使用导览" };
     }
     case "lifecycle": {
       const meta = breadcrumbSection(route.mode);

@@ -122,7 +122,7 @@ SQLite initialization uses additive upgrades for older local databases. Schema w
 
 The committed `demo/snapshot.json` and `demo/snapshot.schema.json` are a versioned frontend contract. Update golden files only for an intentional, reviewed contract change. Breaking changes require a schema-version decision and synchronized generated TypeScript types.
 
-Frontend development is currently paused at V2. Do not expand or deploy V3/V4 as an incidental part of a Python contribution.
+The workbench supports version snapshots, live lifecycle and evaluation views, explicitly enabled isolated updates, and a separately built read-only replay preview. Keep their transport and authorization boundaries separate. An unrelated Python contribution must not expand write scope or trigger public deployment. See [the development guide](docs/development.md) and [workbench documentation](web/README.md).
 
 ## Documentation
 

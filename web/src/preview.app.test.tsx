@@ -125,7 +125,7 @@ function heading(container: HTMLElement, title: string): void {
 }
 function assertReadonly(container: HTMLElement): void {
   const controls = Array.from(container.querySelectorAll("button, input, select, textarea"));
-  expect(controls.filter((item) => /Observer|观察新任务|停止观察|受控变更|预览变更|确认并提交|确认更新演示副本/i.test(`${item.textContent} ${item.getAttribute("aria-label")}`))).toEqual([]);
+  expect(controls.filter((item) => /Observer|观察新任务|停止观察|受控变更|预览变更|确认并提交|确认更新隔离副本/i.test(`${item.textContent} ${item.getAttribute("aria-label")}`))).toEqual([]);
   expect(container.querySelector("form, textarea, #mutation-draft, input[type='submit'], input[type='checkbox'], select[aria-label='授权来源']")).toBeNull();
   expect(Array.from(container.querySelectorAll("a[href]")).filter((item) => /^#(?:changes|lifecycle|evaluation|guide)(?:[/?]|$)|\/v1\//.test(item.getAttribute("href") ?? ""))).toEqual([]);
   expect(container.querySelector("nav")?.textContent).toContain("静态回放 · 非实时");
@@ -137,7 +137,7 @@ function assertReplay(container: HTMLElement): void {
 }
 function assertOverview(container: HTMLElement): void {
   expect(snapshot.schema_version).toBe(1);
-  expect(container.querySelector("main header")?.textContent).toContain("Snapshot v1 / 静态演示");
+  expect(container.querySelector("main header")?.textContent).toContain("Snapshot v1 / 版本快照");
   expect(container.querySelector("main header")?.textContent).not.toContain("静态回放 · 非实时 / 仅合成公开语料");
   expect(container.querySelector("nav")?.textContent).toContain("Snapshot V1 历史故事");
   heading(container, snapshot.title);
@@ -233,7 +233,7 @@ describe("显式 replay preview build：真实 App 的只读隔离", () => {
   it.each([
     ["生命周期工作台", "#replay/lifecycle/jobs", "任务时间线"],
     ["评测对照", "#replay/evaluation", "核心结果"],
-    ["演示导览", "#replay/guide", "演示导览"],
+    ["使用导览", "#replay/guide", "使用导览"],
   ])("从 V1 总览点击%s仍生成 %s，back/forward 恢复真实 DOM", async (label, hash, title) => {
     const container = await mount("#overview");
     assertOverview(container);

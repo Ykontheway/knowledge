@@ -1,5 +1,7 @@
 # B系列任务与重构路线
 
+> **历史归档提醒**：本文件继续保留 B 系列编号、任务 ID、验收口径和本地原始证据链接，方便对照开发历史；它不再承担 README 的产品入口职责。当前实现的整体分层请先看 [架构](architecture.md)，开发依赖和 PR 阅读顺序看 [开发说明](development.md)，原 README 自 `Public Python API` 起的技术参考已收拢到 [核心参考](core-reference.md)。
+
 本文件是 B 系列唯一主计划，继续使用现有 `integrated-demo-roadmap.md`，不另建演示或重构路线图。按职责和验收依赖安排后续工作，不编造工期。B1～B4 保留原职责与已完成证据，B5／U22 仍指向 MCP；B-R1、B-R2 是衔接任务，不替换原编号。B6 已完成并验证，沿用原编号；后续命令仍须逐类评审，不扩大为生产写权限。
 
 B1 只读管理 API、B2 V3 live lifecycle、B3 V4 评测对照与导览均已完成；B4 在当前 feature 分支完成受控变更交互并通过隔离验收，V2 静态演示保留。此前 B4 收尾的 Python 1495 passed／3 skipped、前端 352 passed／2 skipped 是历史证据，不计入本轮 B-R1 的最终回归数量。
@@ -8,15 +10,17 @@ B1 只读管理 API、B2 V3 live lifecycle、B3 V4 评测对照与导览均已�
 
 **B-R2 已完成并验证。** `scripts/workbench.py` 已统一 `list`、`demo`、`accept` 入口；`demo` 默认 `readonly`，`controlled` 必须显式 `--actor demo-editor`，`--prepare-only` 只准备不启动；`accept` 默认 `readonly` 只跑 seed／management／evaluation，`full` 才加 mutations，`--with-distribution` 再加 wheel／sdist smoke。受控演示的 CLI actor 示例使用 `demo-editor`，session role 仍是 `demo_editor`。通过 summary 见 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](../.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json) 和历史 full [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](../.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)，两次 Ctrl+C demo 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](../.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json) 和 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](../.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)；较早一次 full 通过 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](../.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史记录。统一入口当前只支持具备 Linux `/proc`、`subreaper`、`pidfd` 清理核验能力的环境；macOS／Windows 缺少必要能力时会 fail-closed 返回 `cleanup_unknown`。B5／U22 只读 MCP 已完成并验证；B6 正文更新也已完成并验证，36 成功、17 拒绝、61 响应与 3 次 command／job 提交已补齐，默认 MCP 零写入，Linux PTY／SDK session 与 wheel／sdist 隔离 smoke 通过；macOS／Windows 未测。MCP 的 stdio 平台语义与 B-R2 清理依赖分开记录，生产权限能力未做。
 
-## 静态回放已整合，发布只做准备
+## 静态回放历史已归档，静态预览已于 2026-11-23 上线
 
 本轮完成回放数据导出、页面整合与独立预览构建的实现，不新增 B 系列或 P 系列编号，不改变 B1～B6 的原职责与历史验收范围。使用工具自建 `.konwledge/replay/<UUID>` 私有 scope 和固定可公开合成语料，经正式 SDK 发布、自动评测 outbox 生成真实的 `passed → failed → passed` 任务；同一 dataset／config、固定 4 条 cases，Recall 为 `1 → 2/3 → 1`，质量失败不回滚已提交知识。仓库内 `web/public/replay.json` 已生成并通过 Python `--check`，不开放任意业务库导出或自动脱敏。
 
 前端显式 replay 路由复用 B1 DTO／`ManagementClient` 和静态 transport，保留分页与 mode，坏 bundle 报错且无 live fallback。独立 `pnpm verify:preview` 检查真实 fixture、nullable hash 与 preview 行为，构建 `dist-preview` 并检查资源白名单、固定敏感模式、相对资产和回放字节相等。preview 默认 `#replay/guide`，隐藏受控变更菜单并阻断手输 changes／live 路由；普通构建的 Snapshot V1／live／B4 契约不变。
 
-Pages workflow 已改为手动 `workflow_dispatch`，`publish` boolean 默认 false；prepare 检查随源码提交的 JSON，运行普通与 preview 验证并上传 `replay-preview` artifact，只有显式 true 才允许 publish job 部署。本轮不运行 Actions 或公开部署，没有生成或验证可用的网站 URL。未来发布仍须确认 Pages Source 为 GitHub Actions、environment 权限与保护，以及默认分支已有可 dispatch 的 workflow、选定 ref 包含本轮实现。仅向 feature 分支推送不能保证新 workflow 名称或 UI 参数可用，此项待维护者确认，不代办 main 变更。
+静态只读预览已于 2026-11-23 公开可访问：[https://ykontheway.github.io/konwledge/#replay/guide](https://ykontheway.github.io/konwledge/#replay/guide)。对应 Actions 运行见 [45105672969](https://github.com/Ykontheway/konwledge/actions/runs/45105672969)，提交为 [`2ed4f9acda77118c582be709a681d51b34dffb56`](https://github.com/Ykontheway/konwledge/commit/2ed4f9acda77118c582be709a681d51b34dffb56)。当前上线的是 replay bundle 驱动的静态页面，不连接公开 live backend，也不开放 management／mutation／MCP 写路径。仓库内 `web/public/replay.json` 的当前公开文件大小为 `263215` bytes，SHA-256 为 `9cd0af3875b768b3a50326fc386452fcb88bf11af8ad58ef64f0499fc4a35d05`；预览构建保留 17 个允许资源的逐字节校验结果，历史本地复核记录继续保留在下文和 [静态回放预览](replay-preview.md)。
 
-操作、数据契约与发布前置见 [静态回放预览](replay-preview.md)。本轮 Python 全量 2540 passed／7 skipped、前端 529 passed／2 skipped，回放预览专项 91 项、59 项 HTTP 子路径检查与 6 次静态呈现检查通过，真实 wheel／sdist 通过；版本仍为 `0.1.0` prepared，公开发布与生产权限授权另行确认。
+Pages workflow 仍保留手动 `workflow_dispatch`、`publish` boolean 默认 false 的发布前置说明，这些历史准备记录不抹掉：此前的 prepare 会检查随源码提交的 JSON，运行普通与 preview 验证并上传 `replay-preview` artifact；显式 `publish=true` 时才允许 publish job 部署。本次已经存在公开可访问的静态页面，但这不改变“artifact／workflow／站点地址是三种不同状态”的判定，也不代办后续 main 维护动作。
+
+操作、数据契约与发布前置见 [静态回放预览](replay-preview.md)。本轮 Python 全量 2540 passed／7 skipped、前端 529 passed／2 skipped，回放预览专项 91 项、59 项 HTTP 子路径检查与 6 次静态呈现检查通过，真实 wheel／sdist 通过；版本仍为 `0.1.0` prepared，公开 live backend、生产权限授权与后续部署治理仍需单独评审。
 
 ## 数据流回到同一评测链路
 

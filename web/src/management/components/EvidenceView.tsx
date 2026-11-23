@@ -37,7 +37,7 @@ export const EvidenceView: React.FC<EvidenceViewProps> = ({
             <h2 className="text-2xl font-semibold text-slate-900">历史证据</h2>
           </div>
           <p className="max-w-3xl text-sm leading-6 text-slate-600">
-            这是 B1 唯一明确返回正文的管理响应。文本按 exact unit 选段返回，不提供整篇文档定位，也不会把未受信文本当 HTML 执行。
+            这是只读管理 API 中唯一明确返回正文的响应。文本按 exact unit 选段返回，不提供整篇文档定位，也不会把未受信文本当 HTML 执行。
           </p>
         </div>
         <button

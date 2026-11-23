@@ -47,7 +47,9 @@ def parser() -> SafeParser:
     result = SafeParser(description=__doc__, allow_abbrev=False)
     sub = result.add_subparsers(dest="command", required=True, parser_class=SafeParser)
     sub.add_parser("list", help="列出固定入口与安全默认值", allow_abbrev=False)
-    demo = sub.add_parser("demo", help="准备私有演示库，可启动 loopback GUI", allow_abbrev=False)
+    demo = sub.add_parser(
+        "demo", help="准备私有隔离验收库，可启动 loopback 工作台", allow_abbrev=False
+    )
     demo.add_argument("--mode", choices=("readonly", "controlled"), default="readonly")
     demo.add_argument("--actor")
     demo.add_argument("--prepare-only", action="store_true")

@@ -1,4 +1,4 @@
-name: Prepare Replay Preview
+name: Knowledge CI Replay Preview
 
 on:
   workflow_dispatch:

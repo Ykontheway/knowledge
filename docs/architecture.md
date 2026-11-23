@@ -1,147 +1,173 @@
-# Architecture
+# 当前架构
 
-## Scope
+Konwledge 是本地优先的 Knowledge CI 知识生命周期与质量门禁基础设施。它管理本机知识库、版本日志、检索证据和评测结果，不调用 LLM 生成答案。
 
-Konwledge is a local-first knowledge lifecycle, retrieval, context, and evaluation toolkit. Its v0.1.0 release candidate targets one machine, a local SQLite metadata store, deterministic offline demonstrations, and explicit composition through Python services and a CLI.
+当前版本为 **`0.1.0` prepared alpha**，核心链路与工作台已有实现，尚未正式发行或生产化。适用范围是单机、单库、显式启用的工程场景；生产 SSO／RBAC、托管服务、高可用和部署 SLA 均不在当前承诺内。
 
-It is not a hosted knowledge service, distributed vector database, automatic answer generator, or production availability product. The alpha API grows incrementally and does not provide a complete backward-compatibility guarantee or production SLA.
+2026-11-23 已上线 [公开静态预览](https://ykontheway.github.io/konwledge/)。它只读取固定合成数据，不代表 HTTP 管理 API、受控写入或 live 公网服务已上线。
 
-## Layers and source boundaries
+## 分层各自守住边界
 
-| Layer | Primary paths | Responsibility |
+| 层 | 当前路径 | 职责与边界 |
 | --- | --- | --- |
-| Public facade | `src/konwledge/__init__.py`, `application.py` | Lazily export `KnowledgeLibrary`; coordinate import, lifecycle, freshness, conflicts, conversations, retrieval, context, and evaluation |
-| Domain | `src/konwledge/domain/` | Immutable validated models for sources, documents, units, revisions, citations, conflicts, conversations, freshness, and evaluation sets |
-| Conversation review | `src/konwledge/conversations/` | Validate immutable versions, extract explicit candidates, and atomically materialize only approved spans |
-| Database schema | `src/konwledge/database_schema/` | Collect schema-only catalog metadata, validate canonical snapshots, diff versions, and atomically publish current table units |
-| Ingestion | `src/konwledge/ingestion/` | Load UTF-8 text, normalize it, split traceable units, and persist idempotent document versions |
-| Lifecycle | `src/konwledge/lifecycle/` | Diff versions, maintain lineage and publication history, resolve as-of status, and apply stale/refresh transitions |
-| Conflict analysis | `src/konwledge/conflicts/` | Produce conservative candidates with frozen evidence and append human review history |
-| Storage | `src/konwledge/storage/` | Configure SQLite, map domain values, expose repositories and explicit Unit of Work transactions, and synchronize FTS5 |
-| Embedding and indexing | `src/konwledge/embedding/`, `indexing/` | Define provider/index protocols, deterministic hash test vectors, exact in-memory search, and the optional LanceDB adapter |
-| Retrieval | `src/konwledge/retrieval/` | Resolve eligible knowledge, run lexical/vector routes, fuse ranks, and return source-backed hits |
-| Context | `src/konwledge/context/` | Select whole units, enforce character/unit budgets, create exact citations, and render untrusted evidence records |
-| Evaluation | `src/konwledge/evaluation/` | Store immutable gold-set versions, score retrieval, validate reports, create compact baselines, compare, and gate |
-| Demo and snapshot | `src/konwledge/demo/`, `snapshot/`, `demo/` | Reproduce the packaged story and maintain the versioned JSON contract consumed by the V2 static site |
-| Interfaces | `src/konwledge/cli.py`, `__main__.py` | Expose CLI commands through `knowledge`, `python -m konwledge`, and the legacy `konwledge` alias |
+| 应用入口 | `src/konwledge/__init__.py`、`src/konwledge/application.py`、`src/konwledge/cli.py` | `KnowledgeLibrary` 组合服务；CLI 显式发起本地读写 |
+| 领域模型 | `src/konwledge/domain/` | 严格校验来源、文档、单元、revision、引用和评测模型 |
+| 存储与事务 | `src/konwledge/storage/` | SQLite、repository、显式 `UnitOfWork`、FTS5、任务持久化 |
+| 导入 | `src/konwledge/ingestion/` | UTF-8 规范化、可追溯拆分、幂等导入 |
+| 生命周期 | `src/konwledge/lifecycle/` | lineage、Diff、publication、revision、status 与 as-of |
+| 时效 | `src/konwledge/lifecycle/freshness.py`、`src/konwledge/domain/freshness.py` | TTL、来源更新时间策略、显式 stale／refresh；没有独立 `freshness/` 包 |
+| 冲突 | `src/konwledge/conflicts/` | 保存带证据的冲突候选，供人工审核，不自动判定事实真伪 |
+| 检索 | `src/konwledge/retrieval/` | 资格过滤、lexical／vector／hybrid、RRF 与降级诊断 |
+| 向量准备 | `src/konwledge/embedding/`、`src/konwledge/indexing/` | provider、缓存、索引适配与版本更新；真实 provider 由调用方配置 |
+| 上下文 | `src/konwledge/context/` | whole-unit 选择、精确引用、字符预算与可选 token 预算 |
+| 固定评测 | `src/konwledge/evaluation/`、`src/konwledge/quality/` | 不可变数据集、report、baseline、compare、回归 gate 与绝对质量验收 |
+| 自动评测 | `src/konwledge/auto_evaluation/` | 显式 enable、配置绑定、同事务 outbox、提交后同步评测、lease／retry／recover |
+| 对话与数据库结构 | `src/konwledge/conversations/`、`src/konwledge/database_schema/` | 对话候选人工审核；SQLite／PostgreSQL 只捕获 schema，不读取业务行 |
+| HTTP 与管理投影 | `src/konwledge/api/` | loopback 上下文入口、认证后的只读 management、严格 DTO |
+| 受控命令 | `src/konwledge/mutations/` | B4 scope／actor、preview、command、幂等提交与未知结果回查 |
+| MCP | `src/konwledge/mcp/` | B5 默认只读 stdio；B6 显式 controlled、带外批准与 grant 消费 |
+| 快照与回放 | `src/konwledge/snapshot/`、`src/konwledge/replay/` | 固定快照契约、公开合成 replay bundle 与文件校验 |
+| 界面 | `web/` | 复用读 DTO 的工作台与静态回放；受控页面单独处理写命令状态 |
 
-`KnowledgeLibrary` is the intended high-level SDK boundary. `konwledge.domain` and `konwledge.evaluation` expose established typed values and evaluation helpers. Direct use of storage, ingestion, indexing, retrieval, and context modules is supported for composition, but these lower-level boundaries are more experimental during alpha development.
+各入口复用核心事实，但 CLI、HTTP、management、MCP 和 replay 保留独立的认证、传输及失败恢复语义。
 
-## Metadata, history, and transactions
+## 版本日志记录历史事实
 
-SQLite stores metadata and audit history. SQLAlchemy repositories keep persistence mapping separate from Pydantic domain models. `UnitOfWork` gives service operations explicit commit and rollback boundaries; exiting an uncommitted unit of work rolls back.
+来源到证据的关系按下表保存，更新不会覆盖旧文档或旧单元正文。
 
-The revision and publication log is authoritative for historical state. A unit's persisted current `status` is a query/index cache, updated in the same transaction as lifecycle writes, but as-of views are reconstructed from history. Evaluation-set and conversation versions are immutable. Conflict reviews and lifecycle transitions append records rather than rewriting the audit chain; conversation candidates allow one terminal review whose audit record is append-only.
-
-`create_schema()` creates missing tables, enables foreign keys and FTS helpers, and applies narrowly defined additive upgrades to older local databases. This is not a general destructive migration framework. New migrations must preserve existing data, audit history, and snapshot contracts.
-
-SQLite FTS5 is required for lexical retrieval. The supplied engine registers the tokenizer helper needed by FTS triggers. Writes that bypass the supplied engine can violate that contract.
-
-## Ingestion and traceability
-
-Ingestion normalizes supported Markdown and text files, fingerprints normalized content, and stores immutable document versions. Heading-aware or paragraph splitting produces units with half-open character offsets. The central traceability invariant is:
-
-`normalized_content[unit.start_char:unit.end_char] == unit.text`
-
-Each unit version has a unique ID and a lineage ID that follows the logical unit across document versions. Diffs classify units as added, modified, moved, unchanged, or removed. Revision records and publication events make reverts and historical reads explicit rather than silently replacing old content.
-
-Source paths are local runtime metadata. Ordinary libraries may therefore contain absolute file URIs. The demo snapshot relativizes paths before committing them, but raw databases, conversations and evaluation reports should be treated as potentially sensitive local artifacts.
-
-## Eligibility-first retrieval
-
-Retrieval resolves one metadata snapshot before applying route candidate limits. By default, only active units from each source's published head are eligible. Callers may explicitly include stale units or select a historical time and source. Superseded, deleted, unpublished, or otherwise ineligible units do not enter lexical or vector candidate pools.
-
-| Mode | Route | Important boundary |
-| --- | --- | --- |
-| Lexical | Transactionally synchronized SQLite FTS5 | Literal full-text matching; no semantic claim |
-| Vector | Injected `IndexingService` | Requires an explicitly populated index and matching provider/model |
-| Hybrid | Lexical and vector rankings combined with deterministic RRF | Raw route scores are diagnostics, not probabilities |
-
-The metadata/revision log, not vector payload metadata, controls eligibility. For vector retrieval, eligible records are copied into a temporary exact in-memory index and scanned in O(N) time. Missing or content-mismatched vectors are surfaced as degraded diagnostics; provider or backend failures propagate instead of silently becoming empty results.
-
-The bundled hash provider and `--demo-vectors` exercise vector plumbing deterministically. They do not measure semantic retrieval quality. Konwledge does not freeze or version the entire corpus, vector backend, embedding provider, or provider model.
-
-## Citations and context
-
-Context assembly consumes exactly one retrieval result. It preserves ranking order, removes duplicate units/lineages and overlapping spans, and accepts only whole units that fit the configured character and unit limits. It never truncates a quotation to force it into a budget.
-
-Every accepted block carries source, document, unit, lineage, normalized character range, checksum, status, and exact quote. Citation identity is deterministic for the same evidence. Retrieval score is selection metadata, not citation confidence.
-
-Rendered context starts with a trust-boundary notice and serializes each source block as compact JSON. Source text is untrusted evidence and may contain prompt-like content. Escaping prevents that text from creating additional records, but it does not guarantee downstream model safety. Callers remain responsible for system instructions, tool authorization, and handling of model output. Konwledge v0.1.0 does not call an LLM or generate an answer automatically.
-
-## Gold sets, reports, baselines, and gates
-
-| Artifact | Contents | Persistence and privacy |
-| --- | --- | --- |
-| Evaluation set | Versioned queries, expected lineages, optional source/time/stale scope | Immutable SQLite versions; committed demo fixture is reviewed input |
-| Evaluation report | Dataset snapshot/hash, full retrieval hits, per-case scores, aggregates | Read-only output; can include source locators, quotes, IDs, and local paths |
-| Evaluation baseline | Dataset snapshot, lineage rankings, metrics, configuration | Compact portable JSON; omits hit quotes, source locators, document/unit IDs, and absolute corpus paths |
-| Gate policy/result | Metric bounds, time requirement, checks, violations | File-only validation and decision evidence |
-
-Reports and baselines are not trusted merely because their JSON shape is valid. Validation recomputes dataset hashes, per-case metrics, aggregates, times, and compatibility fields. A baseline can be promoted only from a complete healthy report. Comparison requires the same gold snapshot and retrieval configuration.
-
-The gate is fail closed. It blocks degraded candidates, configured regressions, required-time mismatches, and policies with no applicable numeric checks. It never reruns retrieval or replaces a baseline. CI reads the committed baseline and policy; human review is required to approve a replacement.
-
-Lineage retrieval metrics answer whether expected knowledge was retrieved. They do not prove source correctness, fact quality, generated-answer faithfulness, or production embedding quality.
-
-## U19 对话审核边界（Unreleased）
-
-对话以 `(conversation_id, version)` 保存为不可变记录。导入端在打开存储前完成 10 MiB 上限、UTF-8、重复 JSON key 和严格 Pydantic schema 校验。规范 JSON hash 不受输入排版影响，同一 ID/版本只能重复导入相同内容。
-
-提取器是确定性规则，不是语义模型。它只从 `user` 与 `assistant` 消息的显式事实/决策单行创建精确半开字符区间；`system`、`tool`、空标记和问句跳过。候选保持 `pending` 时不会进入来源、文档、knowledge unit、FTS 或发布历史。
-
-批准操作在一个 `UnitOfWork` 中写入确定性来源、文档、精确候选文本、生命周期发布、候选终态和审核记录。拒绝只写候选终态与审核记录。两个决定都不可逆；重复相同决定返回最初的审计记录，反向决定失败。审核人是调用者提供的归属字段，不是认证结果。导入后续对话版本不会撤销旧版本已批准知识。
-
-CLI 的 conversation/candidate JSON 输出保留原始正文和审核字段，可能包含私密聊天。它不经过 U16 compact baseline 脱敏边界。U19 不新增 HTTP 路由；U18 `/v1/context` 与 chat completion 子集继续只读，只能检索已经批准并发布的候选。
-
-## U20 数据库 schema 边界（Unreleased）
-
-U20 把外部数据库 catalog 视为一种版本化来源。collector 先在 Knowledge Library 事务之外完成一次完整采集，随后 `DatabaseSchemaService` 才打开 `UnitOfWork`，保存不可变 snapshot、document、table knowledge units、revision 和 publication。采集失败不会新建元数据库；持久化使用已采集的 snapshot，不会二次连接源库后混入并发变化。
-
-SQLite collector 只打开已有普通文件，使用 `mode=ro`、catalog authorizer、元数据 PRAGMA、进度处理器和显式 rollback。CLI 与 service 都拒绝 Knowledge Library 元数据库，包括 symlink 或 hardlink 别名。PostgreSQL collector 只检查调用者指定的一个非系统 schema，使用 psycopg 3、`REPEATABLE READ READ ONLY` 事务和超时。DSN、用户名、密码与查询参数不进入来源 URI 或默认 metadata。
-
-snapshot 保存表、视图、列、索引、外键和可获得的注释/选项，不读取业务行。注释、默认值、索引表达式和 DDL 片段仍可能敏感，所以本地数据库和导出文件不属于脱敏制品。捕获不管理身份、SSO 或权限；PostgreSQL 调用者应提供只读、最小权限角色。完整操作说明见 [数据库 schema 捕获](database-schema.md)。
-
-表身份由 namespace、名称和对象类型组成。结构未变化时，content hash 保持幂等；表身份不变时 lineage 稳定。diff 不猜测重命名。恢复历史结构会复用已有 document，但追加新的 capture version 和 publication 记录，保留真实时间线。
-
-当前 schema units 进入既有 active-only 检索和 context，不新增 HTTP 写路由。`SourceKind.DATABASE` 不在 V1 demo snapshot 的冻结枚举中，因此 V1 导出明确失败，不省略或改标数据库来源，也不更新 golden、JSON Schema 或前端生成类型。
-
-## Error contracts
-
-SDK validation errors are explicit Pydantic or `ValueError` failures. Missing entities use lookup-oriented errors; invalid lifecycle transitions and missing vector configuration have specific exceptions. Storage corruption and unavailable FTS5 surface as runtime failures. Provider/index exceptions are not converted into successful empty searches.
-
-The CLI maps command validation to actionable diagnostics. Evaluation gate commands reserve stable process outcomes:
-
-| Code | Meaning |
+| 对象 | 关系与用途 |
 | --- | --- |
-| `0` | Valid comparison, or passing gate |
-| `1` | File I/O or unexpected runtime failure |
-| `2` | Malformed, tampered, incomplete, mismatched, or invalid input/configuration |
-| `3` | Valid inputs, but policy blocks the candidate |
+| `Source` | 稳定来源身份，关联多个文档版本 |
+| 不可变 `Document` | 保存一次规范化内容与 checksum，归属于来源 |
+| span `KnowledgeUnit` | 绑定确切文档版本及半开字符范围，正文可从该版本核对 |
+| lineage | 跨文档版本连接同一知识的演进；单元版本仍各自保留 |
+| revision chain | append-only 记录新增、修改、移动、删除、stale／refresh 等事件 |
+| publication timeline | append-only 记录来源在各时点发布的文档 head，包括历史重发 |
 
-JSON mode keeps machine-readable output on stdout and diagnostics on stderr, including a valid `GateResult` when exit code `3` is used.
+`knowledge_units.status` 是当前查询缓存。历史状态和检索资格必须从 publication／revision 日志重建，不能用今天的 status 重算旧任务或历史引用。
 
-## Concurrency and operational limits
+默认 `active` 单元属于查询时点的已发布 head；显式 stale 仍在 head。旧版本中的 `superseded`／`deleted` 按该时点的 head 与 lineage 判断，未发布文档也不参与默认召回。
 
-Transactions make individual metadata changes atomic, but the system is designed for local, single-machine use. SQLite locking and filesystem behavior define concurrent-writer limits; Konwledge does not provide distributed coordination, high availability, online migration orchestration, or a production support SLA.
+TTL 依据 lineage 最近的 `added`、`modified` 或 `refreshed` revision 计时。移动单元或原样沿用正文不续期；没有对应事件时使用 head 发布时间。时效扫描在实际扫描时写 stale 事件，不倒填为 TTL 截止时刻，也没有后台自动扫描保证。
 
-The in-memory vector route is an exact linear scan. LanceDB is optional and caller-managed. Import does not automatically populate a production vector index, retrieval does not repair it, and evaluation does not freeze concurrent corpus/provider changes. Reproducible comparisons require callers to control corpus versions, explicit times, retrieval parameters, and provider/index identity.
+## 规范化文本是证据坐标系
 
-## Static demo boundary
+loader 去除 UTF-8 BOM，把 CRLF／CR 转成 LF，并应用 Unicode NFC；其余空白保留。splitter 按标题或段落拆分，单元保存 `[start_char, end_char)`。
 
-The V1 snapshot is a deterministic, versioned read model. The V2 site renders that committed data and does not reimplement lifecycle rules. Golden tests detect drift between models, JSON Schema, snapshot output, and generated frontend types. Its source-kind enum is deliberately frozen at `url`, `file`, `repository`, and `manual`, independently of the evolving domain enum. An approved conversation remains a `conversation` source and a captured database remains a `database` source with full provenance, so V1 export fails closed instead of omitting or reclassifying either kind. Pending and rejected candidates create no source and leave existing demo exports unchanged. U19 and U20 do not regenerate the snapshot/schema goldens or frontend types.
+必须满足 `normalized_content[unit.start_char:unit.end_char] == unit.text`。偏移按规范化文本的 Python Unicode code point 计数，不是原始文件字节、UTF-16 单元或浏览器显示长度。
 
-Frontend development is paused at V2. V3/V4 views, live-page publication, and further deployment are deferred. A deployment workflow in the repository is configuration, not evidence that a public site is live.
+Diff、management evidence、context 与 MCP `get_evidence` 都绑定被引用的确切文档版本。历史 span 不能从 latest 正文截取来代替。
 
-## U18 可选本机 HTTP 传输（Unreleased）
+## 资格过滤先于候选上限
 
-新增接口层 `src/konwledge/api/`：`models.py` 定义严格请求/响应，`app.py` 把已有 `KnowledgeLibrary.build_context()` 包装为只读路由，`server.py` 管理本机 CLI 启动与 engine 生命周期。完整协议见 [API 文档](api.md)。U18 不提升 `0.1.0` 版本，不改变快照或前端边界，也不是已部署服务。
+请求先确定查询时间，再按 metadata、publication 和 revision 还原 eligible head units；过滤发生在每条路由的 `candidate_limit` 之前，防止无资格旧版本占满候选。
 
-- 核心 wheel 依赖不增加 FastAPI/Uvicorn；它们由 `[api]` 安装。API 工厂延迟导入 FastAPI，CLI 仅在 `serve` 分支加载启动模块。默认 dev 组为了类型检查和默认测试安装 API、HTTPX、官方 OpenAI 与 LangChain SDK；SDK 不是运行时依赖。
-- `serve` 先校验 loopback allowlist、端口、非空环境密钥和已有数据库文件，再打开 engine。SQLite URI `mode=rw` 阻止校验后的缺失库创建；启动调用 `create_schema()` 允许已有 additive upgrade/FTS 初始化。运行结束/异常时 `finally` 释放 engine。
-- `create_app(library)` 不初始化存储、不关闭调用者 engine；通过 app 内 `RLock` 串行化库请求，限制同一 app 的并发 Unit of Work。它不提供跨进程写入协调或固定全库快照。
-- `/v1/context` 直接返回 packet；`/v1/chat/completions` 只把同一 packet JSON 放入 assistant content。固定模型 `knowledge-context`、一条 user 消息，无推理、对话历史、工具、sampling、Responses API 或 streaming；不返回虚构 usage。
-- 密钥只读取 `KNOWLEDGE_API_KEY`，显式空白拒绝，设置密钥后保护 `/v1/*` 并禁用 HTTP 文档页；`/health` 公开。`localhost` 映射到 `127.0.0.1`，access log 关闭。请求只读，错误不反射异常文本；packet 引文和路径仍是敏感的未受信本地数据。
-- 默认 CLI 只有 lexical，无 provider 自动配置。注入向量服务的嵌入式 API 保留核心的配置错误、缺失向量诊断和明确失败，不会静默调用外部模型或退化为成功空结果。
+- 默认只召回已发布 head 的 active 单元；核心 SDK／CLI 可显式使用 `include_stale`。
+- superseded、deleted 和查询时点尚未发布的版本不进入候选池。
+- `source_id` 缩小查询范围，不构成授权；资格判断不信任向量 payload。
 
-验收分两层：源码测试用真实 OpenAI/LangChain SDK 与完整 HTTPX → TestClient 传输验证 packet 等价及严格拒绝选项；分发测试在仓库外逐个安装 wheel/sdist，先验证 core-only，再安装 `[api]` 并直接驱动 ASGI。后一环境不安装 SDK/HTTPX，CLI 启动用 `uvicorn.run` 桩验证，无后台进程或外部网络请求。
+| 路由 | 实现 | 限制 |
+| --- | --- | --- |
+| lexical | SQLite FTS5 | 字面匹配，不等同语义理解 |
+| vector | 注入 `IndexingService`，对合格记录做临时精确内存 cosine scan | 当前 O(N)；需要显式 provider／index |
+| hybrid | lexical 与 vector 排名经确定性 RRF 融合 | 不拼接或相加 BM25／cosine 原始分；RRF 分不是概率 |
+
+FTS triggers 与知识行处于同一 SQLite 事务，一起提交或回滚；绕过标准 engine 的生写入不受此保证。缺少 provider／index 明确失败，缺向量或 hash 不一致返回 degraded 诊断，不静默伪装成健康检索。
+
+## 上下文保留整块原文
+
+Context 只消费一次 retrieval result，不再次搜索，不生成摘要。它按排名选 whole-unit evidence，去重 lineage，并排除同一文档版本内的重叠 span；预算放不下就跳过整块，空上下文合法。
+
+citation 保存 source／document／unit ID、exact quote、字符区间和校验锚点。ID 将这些身份与范围及 SHA-256 quote hash 写入规范 JSON，再生成 UUID5，同一证据可稳定复算，不随排名变化。
+
+| 预算 | 计数与输入输出 |
+| --- | --- |
+| 核心 `max_chars` | 计算完整 `context_text` 的 Unicode 字符数 |
+| 核心 `max_tokens` | 可选，需要显式 token counter 或 `[tokens]` extra |
+| MCP `build_context` | 独立的字符／块数预算，输入为 `max_chars`／`max_units`；不接受 `max_tokens`，不透传 core `context_text` |
+
+引用完整性只证明证据可核对，不保证来源事实正确或下游答案忠实。原文与 Diff 都是不可信输入，转义不能替代下游权限限制。
+
+## 固定评测与门禁拒绝不完整证据
+
+评测集以 `(dataset_id, version, dataset_hash)` 标识，内容不可变；修改用例须创建新版本。报告记录检索配置、固定用例、时间及指标，baseline 只能由人工显式提升完整、健康的 report，不自动替换。
+
+compare／gate 校验数据集 ID、版本、hash，以及 `mode`、`top_k`、`candidate_limit`、`rrf_k` 一致，还要核验完整用例并重算指标。固定用例的 `at` 保持一致；`require_same_time` 可进一步要求所有时间相同，可复现 CI 应选择共同显式时间。
+
+回归与绝对质量 gate 按 fail-closed 处理：不完整、不可比、无适用指标、degraded 或违反策略时不放行。文件型 baseline／compare／gate 只校验 JSON，不打开知识库、重新检索或调用 provider。
+
+任务还保存 `config_fingerprint`、`knowledge_fingerprint` 与 `trigger_revision_ids`。这些字段不冻结完整 corpus、外部来源、provider／model 或 vector backend 状态，也不阻止时间流逝改变 freshness。
+
+工作台只对符合其 DTO 可比条件的完整报告显示 delta；knowledge fingerprint 可以不同，不同评测时间只用于观察。页面不能把 delta 自动归因于一次变更，也不能据此批准发布或接受 baseline。
+
+## 自动评测在提交后执行
+
+自动评测默认关闭。显式 `enable` 绑定评测集版本、hash、检索参数与策略，仅保存配置，不认定已有知识合格；首版只支持 lexical。
+
+| 阶段 | 当前行为 |
+| --- | --- |
+| 知识写事务内 | revision／publication 与 durable job outbox 同事务写入，保存配置绑定与触发 revision |
+| 外层提交成功后 | 立即同步执行评测；同一外层事务合并为一个任务 |
+| 事务回滚 | 知识与 outbox 一起回滚，不留下任务 |
+| 评测未通过 | 保留已提交知识与任务结果，不自动回滚或更新 baseline；CLI 返回 `3` 并说明已提交 |
+
+文件发布／更新／历史重发、对话候选人工批准、schema 发布、stale／refresh 和时效策略变更可触发任务。原样重导、只读查询和评测集导入不触发；绕过 revision 的直接 SQL 不属于自动触发接口。
+
+job 领取与完成用 lease CAS 防重复领取和旧 worker 迟写。`recover` 回收超时租约，`retry` 新建关联任务，旧终态保留；恢复只重跑评测，不重放知识写命令。
+
+报告只保存聚合指标、检查与安全错误码，不保存源文、query、绝对路径或 provider 原始异常。当前没有后台调度服务，同步评测会增加写命令耗时；一次通过不担保未来时效状态。
+
+## HTTP 管理投影限制到本机
+
+HTTP 只绑定 loopback。management 必须显式启用并通过 Bearer 认证；B4 写路径另用独立 key，不能复用读取 key。工作台通过同源 Node proxy 转发，本机 key 只在服务进程环境，浏览器客户端和构建产物不持有 secret。
+
+management 请求使用独立 SQLite 只读连接：文件库 `mode=ro`，内存库 backup 快照，专用连接加 `query_only`、`BEGIN` 并以 rollback 结束。`serve` 启动仍可执行已有 additive schema／FTS 初始化，HTTP 请求只读不等于整个启动零写入。
+
+返回 frozen、`extra=forbid` 的 strict DTO 白名单。普通投影不泄露源全文、query、绝对 locator、任意 payload 或原始异常；evidence 是明确返回历史选段的例外，仍需认证与版本校验，不承诺自动脱敏。
+
+Python 模型导出 schema，前端生成类型并做运行时校验；management／mutation exporter 与前端 drift 检查分别守住各自契约，不用共享类型掩盖协议变化。
+
+## 受控命令原子提交
+
+B4 默认关闭，只接受准备工具生成的私有 sandbox 与 manifest allowlist 的当前文档。scope、actor、旧 checksum、preview 正文与确认信息都在服务端绑定，preview 有效期为 300 秒。
+
+apply 从 `BEGIN IMMEDIATE` 开始，校验 preview、TTL、checksum、scope／actor 和评测配置，把 command、幂等指纹、知识、revision／publication、FTS 与 outbox 一起提交；同键异请求拒绝，同键同请求重放原 command 结果。
+
+已知拒绝不留下半截知识、command 或 outbox；提交后评测失败仍表示知识已提交。响应丢失或写结果未知时，**只按原 command／idempotency key 回查**，不自动换键或补发写请求，查不到也不能推定未提交。
+
+## 默认 MCP 在存储层只读
+
+B5 默认仅开放 `search`、`build_context`、`get_evidence`、`get_lineage`、`compare_documents` 五个工具，固定 lexical／active，不接 `include_stale`、vector／hybrid、SQL、数据库路径或凭据。
+
+stdio 每个读取请求使用物理 `mode=ro`／`query_only` 专用连接并 rollback，不建表、不回填 FTS、不写 outbox 或批准审计。没有 HTTP／SSE／公网监听或 Bearer 认证。
+
+工具有严格输入、`outputSchema`、`structuredContent` 和 JSON `TextContent`。`ToolAnnotations` 只提示客户端，实际保护来自只读连接和 DTO 校验；MCP 不暴露整个核心 SDK。
+
+## 受控 MCP 另需带外批准
+
+B6 只有显式 `--controlled` 才增加五个工具，总计十个；新增会话读取、当前正文读取、preview、apply 与 command 回查，没有批准签发 tool。它沿用 B4 mutation engine，不允许任意导入、候选批准、删除或 SQL 写入。
+
+- 启动绑定私有 sandbox、manifest、scope 与 actor，不能由 tool 参数更换；受控预检通过后只允许新增批准表，不修复核心库。
+- 人工在独立 TTY 执行 `knowledge mcp approve`，查看转义 Diff 并输入精确短语；Agent 的布尔确认或 `--yes` 均不能替代批准。
+- grant 绑定 actor、scope、preview、幂等键、请求指纹与 token，最长 120 秒，且不得晚于 preview 的 300 秒期限。
+- 首次 apply 在知识提交的同一事务消费 grant；精确匹配且已消费的 grant 即使过期，也只可只读重放已提交结果。
+- 换身份、键、preview 或 token 不能复用批准；未知结果仍只按原键回查，评测 retry 不授权再次写知识。
+
+独立 TTY 把批准移出模型通道，同一 OS 身份仍可能执行批准命令或读取 grant 文件，必须另做 OS 权限隔离。该机制不提供密码学人类身份证明或 SSO／RBAC。
+
+## 静态回放共用读模型
+
+`src/konwledge/replay/` 用固定公开合成语料生成 bundle，复用 management 的同一 DTO read model 与历史导航；`web/` 的 `#replay/*` 只读取静态 `replay.json`，不访问用户业务库。
+
+回放不轮询新任务，不把 DTO href 当成 live 网络请求，加载失败也没有 live fallback。公开页面已于 2026-11-23 上线，包发行、管理服务部署和受控写权限仍各自需要审批。
+
+## 继续阅读
+
+[开发说明](development.md)解释能力依赖与代码阅读；[核心参考](core-reference.md)保留 SDK／CLI 细节。事务与接口细节见[自动评测](auto-evaluation.md)、[管理 API](management-api.md)、[受控命令](controlled-mutations.md)、[只读 MCP](mcp-readonly.md)、[受控 MCP](mcp-controlled.md)和[静态回放](replay-preview.md)。
+
+<!-- 文档校对记录
+本次仅压缩 architecture 的校对记录，正文只做结构与表述整理，不改分层、事务、资格、引用和批准边界。
+关键机制、路径、命令与时序语义未变，技术片段和表格保持原意。
+已做中文半角标点机械扫描，结果为 0；代码、命令、路径、URL 中的半角语法按规则豁免。
+本记录只覆盖文档校对范围，不代表代码验证、发布或部署结论。
+-->

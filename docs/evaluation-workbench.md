@@ -1,6 +1,6 @@
-# 评测对照与演示导览
+# 评测对照与使用导览
 
-B3 已完成 V4 只读评测对照、手动阶段导览和有界轮询，并通过真实 HTTP 联调与完整回归。页面沿用 B2 的启动器与 B1 同源 GET，不新增管理接口，不重跑评测，不接受或替换 baseline。V2 静态演示和 Snapshot V1 保持不变。
+B3 已完成 V4 只读评测对照、手动阶段导览和有界轮询，并通过真实 HTTP 联调与完整回归。页面沿用 B2 的启动器与 B1 同源 GET，不新增管理接口，不重跑评测，不接受或替换 baseline。V2 版本快照视图和 Snapshot V1 保持不变。
 
 ## 沿用 B2 启动方式
 
@@ -21,7 +21,7 @@ uv run python scripts/live_workbench.py \
   --web-port 5175 --api-port 8015
 ```
 
-打开 [评测对照](http://127.0.0.1:5175/#evaluation) 或 [演示导览](http://127.0.0.1:5175/#guide)。启动器只使用已有库，backend 启动仍可能执行已有 schema／FTS 初始化；HTTP 请求只读。临时 key 仅留在 backend 与 Vite Node 子进程环境，浏览器不带 key。dev proxy 仅支持严格 loopback 接线，preview／dist 不含代理，读取失败不回退 fixture。完整启动与安全说明见 [本机只读工作台](live-workbench.md)。
+打开 [评测对照](http://127.0.0.1:5175/#evaluation) 或 [使用导览](http://127.0.0.1:5175/#guide)。启动器只使用已有库，backend 启动仍可能执行已有 schema／FTS 初始化；HTTP 请求只读。临时 key 仅留在 backend 与 Vite Node 子进程环境，浏览器不带 key。dev proxy 仅支持严格 loopback 接线，preview／dist 不含代理，读取失败不回退 fixture。完整启动与安全说明见 [本机只读工作台](live-workbench.md)。
 
 ## 手动选择要比较的任务
 

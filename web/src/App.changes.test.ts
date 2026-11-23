@@ -71,7 +71,7 @@ describe("App B4 controlled mutations", () => {
     const { container } = await mount("#overview");
     expect(transport).not.toHaveBeenCalled();
     expect(container.textContent).toContain("受控更新 / 默认关闭");
-    expect(container.textContent).toContain("仅演示副本");
+    expect(container.textContent).toContain("仅隔离副本");
   });
   it.each([503, 404, 403, 401])("stays safe and disables edits when session status is %i", async status => {
     transport.mockResolvedValue(json({ detail: "RAW_SERVER_SECRET" }, status));
@@ -79,7 +79,7 @@ describe("App B4 controlled mutations", () => {
     expect(container.textContent).not.toContain("RAW_SERVER_SECRET");
     expect(container.querySelector("textarea")!.disabled).toBe(true);
     expect(button(container, "预览变更").disabled).toBe(true);
-    if (status === 403 || status === 401) expect(container.textContent).toContain("没有演示副本的更新权限");
+    if (status === 403 || status === 401) expect(container.textContent).toContain("没有隔离副本的更新权限");
     else if (status === 503) expect(container.textContent).toContain("未启用或暂不可用");
     expect(requests("previews")).toHaveLength(0);
     await setHash("#overview"); expect(container.textContent).toContain("总览");
@@ -91,7 +91,7 @@ describe("App B4 controlled mutations", () => {
   });
   it("does not fetch a document outside the explicit session whitelist", async () => {
     const { container } = await mount(`#changes?document=${ids.newDocument}`);
-    expect(container.textContent).toContain("没有演示副本的更新权限");
+    expect(container.textContent).toContain("没有隔离副本的更新权限");
     expect(transport).toHaveBeenCalledTimes(1); expect(button(container, "预览变更").disabled).toBe(true);
   });
   it("edit -> preview -> explicit confirmation -> committed/gatefailed with B2/B3 links", async () => {
@@ -103,6 +103,8 @@ describe("App B4 controlled mutations", () => {
     expect(JSON.parse(requests("previews")[0]![1].body as string)).toEqual(previewRequest);
     expect(container.textContent).toContain(hashA); expect(container.textContent).toContain(hashB);
     expect(button(container, "确认并提交").disabled).toBe(true);
+    expect(container.querySelector("input[type='checkbox']")?.getAttribute("aria-label")).toBe("确认更新隔离副本");
+    expect(container.textContent).toContain("我确认更新隔离副本，已核对操作者、范围、原文差异和 checksum；已知门禁失败不回滚。");
     await check(container); await check(container);
     expect(button(container, "确认并提交").disabled).toBe(true);
     await check(container); await click(container, "确认并提交"); await tick();
@@ -232,7 +234,7 @@ describe("App B4 controlled mutations", () => {
     transport.mockImplementation((path, init) => path === `/v1/mutations/documents/${ids.document}` ? late.promise : real(path, init));
     const { container } = await mount(); await setHash(`#changes?document=${ids.newDocument}`);
     await tick(() => late.resolve(json(docFixture)));
-    expect(container.textContent).toContain("没有演示副本的更新权限"); expect(container.querySelector("textarea")!.value).toBe("");
+    expect(container.textContent).toContain("没有隔离副本的更新权限"); expect(container.querySelector("textarea")!.value).toBe("");
   });
 });
 

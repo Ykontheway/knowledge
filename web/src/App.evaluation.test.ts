@@ -354,8 +354,11 @@ describe("App evaluation and guide views", () => {
     const detailsIndex = container.textContent?.indexOf("查看三阶段任务元数据") ?? -1;
     expect(judgementIndex).toBeGreaterThanOrEqual(0);
     expect(detailsIndex).toBeGreaterThan(judgementIndex);
-    expect(container.textContent).toContain("已选择的演示阶段条件");
-    expect(container.textContent).toContain("在隔离演示库中使用已授权的 CLI 完成更新");
+    expect(container.textContent).toContain("已选择的阶段对照条件");
+    expect(container.querySelector("main h2")?.textContent).toBe("使用导览");
+    expect(container.querySelector("section[aria-label='更换已选阶段']")).toBeTruthy();
+    expect(container.textContent).toContain("操作说明");
+    expect(container.textContent).toContain("在隔离验收库中使用已授权的 CLI 完成更新");
     expect(container.querySelector(`a[href='#evaluation?reference=${ids.normal}&candidate=${ids.fault}']`)).toBeTruthy();
     expect(container.querySelector(`a[href='#evaluation?reference=${ids.fault}&candidate=${ids.restore}']`)).toBeTruthy();
     expect(container.textContent).toContain("no-answer、stale、citation");

@@ -135,8 +135,10 @@ describe("management hash routes", () => {
       reason: "invalid_query",
       mode: "replay",
     });
+    expect(getBreadcrumbMeta(parseHashRoute("#guide"))).toEqual({ section: "实时工作台 / 只读", title: "使用导览", tone: "live" });
+    expect(getBreadcrumbMeta(parseHashRoute("#replay/guide"))).toEqual({ section: "静态回放 / 只读", title: "使用导览", tone: "replay" });
     expect(getBreadcrumbMeta(parseHashRoute("#diff"))).toEqual({
-      section: "静态演示",
+      section: "版本快照",
       title: "版本 Diff",
       tone: "demo",
     });
@@ -159,7 +161,7 @@ describe("B4 changes hash routes", () => {
     expect(parseHashRoute("#changes")).toEqual({ view: "changes", kind: "edit" });
     expect(parseHashRoute(`#changes?document=${documentId}`)).toEqual({ view: "changes", kind: "edit", documentId });
     expect(parseHashRoute(`#changes?command=${jobId}`)).toEqual({ view: "changes", kind: "command", commandId: jobId });
-    expect(getBreadcrumbMeta(parseHashRoute("#changes"))).toMatchObject({ section: "受控更新 / 仅演示副本", title: "受控变更" });
+    expect(getBreadcrumbMeta(parseHashRoute("#changes"))).toMatchObject({ section: "受控更新 / 仅隔离副本", title: "受控变更" });
   });
   it.each([
     "#changes?document=", "#changes?command=not-uuid", "#changes?token=DO_NOT_ECHO",

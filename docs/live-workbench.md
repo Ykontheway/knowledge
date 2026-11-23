@@ -1,8 +1,8 @@
 # 本机工作台（B2～B4）
 
-B2 已完成 V3 生命周期与变更视图，B3 已完成 V4 只读评测对照与手动导览，B4 已在当前 feature 分支完成受控变更交互并通过隔离验收。现有 React／Vite／Tailwind 静态演示保留；实时工作台继续通过 B1 管理 API 读取已有数据库，B4 再额外按显式开关接入 `/v1/mutations`。当前没有公开 live 部署，版本仍为 `0.1.0` prepared，未创建 tag、PR、main 合并或 PyPI 发布。
+工作台已支持生命周期与变更视图、只读评测对照、使用导览，以及显式启用的隔离受控变更。版本快照视图独立保留；实时工作台通过只读管理 API 读取已有数据库，写入另按显式开关接入 `/v1/mutations`。当前没有公开 live 后端部署，包版本仍为 `0.1.0` prepared alpha；已发布的 [静态回放预览](replay-preview.md) 不连接本机管理服务。
 
-本轮收尾校验已完成：ruff check、ruff format --check（208 files）、mypy（183 sources）、management／mutation schema --check、Python 回归（1495 passed、3 skipped）、前端 `pnpm verify`（352 passed、2 skipped）、B4 driver 和发行包隔离 smoke 均通过。两个前端 skipped 是需要联调服务环境的 live acceptance 默认跳过，不是假失败。
+B4 阶段的历史收尾校验已完成：ruff check、ruff format --check（208 files）、mypy（183 sources）、management／mutation schema --check、Python 回归（1495 passed、3 skipped）、前端 `pnpm verify`（352 passed、2 skipped）、B4 driver 和发行包隔离 smoke 均通过。两个前端 skipped 是需要联调服务环境的 live acceptance 默认跳过，不是假失败。
 
 ## 只读启动（B2／B3）
 

@@ -43,22 +43,22 @@ jobs:
       - name: Test
         run: uv run pytest --cov=konwledge --cov-report=term-missing
 
-      - name: Demo snapshot is up to date
+      - name: Verify the versioned snapshot contract
         run: |
           uv run knowledge demo build --force --workspace "$RUNNER_TEMP/demo"
           uv run knowledge demo export --workspace "$RUNNER_TEMP/demo" --check
 
-      - name: Import demo evaluation dataset
+      - name: Import the fixed acceptance dataset
         run: |
           uv run knowledge evaluation import examples/evaluation-demo.json -d "$RUNNER_TEMP/demo/knowledge.db"
 
-      - name: Evaluate demo retrieval at a fixed time
+      - name: Evaluate retrieval at a fixed time
         run: |
           uv run knowledge evaluation run 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 --mode lexical --top-k 5 --candidate-limit 50 --rrf-k 60 --at 2026-11-10T00:00:00Z -d "$RUNNER_TEMP/demo/knowledge.db" --json > "$RUNNER_TEMP/evaluation-candidate.json"
 
       # 默认严格策略：六项指标同时检查汇总与逐 case，绝对降幅为零。
       # 提交的 CI 策略另要求有效评测时间一致；CI 只读取基线，绝不自动更新。
-      - name: Gate demo retrieval against the committed baseline
+      - name: Gate retrieval against the committed baseline
         run: |
           uv run knowledge evaluation gate examples/evaluation-baseline.json "$RUNNER_TEMP/evaluation-candidate.json" --policy examples/evaluation-gate.json --json > "$RUNNER_TEMP/evaluation-gate.json"
 
@@ -139,7 +139,7 @@ jobs:
         run: uv run --no-sync pytest tests/test_database_schema_postgres.py
 
   web:
-    name: Demo site
+    name: Knowledge CI Workbench
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -164,7 +164,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify demo types, tests, and production build
+      - name: Verify workbench types, tests, and production build
         run: pnpm verify
 
       - name: Verify the committed read-only replay preview

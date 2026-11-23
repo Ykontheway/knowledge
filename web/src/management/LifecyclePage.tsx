@@ -272,7 +272,7 @@ function describeError(
           title: mode === "replay" ? "未找到静态回放文件" : "当前站点未启用管理服务",
           description: mode === "replay"
             ? "请先由父流程生成并放置 web/public/replay.json，再刷新本页。"
-            : "静态演示页仍可用，但要查看实时工作台，需要同源启用 /v1/management 并带上 Bearer 认证。",
+            : "版本快照页仍可用，但要查看实时工作台，需要同源启用 /v1/management 并带上 Bearer 认证。",
         };
       }
       return { kind: "not-found", title: "未找到对应资源", description: getManagementErrorMessage(error) };

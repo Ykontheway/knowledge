@@ -22,7 +22,7 @@ interface GuidePageProps {
 }
 
 export const GuidePage: React.FC<GuidePageProps> = ({ route, navigate }) => {
-  if (route.kind === "invalid") return <InvalidRouteNotice title="演示导览链接无效" />;
+  if (route.kind === "invalid") return <InvalidRouteNotice title="使用导览链接无效" />;
   return <GuideStepsView navigate={navigate} route={route} />;
 };
 
@@ -88,7 +88,7 @@ const GuideStepsView: React.FC<{
         ]
       : [
           { title: "正常阶段", body: "确认初始检索质量门禁通过，并记录触发 revision。" },
-          { title: "故障阶段", body: "隔离演示库更新后刷新，选择 QUALITY_GATE_FAILED 的失败任务。" },
+          { title: "故障阶段", body: "隔离验收库更新后刷新，选择 QUALITY_GATE_FAILED 的失败任务。" },
           { title: "恢复阶段", body: "授权 CLI 修复后刷新，选择再次通过的任务。" },
         ];
 
@@ -106,10 +106,10 @@ const GuideStepsView: React.FC<{
         mode={route.mode}
         onRefresh={refreshGuide}
         refreshing={list.refreshing || stages.refreshing}
-        title="演示导览"
+        title="使用导览"
       >
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600 shadow-sm">
-          <p className="font-semibold text-slate-900">演示操作说明</p>
+          <p className="font-semibold text-slate-900">操作说明</p>
           {route.mode === "replay" ? (
             <>
               <p>回放模式使用父流程生成的静态 bundle，默认带入 normal / fault / restore 三阶段，可继续切换到同一 bundle 中的其他任务。</p>
@@ -117,7 +117,7 @@ const GuideStepsView: React.FC<{
             </>
           ) : (
             <>
-              <p>在隔离演示库中使用已授权的 CLI 完成更新，再回到本页刷新并手动选择对应阶段。</p>
+              <p>在隔离验收库中使用已授权的 CLI 完成更新，再回到本页刷新并手动选择对应阶段。</p>
               <p className="mt-2">页面不会执行命令、拼接本机路径、展示原始查询参数，也不会写入任何数据。无数据时，请先按真实库启动文档启动管理服务和后端。</p>
             </>
           )}
@@ -164,7 +164,7 @@ const GuideStepsView: React.FC<{
           </article>
         ))}
       </section>
-      {hasSelection && picker ? <section className="space-y-3" aria-label="更换演示阶段"><h3 className="text-lg font-semibold text-slate-900">更换阶段</h3>{picker}</section> : null}
+      {hasSelection && picker ? <section className="space-y-3" aria-label="更换已选阶段"><h3 className="text-lg font-semibold text-slate-900">更换阶段</h3>{picker}</section> : null}
     </div>
   );
 };
@@ -185,7 +185,7 @@ function validateGuide(
   if (normal.status !== "passed") messages.push("正常阶段必须是 passed。角色不满足时只展示安全提示，不讲故事。");
   if (fault.status !== "failed" || fault.error_code !== "QUALITY_GATE_FAILED") messages.push("故障阶段必须是 failed 且 error_code 为 QUALITY_GATE_FAILED。");
   if (restore.status !== "passed") messages.push("恢复阶段必须是 passed。");
-  if (Date.parse(normal.evaluated_at) > Date.parse(fault.evaluated_at) || Date.parse(fault.evaluated_at) > Date.parse(restore.evaluated_at)) messages.push("三阶段评测时间顺序不成立，不能作为演示阶段。");
+  if (Date.parse(normal.evaluated_at) > Date.parse(fault.evaluated_at) || Date.parse(fault.evaluated_at) > Date.parse(restore.evaluated_at)) messages.push("三阶段评测时间顺序不成立，不能用于三阶段对照。");
   if (normal.knowledge_fingerprint === fault.knowledge_fingerprint || fault.knowledge_fingerprint === restore.knowledge_fingerprint) messages.push("相邻阶段 knowledge_fingerprint 未变化；请核验是否真的对应知识更新/恢复。");
   if (fault.trigger_revision_ids.length === 0 || restore.trigger_revision_ids.length === 0) messages.push("故障或恢复阶段缺少 trigger revision，无法链接触发变更。");
   const first = compareJobs(normal, fault);
@@ -199,7 +199,7 @@ function validateGuide(
       ? [
           mode === "replay"
             ? "三阶段满足回放故事条件：正常 passed、故障 QUALITY_GATE_FAILED、恢复 passed、两两可对照、时间顺序成立，并能链接 trigger revision。页面仅做静态展示，不能声明因果。"
-            : "三阶段满足已选择的演示阶段条件：正常 passed、故障 QUALITY_GATE_FAILED、恢复 passed、两两可对照、时间顺序成立，并能链接 trigger revision。仍请核验 CLI 实操，不能声明因果。",
+            : "三阶段满足已选择的阶段对照条件：正常 passed、故障 QUALITY_GATE_FAILED、恢复 passed、两两可对照、时间顺序成立，并能链接 trigger revision。仍请核验 CLI 实操，不能声明因果。",
           ...[...new Set([...fault.trigger_revision_ids, ...restore.trigger_revision_ids])].map((id) => `触发 revision：${id}`),
         ]
       : messages,

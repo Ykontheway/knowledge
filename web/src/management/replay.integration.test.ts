@@ -411,7 +411,7 @@ describe("真实 App + ManagementRuntimeProvider：静态回放 DOM", () => {
     await waitDom(() => expect(button(container, "上一页").disabled).toBe(false));
     await interact(() => button(container, "上一页").click());
     await waitDom(() => expect(window.location.hash).toBe("#replay/lifecycle/jobs?status=failed"));
-    await interact(() => navButton("演示导览").click());
+    await interact(() => navButton("使用导览").click());
     await waitDom(() => expect(container.textContent).toContain("三阶段满足回放故事条件"));
     expect(window.location.hash).toBe("#replay/guide");
     await interact(() => navButton("评测对照").click());
