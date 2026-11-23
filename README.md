@@ -2,7 +2,7 @@
 
 Konwledge 是本地优先的 **Knowledge CI 知识生命周期与质量门禁基础设施**。它记录可追溯的版本事实，把知识变更接到质量验收，并向应用提供绑定精确版本的检索证据与上下文。
 
-当前核心开发与工作台实现已完成，版本为 **`0.1.0` prepared alpha**，尚未创建发行 tag，也未正式发布到 PyPI。实现完成、包发布和生产部署是三个不同状态。
+当前核心开发与工作台实现已完成，版本为0.1.0，处于Alpha阶段。实现完成、包发布和生产部署是三个不同状态。
 
 包名保留 `konwledge`，主 CLI 为 `knowledge`，兼容别名 `konwledge` 和模块入口 `python -m konwledge` 继续可用。项目面向本机、单库工程使用，不是自治答案系统或生产服务。
 
@@ -49,7 +49,7 @@ normalized_content[unit.start_char:unit.end_char] == unit.text
 
 ## 从本地文档开始
 
-需要 Python 3.11 或更新版本，以及启用 FTS5 的 SQLite。以下命令在仓库根目录执行，从当前 checkout 安装，不依赖尚未发布的 PyPI 包：
+需要 Python 3.11 或更新版本，以及启用 FTS5 的 SQLite。以下命令在仓库根目录执行，从当前checkout安装，不依赖包索引：
 
 ```bash
 python -m pip install .

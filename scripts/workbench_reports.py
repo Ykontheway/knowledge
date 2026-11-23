@@ -336,6 +336,8 @@ def safe_read_json(path: Path, *, allowed_root: Path, max_bytes: int = 2097152) 
         return cast(dict[str, Any], value)
     except FileNotFoundError:
         raise WorkbenchReportError("report_missing") from None
+    except PermissionError:
+        raise WorkbenchReportError("file_invalid") from None
     except (OSError, ValueError, TypeError, RecursionError, OverflowError):
         raise WorkbenchReportError("json_invalid") from None
     finally:

@@ -362,6 +362,33 @@ def test_read_rejects_abnormal_file_modes(session: Path, mode: int) -> None:
         reports.safe_read_json(path, allowed_root=session)
 
 
+def test_read_permission_error_is_file_invalid(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = put(session / "report.json", {"secret": SECRET})
+    real_open = os.open
+    denied: list[str] = []
+
+    def deny_target(name: Any, flags: int, *args: Any, **kwargs: Any) -> int:
+        if name == path.name:
+            assert kwargs["dir_fd"] >= 0
+            assert not flags & os.O_DIRECTORY
+            denied.append(name)
+            raise PermissionError(SECRET)
+        return real_open(name, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", deny_target)
+    with pytest.raises(reports.WorkbenchReportError) as caught:
+        reports.safe_read_json(path, allowed_root=session)
+    assert denied == [path.name]
+    assert caught.value.code == "file_invalid"
+    assert str(caught.value) == "file_invalid"
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__ is True
+    assert SECRET not in str(caught.value)
+    assert SECRET not in repr(caught.value)
+
+
 @pytest.mark.parametrize("kind", ["symlink", "hardlink", "fifo", "directory", "parent_link"])
 def test_read_rejects_links_nonregular_and_ancestry(session: Path, kind: str) -> None:
     path = session / "report.json"
