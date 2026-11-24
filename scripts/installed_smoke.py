@@ -1,4 +1,4 @@
-"""Smoke-test one installed Konwledge distribution from an isolated interpreter."""
+"""Smoke-test one installed Knowledge distribution from an isolated interpreter."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy import Engine
 
-    from konwledge import KnowledgeLibrary
+    from knowledge import KnowledgeLibrary
 
 
 def require(condition: bool, message: str) -> None:
@@ -94,8 +94,8 @@ def cli(
 
 
 def open_library(database: Path, *, at: datetime | None = None) -> tuple[Engine, KnowledgeLibrary]:
-    from konwledge import KnowledgeLibrary
-    from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+    from knowledge import KnowledgeLibrary
+    from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
     engine = create_sqlite_engine(f"sqlite+pysqlite:///{database.as_posix()}")
     create_schema(engine)
@@ -114,24 +114,24 @@ def is_installed_location(package_file: Path, prefix: Path, site_packages: Seque
 
 
 def verify_installed_identity(expected_version: str) -> None:
-    import konwledge
+    import knowledge
 
     for dependency in ("fastapi", "uvicorn", "httpx", "openai", "langchain_openai"):
         require(importlib.util.find_spec(dependency) is None, f"core install leaked {dependency}")
-    import konwledge.api
+    import knowledge.api
 
     require("fastapi" not in sys.modules, "API package eagerly imported FastAPI")
     require("uvicorn" not in sys.modules, "API package eagerly imported Uvicorn")
-    require("konwledge.application" not in sys.modules, "root package eagerly imported application")
-    from konwledge import KnowledgeLibrary
+    require("knowledge.application" not in sys.modules, "root package eagerly imported application")
+    from knowledge import KnowledgeLibrary
 
     require(KnowledgeLibrary.__name__ == "KnowledgeLibrary", "root lazy API is unavailable")
-    require(konwledge.__version__ == expected_version, "root version does not match")
+    require(knowledge.__version__ == expected_version, "root version does not match")
     require(
-        importlib.metadata.version("konwledge") == expected_version,
+        importlib.metadata.version("knowledge-ykforward") == expected_version,
         "installed metadata version does not match",
     )
-    package_file = Path(konwledge.__file__)
+    package_file = Path(knowledge.__file__)
     prefixes = [Path(path) for path in site.getsitepackages()]
     require(
         is_installed_location(package_file, Path(sys.prefix), prefixes),
@@ -139,22 +139,18 @@ def verify_installed_identity(expected_version: str) -> None:
     )
 
 
-def verify_cli_aliases(run_dir: Path, expected_version: str) -> tuple[Path, Path]:
+def verify_cli_entry_points(run_dir: Path, expected_version: str) -> Path:
     knowledge = console_script("knowledge")
-    konwledge = console_script("konwledge")
     expected = f"knowledge {expected_version}"
-    for executable in (knowledge, konwledge):
-        require(
-            cli(executable, run_dir, "--version").stdout.strip() == expected, "CLI version mismatch"
-        )
-        help_result = cli(executable, run_dir, "--help")
-        require(
-            "Import and inspect traceable local knowledge" in help_result.stdout,
-            "CLI help mismatch",
-        )
-    module_version = run([sys.executable, "-I", "-m", "konwledge", "--version"], cwd=run_dir)
+    require(cli(knowledge, run_dir, "--version").stdout.strip() == expected, "CLI version mismatch")
+    help_result = cli(knowledge, run_dir, "--help")
+    require(
+        "Import and inspect traceable local knowledge" in help_result.stdout,
+        "CLI help mismatch",
+    )
+    module_version = run([sys.executable, "-I", "-m", "knowledge", "--version"], cwd=run_dir)
     require(module_version.stdout.strip() == expected, "module CLI version mismatch")
-    module_help = run([sys.executable, "-I", "-m", "konwledge", "--help"], cwd=run_dir)
+    module_help = run([sys.executable, "-I", "-m", "knowledge", "--help"], cwd=run_dir)
     require(
         "Import and inspect traceable local knowledge" in module_help.stdout, "module help mismatch"
     )
@@ -163,14 +159,17 @@ def verify_cli_aliases(run_dir: Path, expected_version: str) -> tuple[Path, Path
     existing = run_dir / "existing.db"
     existing.touch()
     missing_api = cli(knowledge, run_dir, "serve", "--database", str(existing), expected=1)
-    require("konwledge[api]" in missing_api.stderr, "missing API extra diagnostic is unavailable")
+    require(
+        "knowledge-ykforward[api]" in missing_api.stderr,
+        "missing API extra diagnostic is unavailable",
+    )
     require(existing.stat().st_size == 0, "missing API dependency modified database")
     existing.unlink()
-    return knowledge, konwledge
+    return knowledge
 
 
 def verify_resources_and_demo(knowledge: Path, root: Path) -> Path:
-    corpus = resources.files("konwledge.demo").joinpath("corpus")
+    corpus = resources.files("knowledge.demo").joinpath("corpus")
     expected = {
         "deployment-guide.v1.md",
         "deployment-guide.v2.md",
@@ -194,7 +193,7 @@ def verify_resources_and_demo(knowledge: Path, root: Path) -> Path:
 
 
 def verify_plaintext_context(knowledge: Path, root: Path) -> None:
-    from konwledge.context import ContextPacket
+    from knowledge.context import ContextPacket
 
     source = root / "plain-evidence.md"
     text = '# Installed evidence\nThe service says "exact-token" on port 9191.\n'
@@ -424,9 +423,9 @@ def verify_database_schema(knowledge: Path, root: Path) -> None:
 def verify_conversations(knowledge: Path, root: Path) -> None:
     """Exercise U19 only through the installed CLI, then audit through the SDK."""
 
-    from konwledge.context import ContextPacket
-    from konwledge.conversations import ConversationCandidate, ConversationImportResult
-    from konwledge.retrieval import RetrievalResult
+    from knowledge.context import ContextPacket
+    from knowledge.conversations import ConversationCandidate, ConversationImportResult
+    from knowledge.retrieval import RetrievalResult
 
     database = root / "conversation.db"
     payload = json.dumps(
@@ -590,7 +589,7 @@ def verify_conversations(knowledge: Path, root: Path) -> None:
 
 
 def verify_demo_retrieval(database: Path) -> None:
-    from konwledge.domain import KnowledgeUnitStatus
+    from knowledge.domain import KnowledgeUnitStatus
 
     at = datetime(2026, 11, 10, tzinfo=UTC)
     historical_at = datetime.fromisoformat("2026-10-10T12:00:00+08:00")
@@ -632,7 +631,7 @@ def verify_evaluation(
     fixtures: Path,
     root: Path,
 ) -> tuple[int, int]:
-    from konwledge.evaluation import (
+    from knowledge.evaluation import (
         EvaluationBaseline,
         EvaluationComparison,
         EvaluationReport,
@@ -801,10 +800,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         verify_installed_identity(args.expected_version)
         checks.append("installed_identity")
-        with tempfile.TemporaryDirectory(prefix="konwledge-smoke-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="knowledge-smoke-") as temporary:
             root = Path(temporary)
-            knowledge, _ = verify_cli_aliases(root, args.expected_version)
-            checks.append("cli_aliases")
+            knowledge = verify_cli_entry_points(root, args.expected_version)
+            checks.append("cli_entry_points")
             database = verify_resources_and_demo(knowledge, root)
             checks.extend(("packaged_resources", "demo_timeline"))
             verify_plaintext_context(knowledge, root)
@@ -832,6 +831,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "check_names": checks,
         "counts": {
             "checks": len(checks),
+            # console/module 各 version/help，加 serve help 与缺失 API extra，共六次。
+            "cli_commands": 6,
             "demo_steps": 8,
             "evaluation_cases": cases,
             "gate_checks": gate_checks,

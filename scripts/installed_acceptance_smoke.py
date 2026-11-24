@@ -29,7 +29,7 @@ def run_cli(
     timeout: int = 600,
 ) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
-        [sys.executable, "-I", "-m", "konwledge", *arguments],
+        [sys.executable, "-I", "-m", "knowledge", *arguments],
         cwd=root,
         capture_output=True,
         text=True,
@@ -46,14 +46,14 @@ def run_cli(
 
 
 def verify_installed_identity(expected_version: str) -> None:
-    import konwledge
+    import knowledge
 
-    require(konwledge.__version__ == expected_version, "installed package version mismatch")
+    require(knowledge.__version__ == expected_version, "installed package version mismatch")
     require(
-        importlib.metadata.version("konwledge") == expected_version,
+        importlib.metadata.version("knowledge-ykforward") == expected_version,
         "installed metadata version mismatch",
     )
-    package_file = Path(konwledge.__file__).resolve()
+    package_file = Path(knowledge.__file__).resolve()
     prefix = Path(sys.prefix).resolve()
     installed_paths = tuple(Path(value).resolve() for value in site.getsitepackages())
     require(
@@ -116,10 +116,10 @@ def verify_quality_cli(root: Path) -> dict[str, object]:
 
 
 def verify_automatic_evaluation(root: Path) -> dict[str, object]:
-    from konwledge import KnowledgeLibrary
-    from konwledge.auto_evaluation import AutoEvaluationStatus
-    from konwledge.domain import EvaluationItem, EvaluationSet
-    from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+    from knowledge import KnowledgeLibrary
+    from knowledge.auto_evaluation import AutoEvaluationStatus
+    from knowledge.domain import EvaluationItem, EvaluationSet
+    from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
     database = root / "automatic-evaluation.db"
     source = root / "installed-automatic-evidence.md"
@@ -225,7 +225,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         verify_installed_identity(args.expected_version)
-        with tempfile.TemporaryDirectory(prefix="konwledge-installed-acceptance-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="knowledge-installed-acceptance-") as temporary:
             root = Path(temporary)
             quality = verify_quality_cli(root)
             automatic = verify_automatic_evaluation(root)

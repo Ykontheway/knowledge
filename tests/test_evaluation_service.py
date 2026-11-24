@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     EvaluationItem,
@@ -17,11 +17,11 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.evaluation import (
+from knowledge.evaluation import (
     EvaluationService,
 )
-from konwledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
-from konwledge.storage import (
+from knowledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
+from knowledge.storage import (
     ImmutableEntityError,
     SessionFactory,
     UnitOfWork,
@@ -187,7 +187,7 @@ def test_run_evaluation(
             end_char=8,
         )
 
-        from konwledge.retrieval.models import RetrievalHit
+        from knowledge.retrieval.models import RetrievalHit
 
         rhit = RetrievalHit(
             unit=unit,

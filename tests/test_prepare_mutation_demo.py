@@ -53,7 +53,7 @@ def write_manifest(manifest: Path, payload: dict[str, Any]) -> None:
 @pytest.fixture
 def owned_demo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     monkeypatch.setattr(demo, "ROOT", tmp_path)
-    root = tmp_path / ".konwledge" / "mutation-demo"
+    root = tmp_path / ".knowledge" / "mutation-demo"
     root.mkdir(parents=True, mode=0o700)
     scope_id = str(uuid4())
     parent = root / scope_id
@@ -198,7 +198,7 @@ def test_missing_dependencies_safe_no_directory(
     monkeypatch.setattr("scripts.prepare_mutation_demo.importlib.import_module", unavailable)
     assert demo.main([]) == 1
     assert "MUTATION_DEPENDENCIES_UNAVAILABLE" in capsys.readouterr().out
-    assert not (tmp_path / ".konwledge").exists()
+    assert not (tmp_path / ".knowledge").exists()
 
 
 def test_core_help_without_site_dependencies() -> None:
@@ -230,7 +230,7 @@ def test_prepare_runner_new_database_schema_only_and_unique(
 ) -> None:
     from scripts import real_knowledge_acceptance
 
-    from konwledge.mutations import tables
+    from knowledge.mutations import tables
 
     monkeypatch.setattr(demo, "ROOT", tmp_path)
     runs: list[Path] = []
@@ -296,7 +296,7 @@ def test_prepare_symlink_root_no_runner(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setattr(demo, "ROOT", tmp_path)
     outside = tmp_path / "outside"
     outside.mkdir()
-    (tmp_path / ".konwledge").symlink_to(outside, target_is_directory=True)
+    (tmp_path / ".knowledge").symlink_to(outside, target_is_directory=True)
     with pytest.raises(demo.DemoError, match="INVALID_DEMO_PATH"):
         demo.prepare()
     assert not list(outside.iterdir())

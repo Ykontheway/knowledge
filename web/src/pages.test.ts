@@ -55,7 +55,7 @@ describe("Demo page rendering", () => {
     expect(html).toContain("使用导览");
     expect(html).toContain("只读管理 API");
     expect(html).toContain("仅隔离副本");
-    expect(html).toContain("https://github.com/Ykontheway/konwledge");
+    expect(html).toContain("https://github.com/Ykontheway/knowledge");
   });
 });
 

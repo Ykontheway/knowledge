@@ -11,9 +11,9 @@ import pytest
 from sqlalchemy import Engine, text
 from typer.testing import CliRunner
 
-from konwledge.application import KnowledgeLibrary, KnowledgeUnitNotFoundError
-from konwledge.cli import app, main
-from konwledge.domain import (
+from knowledge.application import KnowledgeLibrary, KnowledgeUnitNotFoundError
+from knowledge.cli import app, main
+from knowledge.domain import (
     Document,
     DocumentContentType,
     KnowledgeUnit,
@@ -24,16 +24,16 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.embedding import EmbeddingService, HashEmbeddingProvider
-from konwledge.indexing import IndexingService, InMemoryVectorIndex
-from konwledge.ingestion import (
+from knowledge.embedding import EmbeddingService, HashEmbeddingProvider
+from knowledge.indexing import IndexingService, InMemoryVectorIndex
+from knowledge.ingestion import (
     FileIngestionService,
     KnowledgeUnitService,
     TraceableIngestionResult,
     TraceableIngestionService,
     fingerprint_text,
 )
-from konwledge.lifecycle import (
+from knowledge.lifecycle import (
     DocumentNotFoundError,
     LifecycleService,
     LifecycleTransitionError,
@@ -46,7 +46,7 @@ from konwledge.lifecycle import (
     resolve_status,
     stale_mark_at,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,

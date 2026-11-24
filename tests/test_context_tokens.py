@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from konwledge.context import (
+from knowledge.context import (
     ContextPacket,
     ContextService,
     ContextSkipReason,
@@ -177,7 +177,7 @@ def test_default_counter_reports_missing_dependency_clearly(
         raise ModuleNotFoundError(name)
 
     monkeypatch.setattr(importlib, "import_module", missing_tiktoken)
-    with pytest.raises(ImportError, match=r"konwledge\[tokens\]"):
+    with pytest.raises(ImportError, match=r"knowledge-ykforward\[tokens\]"):
         assemble_context(make_result(), max_tokens=10)
 
 

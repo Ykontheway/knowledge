@@ -9,10 +9,10 @@ from uuid import uuid4
 import pytest
 from typer.testing import CliRunner, Result
 
-from konwledge.cli import app
-from konwledge.context import ContextPacket
-from konwledge.conversations import ConversationCandidate, ConversationReview
-from konwledge.retrieval import RetrievalResult
+from knowledge.cli import app
+from knowledge.context import ContextPacket
+from knowledge.conversations import ConversationCandidate, ConversationReview
+from knowledge.retrieval import RetrievalResult
 
 runner = CliRunner()
 

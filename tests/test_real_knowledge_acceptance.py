@@ -21,8 +21,8 @@ from scripts.real_knowledge_acceptance import (
     run_acceptance,
 )
 
-from konwledge.domain import EvaluationSet
-from konwledge.quality import QualityPolicy
+from knowledge.domain import EvaluationSet
+from knowledge.quality import QualityPolicy
 
 
 def test_real_documents_cli_change_failure_restore(tmp_path: Path) -> None:

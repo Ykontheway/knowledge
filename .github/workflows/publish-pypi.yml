@@ -1,14 +1,11 @@
-name: Publish PyPI 0.1.0
+name: Publish knowledge-ykforward 0.1.0
 
 on:
-  push:
-    branches: ['aime/1793676007-v02-demo-web']
-    paths: ['.github/workflows/publish-pypi.yml']
-  # 未来在 default branch 注册后才可手动触发；默认仍只检查。
+  # 只允许显式手动运行；默认执行全部检查，不上传。
   workflow_dispatch:
     inputs:
       publish:
-        description: '通过所有门禁后上传固定的 0.1.0 产物到 PyPI'
+        description: '通过所有门禁后上传 knowledge-ykforward 0.1.0 到 PyPI'
         type: boolean
         default: false
 
@@ -16,17 +13,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-0.1.0
+  group: release-knowledge-ykforward-0.1.0
   cancel-in-progress: false
 
 jobs:
-  # 所有检查只读取已核验发行源，不将新增自动化文件带入 sdist。
+  # 门禁与当前 CI 一致；所有 checkout 都检验本次 workflow 的 github.sha。
   quality:
-    if: github.repository == 'Ykontheway/konwledge'
+    if: github.repository == 'Ykontheway/knowledge'
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # pytest 与发行 smoke 共享稳定的非彩色 CLI 帮助和诊断输出。
     env:
       NO_COLOR: '1'
       TERM: dumb
@@ -39,8 +35,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          repository: Ykontheway/konwledge
-          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Install uv
@@ -50,7 +45,6 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
-      # dev 包含 API 类型检查和离线 OpenAI/LangChain 验收依赖；SDK 不进入 wheel。
       - name: Install dependencies
         run: uv sync --locked --dev
 
@@ -64,7 +58,7 @@ jobs:
         run: uv run mypy src tests scripts
 
       - name: Test
-        run: uv run pytest --cov=konwledge --cov-report=term-missing
+        run: uv run pytest --cov=knowledge --cov-report=term-missing
 
       - name: Verify the versioned snapshot contract
         run: |
@@ -79,7 +73,6 @@ jobs:
         run: |
           uv run knowledge evaluation run 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 --mode lexical --top-k 5 --candidate-limit 50 --rrf-k 60 --at 2026-11-10T00:00:00Z -d "$RUNNER_TEMP/demo/knowledge.db" --json > "$RUNNER_TEMP/evaluation-candidate.json"
 
-      # 只读取已提交基线，不自动更新；三条 Python lane 均执行全量烟测。
       - name: Gate retrieval against the committed baseline
         run: |
           uv run knowledge evaluation gate examples/evaluation-baseline.json "$RUNNER_TEMP/evaluation-candidate.json" --policy examples/evaluation-gate.json --json > "$RUNNER_TEMP/evaluation-gate.json"
@@ -90,22 +83,33 @@ jobs:
       - name: Verify wheel and source distribution (core-only, quality, api, postgres, and tokens)
         run: uv run python scripts/verify_distribution.py --output-dir "$RUNNER_TEMP/distribution"
 
-      # 摘要以本地已核验产物为准；云端重建不一致必须失败，不能放宽或重建补救。
-      - name: Verify exact release digests
+      # 只为已经通过全量安装 smoke 的 3.11 产物生成 manifest；不读取仓库中的校验代码。
+      - name: Generate constrained release manifest
         if: matrix.python-version == '3.11'
         shell: bash
+        env:
+          RELEASE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          python3 -I - "$RUNNER_TEMP/distribution/build" <<'PY'
+          python3 -I - "$RUNNER_TEMP/distribution" <<'PY'
           import hashlib
+          import json
+          import os
+          import re
           import sys
           from pathlib import Path
 
-          build = Path(sys.argv[1])
+          distribution = Path(sys.argv[1])
+          build = distribution / "build"
           expected = {
-              "konwledge-0.1.0-py3-none-any.whl": "801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17",
-              "konwledge-0.1.0.tar.gz": "2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee",
+              "knowledge_ykforward-0.1.0-py3-none-any.whl",
+              "knowledge_ykforward-0.1.0.tar.gz",
           }
+          sha = os.environ.get("RELEASE_SHA", "")
+          if re.fullmatch(r"[0-9a-f]{40}", sha) is None:
+              raise SystemExit("Invalid workflow SHA")
+          if distribution.is_symlink() or not distribution.is_dir():
+              raise SystemExit("Release distribution directory is missing or invalid")
           if build.is_symlink() or not build.is_dir():
               raise SystemExit("Release build directory is missing or invalid")
           names = {path.name for path in build.iterdir()}
@@ -114,22 +118,31 @@ jobs:
               if marker.is_symlink() or not marker.is_file() or marker.read_bytes() not in (b"*", b"*\n"):
                   raise SystemExit("Invalid build-directory marker")
               names.remove(".gitignore")
-          if names != set(expected):
+          if names != expected:
               raise SystemExit("Release build must contain exactly the two fixed files")
-          for name, digest in expected.items():
+          digests = {}
+          for name in sorted(expected):
               path = build / name
               if path.is_symlink() or not path.is_file():
                   raise SystemExit("Release artifact must be a regular file")
-              if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
-                  raise SystemExit("Release artifact SHA256 mismatch")
+              digests[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+          manifest = {
+              "github_sha": sha,
+              "project_name": "knowledge-ykforward",
+              "version": "0.1.0",
+              "files": digests,
+          }
+          # 独占创建；既有文件或符号链接不能覆盖或复用。
+          with (distribution / "manifest.json").open("x", encoding="utf-8") as output:
+              output.write(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
           PY
 
       - name: Check release metadata strictly
         if: matrix.python-version == '3.11'
         run: |
           uvx --python 3.11 --from twine==7.0.0 twine check --strict \
-            "$RUNNER_TEMP/distribution/build/konwledge-0.1.0-py3-none-any.whl" \
-            "$RUNNER_TEMP/distribution/build/konwledge-0.1.0.tar.gz"
+            "$RUNNER_TEMP/distribution/build/knowledge_ykforward-0.1.0-py3-none-any.whl" \
+            "$RUNNER_TEMP/distribution/build/knowledge_ykforward-0.1.0.tar.gz"
 
       - name: Upload quality acceptance evidence
         if: always()
@@ -149,8 +162,8 @@ jobs:
             ${{ runner.temp }}/evaluation-gate.json
           if-no-files-found: ignore
 
-      # 多路径的公共根目录为 distribution/；下载后是 build/ 和根目录的摘要。
-      # 失败时仍保留证据；publish 的 needs 默认要求所有 lane 成功，不能发布失败证据。
+      # 公共根目录为 distribution/，下载后为 build/、manifest.json 与 smoke 摘要。
+      # 失败证据仍保留，但 publish 的 needs 不允许发布任意失败或跳过的 lane。
       - name: Upload verified distributions and smoke summaries
         if: always()
         uses: actions/upload-artifact@v4
@@ -160,10 +173,11 @@ jobs:
             ${{ runner.temp }}/distribution/build/*.whl
             ${{ runner.temp }}/distribution/build/*.tar.gz
             ${{ runner.temp }}/distribution/*-smoke-summary.json
+            ${{ runner.temp }}/distribution/manifest.json
           if-no-files-found: ignore
 
   postgres:
-    if: github.repository == 'Ykontheway/konwledge'
+    if: github.repository == 'Ykontheway/knowledge'
     name: PostgreSQL ${{ matrix.postgres-version }} schema capture
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -176,13 +190,13 @@ jobs:
       postgres:
         image: postgres:${{ matrix.postgres-version }}
         env:
-          POSTGRES_USER: konwledge_test
-          POSTGRES_PASSWORD: konwledge_test
-          POSTGRES_DB: konwledge_test
+          POSTGRES_USER: knowledge_test
+          POSTGRES_PASSWORD: knowledge_test
+          POSTGRES_DB: knowledge_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U konwledge_test -d konwledge_test"
+          --health-cmd "pg_isready -U knowledge_test -d knowledge_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -191,8 +205,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          repository: Ykontheway/konwledge
-          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Install uv
@@ -207,11 +220,11 @@ jobs:
 
       - name: Test PostgreSQL schema capture
         env:
-          KNOWLEDGE_TEST_POSTGRES_DSN: postgresql+psycopg://konwledge_test:konwledge_test@127.0.0.1:5432/konwledge_test
+          KNOWLEDGE_TEST_POSTGRES_DSN: postgresql+psycopg://knowledge_test:knowledge_test@127.0.0.1:5432/knowledge_test
         run: uv run --no-sync pytest tests/test_database_schema_postgres.py
 
   web:
-    if: github.repository == 'Ykontheway/konwledge'
+    if: github.repository == 'Ykontheway/knowledge'
     name: Knowledge CI Workbench
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -223,8 +236,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          repository: Ykontheway/konwledge
-          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Install pnpm
@@ -249,7 +261,7 @@ jobs:
         run: pnpm verify:preview
 
   lancedb:
-    if: github.repository == 'Ykontheway/konwledge'
+    if: github.repository == 'Ykontheway/knowledge'
     name: Optional LanceDB adapter
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -258,8 +270,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          repository: Ykontheway/konwledge
-          ref: 3768ceba0719cd21916ea80ae175151a92d4ded1
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Install uv
@@ -275,15 +286,13 @@ jobs:
       - name: Test LanceDB adapter
         run: uv run pytest tests/test_indexing.py -k lance
 
-  # Preflight run 45151862632 passed every check; only marked commits opt into upload.
   publish:
-    name: Upload the verified PyPI 0.1.0 artifacts
+    name: Upload the verified knowledge-ykforward 0.1.0 artifacts
     needs: [quality, postgres, web, lancedb]
     if: >-
-      ${{ github.repository == 'Ykontheway/konwledge' &&
-          github.ref == 'refs/heads/aime/1793676007-v02-demo-web' &&
-          ((github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
-           (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish-pypi-0.1.0]'))) }}
+      ${{ github.repository == 'Ykontheway/knowledge' &&
+          (github.ref == 'refs/heads/aime/1793676007-v02-demo-web' || github.ref == 'refs/heads/main') &&
+          github.event_name == 'workflow_dispatch' && inputs.publish == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -302,20 +311,73 @@ jobs:
           name: distribution-3.11
           path: verified-distribution
 
-      - name: Reverify exact release digests
+      - name: Reverify constrained release manifest
         shell: bash
+        env:
+          RELEASE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          python3 -I - "verified-distribution/build" <<'PY'
+          python3 -I - "verified-distribution" <<'PY'
           import hashlib
+          import json
+          import os
+          import re
           import sys
           from pathlib import Path
 
-          build = Path(sys.argv[1])
+          distribution = Path(sys.argv[1])
+          build = distribution / "build"
           expected = {
-              "konwledge-0.1.0-py3-none-any.whl": "801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17",
-              "konwledge-0.1.0.tar.gz": "2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee",
+              "knowledge_ykforward-0.1.0-py3-none-any.whl",
+              "knowledge_ykforward-0.1.0.tar.gz",
           }
+          sha = os.environ.get("RELEASE_SHA", "")
+          if re.fullmatch(r"[0-9a-f]{40}", sha) is None:
+              raise SystemExit("Invalid workflow SHA")
+          if distribution.is_symlink() or not distribution.is_dir():
+              raise SystemExit("Release distribution directory is missing or invalid")
+          # 摘要只作为证据，绝不执行；拒绝 artifact 根目录中的额外文件或符号链接。
+          summaries = {"wheel-smoke-summary.json", "sdist-smoke-summary.json"}
+          root_names = {path.name for path in distribution.iterdir()}
+          if not {"build", "manifest.json"} <= root_names or root_names - {"build", "manifest.json"} - summaries:
+              raise SystemExit("Invalid distribution layout")
+          for name in root_names & summaries:
+              path = distribution / name
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit("Smoke summary must be a regular file")
+          manifest_path = distribution / "manifest.json"
+          if manifest_path.is_symlink() or not manifest_path.is_file():
+              raise SystemExit("Release manifest must be a regular file")
+          raw = manifest_path.read_bytes()
+          if len(raw) > 4096:
+              raise SystemExit("Invalid manifest size")
+
+          def unique_object(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise SystemExit("Duplicate manifest key")
+                  result[key] = value
+              return result
+
+          try:
+              manifest = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
+          except (ValueError, UnicodeError):
+              raise SystemExit("Invalid manifest JSON") from None
+          if not isinstance(manifest, dict) or set(manifest) != {"github_sha", "project_name", "version", "files"}:
+              raise SystemExit("Invalid manifest schema")
+          if manifest["github_sha"] != sha:
+              raise SystemExit("Manifest workflow SHA mismatch")
+          if manifest["project_name"] != "knowledge-ykforward":
+              raise SystemExit("Manifest project name mismatch")
+          if manifest["version"] != "0.1.0":
+              raise SystemExit("Manifest version mismatch")
+          digests = manifest["files"]
+          if not isinstance(digests, dict) or set(digests) != expected:
+              raise SystemExit("Manifest must name exactly the two fixed files")
+          for digest in digests.values():
+              if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                  raise SystemExit("Invalid manifest SHA256")
           if build.is_symlink() or not build.is_dir():
               raise SystemExit("Release build directory is missing or invalid")
           names = {path.name for path in build.iterdir()}
@@ -324,9 +386,9 @@ jobs:
               if marker.is_symlink() or not marker.is_file() or marker.read_bytes() not in (b"*", b"*\n"):
                   raise SystemExit("Invalid build-directory marker")
               names.remove(".gitignore")
-          if names != set(expected):
+          if names != expected:
               raise SystemExit("Release build must contain exactly the two fixed files")
-          for name, digest in expected.items():
+          for name, digest in digests.items():
               path = build / name
               if path.is_symlink() or not path.is_file():
                   raise SystemExit("Release artifact must be a regular file")
@@ -337,8 +399,8 @@ jobs:
       - name: Recheck release metadata strictly
         run: |
           uvx --python 3.11 --from twine==7.0.0 twine check --strict \
-            "verified-distribution/build/konwledge-0.1.0-py3-none-any.whl" \
-            "verified-distribution/build/konwledge-0.1.0.tar.gz"
+            "verified-distribution/build/knowledge_ykforward-0.1.0-py3-none-any.whl" \
+            "verified-distribution/build/knowledge_ykforward-0.1.0.tar.gz"
 
       - name: Upload to PyPI
         shell: bash
@@ -354,5 +416,5 @@ jobs:
             exit 1
           fi
           uv publish --trusted-publishing never --check-url https://pypi.org/simple/ --no-progress \
-            "verified-distribution/build/konwledge-0.1.0-py3-none-any.whl" \
-            "verified-distribution/build/konwledge-0.1.0.tar.gz"
+            "verified-distribution/build/knowledge_ykforward-0.1.0-py3-none-any.whl" \
+            "verified-distribution/build/knowledge_ykforward-0.1.0.tar.gz"

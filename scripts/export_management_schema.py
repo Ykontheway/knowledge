@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from konwledge.api.management_models import (
+from knowledge.api.management_models import (
     DiffItem,
     DiffQuery,
     DocumentDiffDTO,
@@ -28,7 +28,7 @@ if TYPE_CHECKING or __package__:
 else:
     from schema_utils import check_or_write, dump_json, insert_definition_strict
 
-SCHEMA_ID = "https://github.com/Ykontheway/konwledge/blob/main/web/src/management/schema.json"
+SCHEMA_ID = "https://github.com/Ykontheway/knowledge/blob/main/web/src/management/schema.json"
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "web" / "src" / "management" / "schema.json"
 
 

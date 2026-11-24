@@ -8,7 +8,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from konwledge import __version__
+from knowledge import __version__
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = PROJECT_ROOT / "pyproject.toml"
@@ -38,14 +38,13 @@ def test_release_metadata_is_coherent() -> None:
     project = pyproject["project"]
     assert isinstance(project, dict)
 
-    assert project["name"] == "konwledge"
+    assert project["name"] == "knowledge-ykforward"
     assert project["version"] == __version__ == "0.1.0"
     assert project["requires-python"] == ">=3.11"
     assert "Development Status :: 3 - Alpha" in project["classifiers"]
     assert project["scripts"] == {
-        "knowledge": "konwledge.cli:main",
-        "konwledge": "konwledge.cli:main",
-        "konwledge-mcp": "konwledge.mcp.server:main",
+        "knowledge": "knowledge.cli:main",
+        "knowledge-mcp": "knowledge.mcp.server:main",
     }
 
 
@@ -66,7 +65,7 @@ def test_lock_contains_matching_editable_project_record() -> None:
 
 
 def test_packaged_demo_corpus_is_available_via_importlib_resources() -> None:
-    corpus = resources.files("konwledge.demo").joinpath("corpus")
+    corpus = resources.files("knowledge.demo").joinpath("corpus")
     expected = {
         "deployment-guide.v1.md",
         "deployment-guide.v2.md",
@@ -81,17 +80,17 @@ def test_packaged_demo_corpus_is_available_via_importlib_resources() -> None:
 def test_root_public_api_is_lazy_and_matches_application_facade(tmp_path: Path) -> None:
     script = """
 import sys
-import konwledge
+import knowledge
 
-assert konwledge.__all__ == ["KnowledgeLibrary", "__version__"]
-assert {"KnowledgeLibrary", "__version__"} <= set(dir(konwledge))
-assert "konwledge.application" not in sys.modules
-implementation = konwledge.KnowledgeLibrary
-from konwledge.application import KnowledgeLibrary
+assert knowledge.__all__ == ["KnowledgeLibrary", "__version__"]
+assert {"KnowledgeLibrary", "__version__"} <= set(dir(knowledge))
+assert "knowledge.application" not in sys.modules
+implementation = knowledge.KnowledgeLibrary
+from knowledge.application import KnowledgeLibrary
 assert implementation is KnowledgeLibrary
-assert konwledge.KnowledgeLibrary is KnowledgeLibrary
+assert knowledge.KnowledgeLibrary is KnowledgeLibrary
 try:
-    konwledge.not_a_public_attribute
+    knowledge.not_a_public_attribute
 except AttributeError:
     pass
 else:
@@ -108,7 +107,7 @@ def test_version_command_needs_no_optional_lancedb_or_database(tmp_path: Path) -
     script = """
 import sys
 sys.modules["lancedb"] = None
-from konwledge.cli import main
+from knowledge.cli import main
 raise SystemExit(main(["--version"]))
 """
 
@@ -120,7 +119,7 @@ raise SystemExit(main(["--version"]))
 
 
 def test_packaged_type_marker_is_present() -> None:
-    assert resources.files("konwledge").joinpath("py.typed").is_file()
+    assert resources.files("knowledge").joinpath("py.typed").is_file()
 
 
 def test_api_extra_and_sdk_dependencies_remain_separate() -> None:
@@ -145,17 +144,17 @@ def test_core_only_root_api_and_cli_imports_are_lazy(tmp_path: Path) -> None:
 import sys
 for name in ("fastapi", "uvicorn", "openai", "langchain_openai", "httpx", "mcp"):
     sys.modules[name] = None
-import konwledge
-import konwledge.api
-from konwledge.cli import main
-assert "konwledge.api.server" not in sys.modules
+import knowledge
+import knowledge.api
+from knowledge.cli import main
+assert "knowledge.api.server" not in sys.modules
 assert main(["--version"]) == 0
 assert main(["--help"]) == 0
 assert main(["serve", "--help"]) == 0
 assert main(["mcp", "--help"]) == 0
 assert main(["mcp", "serve", "--help"]) == 0
-assert "konwledge.mcp.server" not in sys.modules
-assert "konwledge.api.server" not in sys.modules
+assert "knowledge.mcp.server" not in sys.modules
+assert "knowledge.api.server" not in sys.modules
 """
     result = _run_python(script, tmp_path)
     assert result.returncode == 0, result.stderr
@@ -169,13 +168,13 @@ def test_core_only_serve_reports_missing_optional_dependency(tmp_path: Path) -> 
 import sys
 sys.modules["fastapi"] = None
 sys.modules["uvicorn"] = None
-from konwledge.cli import main
+from knowledge.cli import main
 raise SystemExit(main(["serve", "--database", "existing.db"]))
 """
     result = _run_python(script, tmp_path)
 
     assert result.returncode == 1
-    assert "konwledge[api]" in result.stderr
+    assert "knowledge-ykforward[api]" in result.stderr
     assert "Traceback" not in result.stderr
     assert list(tmp_path.iterdir()) == [database]
     assert database.stat().st_size == 0
@@ -196,7 +195,7 @@ def test_mcp_optional_metadata_and_lock_keep_core_dependency_boundary() -> None:
     package = next(
         package
         for package in _load_toml(LOCK_PATH)["package"]
-        if package["name"] == "konwledge" and package.get("source") == {"editable": "."}
+        if package["name"] == "knowledge-ykforward" and package.get("source") == {"editable": "."}
     )
     assert {item["name"] for item in package["dependencies"]} == {
         "click",
@@ -219,11 +218,11 @@ def test_core_mcp_console_dependency_failure_is_safe_and_does_not_create_db(tmp_
     script = """
 import sys
 sys.modules['mcp'] = None
-from konwledge.mcp.server import main
+from knowledge.mcp.server import main
 raise SystemExit(main(['--database', 'missing.db']))
 """
     result = _run_python(script, tmp_path)
     assert result.returncode == 1 and result.stdout == ""
-    assert "pip install 'konwledge[mcp]'" in result.stderr
+    assert "pip install 'knowledge-ykforward[mcp]'" in result.stderr
     assert "Traceback" not in result.stderr and str(tmp_path) not in result.stderr
     assert list(tmp_path.iterdir()) == []

@@ -813,7 +813,7 @@ wheels = [
 ]
 
 [[package]]
-name = "konwledge"
+name = "knowledge-ykforward"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

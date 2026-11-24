@@ -1,6 +1,6 @@
 # 受控变更工作台（B4）
 
-B4 已在当前 feature 分支完成实现并通过隔离验收，但仍是 **Unreleased**：默认关闭、不自动打开、不发布到公开环境。它只面向 `scripts/prepare_mutation_demo.py` 生成的隔离演示库，用来演示“知识提交后立即触发评测、失败也保留审计”的完整链路。
+B4 的更名前实现与隔离验收已完成，旧结果见 [历史审计](releases/legacy-0.1.0.md#b4-受控变更)。当前新 distribution `knowledge-ykforward==0.1.0` 仍是未发布候选；受控变更默认关闭、不自动打开、不发布到公开环境。它只面向 `scripts/prepare_mutation_demo.py` 生成的隔离演示库，用来演示“知识提交后立即触发评测、失败也保留审计”的完整链路。
 
 相关导航：
 
@@ -17,7 +17,7 @@ B4 已在当前 feature 分支完成实现并通过隔离验收，但仍是 **Un
 uv run python scripts/prepare_mutation_demo.py
 ```
 
-脚本会新建一个独占、私有的运行目录，例如 `.konwledge/mutation-demo/<scope-id>/`，并输出这次运行的：
+脚本会新建一个独占、私有的运行目录，例如 `.knowledge/mutation-demo/<scope-id>/`，并输出这次运行的：
 
 - `manifest`：`mutation-manifest.json`
 - `database`：隔离副本里的 `knowledge.db`
@@ -141,9 +141,9 @@ B4 不做“改完就结束”的孤立页面，直接接到 B3 的证据导航�
 
 ## 已有验收事实
 
-B4 最后一次隔离验收报告位于：
+B4 最后一次历史隔离验收报告及原路径见下方审计链接；以下数量不属于本次更名验证：
 
-- [`.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json`](../.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json)
+- [B4 原始运行记录](releases/legacy-0.1.0.md#b4-受控变更)
 
 报告结论：
 
@@ -159,7 +159,7 @@ B4 最后一次隔离验收报告位于：
   - 历史失败、Diff 和证据仍可回查。
 - B4 完整 driver 另跑已通过，`children_stopped=true`。
 - 静态渲染检查显示 `#changes` 初始页面布局正常、无 console errors；恢复入口静态中间状态显示清楚。这里仅说明静态页面检查结果，真实交互验收来自 jsdom + HTTP driver。
-- 发行验证 `scripts/verify_distribution.py --output-dir .konwledge/b4-final-distribution-verified` 已通过 wheel／sdist 隔离安装 smoke；这不代表已发布，本次也没有做发布动作。
+- 历史发行验证的原目录与通过记录见 [B4 审计](releases/legacy-0.1.0.md#b4-受控变更)；这不代表已发布，本次也没有做发布动作。
 - 生产 build 仍有 584.87 kB chunk 体积提醒，属于后续可优化项，不是功能失败。
 
 本轮前端 `pnpm verify` 已包含 mutationtypecheck 和 check:mutations，typecheck、类型漂移、测试和 build 全通过，结果为 `352 passed / 2 skipped`。两个 skipped 是需要联调服务环境的 live acceptance 默认跳过，不是假失败。

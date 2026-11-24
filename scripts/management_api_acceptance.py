@@ -26,15 +26,15 @@ if str(SRC) not in sys.path:
 
 import httpx  # noqa: E402
 
-from konwledge.api.app import create_app  # noqa: E402
-from konwledge.application import KnowledgeLibrary  # noqa: E402
-from konwledge.storage import create_session_factory, create_sqlite_engine  # noqa: E402
+from knowledge.api.app import create_app  # noqa: E402
+from knowledge.application import KnowledgeLibrary  # noqa: E402
+from knowledge.storage import create_session_factory, create_sqlite_engine  # noqa: E402
 
 PREFIX = "/v1/management"
 DEFAULT_DATABASE = Path(
-    ".konwledge/real-knowledge-acceptance/20261113T062525019181Z-11d25751/knowledge.db"
+    ".knowledge/real-knowledge-acceptance/20261113T062525019181Z-11d25751/knowledge.db"
 )
-DEFAULT_REPORT = Path(".konwledge/b1-management-acceptance.json")
+DEFAULT_REPORT = Path(".knowledge/b1-management-acceptance.json")
 WRITE_VERBS = {"POST", "PUT", "PATCH", "DELETE"}
 FORBIDDEN_TEXT_KEYS = {"text", "query"}
 FORBIDDEN_SAFE_KEYS = {"metadata", "locator", "rawlocator", "rawpayload"}

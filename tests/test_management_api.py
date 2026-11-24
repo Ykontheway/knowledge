@@ -20,13 +20,13 @@ from pydantic import ValidationError
 from sqlalchemy import Engine, delete, event, insert, select, text, update
 from sqlalchemy.exc import OperationalError
 
-from konwledge.api import management_models as models
-from konwledge.api.app import create_app
-from konwledge.api.management import build_management_router
-from konwledge.api.management_service import ManagementService
-from konwledge.application import KnowledgeLibrary
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
-from konwledge.storage.tables import (
+from knowledge.api import management_models as models
+from knowledge.api.app import create_app
+from knowledge.api.management import build_management_router
+from knowledge.api.management_service import ManagementService
+from knowledge.application import KnowledgeLibrary
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.storage.tables import (
     AutoEvaluationJobRow,
     Base,
     DocumentRow,
@@ -594,7 +594,7 @@ def test_real_runner_passed_failed_passed_management_navigation(tmp_path: Path) 
 
 @pytest.mark.parametrize("missing", ["document", "source"])
 def test_orphan_history_returns_safe_gone(store: Fixture, missing: str) -> None:
-    from konwledge.storage.tables import SourceRow
+    from knowledge.storage.tables import SourceRow
 
     # 模拟历史库损坏, 仅在一次性测试库关闭 FK, finally 立即恢复。
     with store.engine.connect() as connection:

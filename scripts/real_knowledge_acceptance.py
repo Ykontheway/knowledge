@@ -1,7 +1,7 @@
 """真实项目文档的隔离验收: 默认绝对门禁, 不自动认可或更新人工基线。
 
 运行: uv run python scripts/real_knowledge_acceptance.py \
-    --output-dir .konwledge/real-knowledge-acceptance
+    --output-dir .knowledge/real-knowledge-acceptance
 
 只有最初 quality run 是显式完整评测。后续任务全部由 knowledge import 的
 生产事务 hook 触发, 不调用 auto-evaluation run/retry/drain。
@@ -25,11 +25,11 @@ from pathlib import Path
 from typing import Any, TypedDict, cast
 from uuid import UUID, uuid4
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.domain import EvaluationItem, EvaluationSet
-from konwledge.domain.evaluation import dump_evaluation_set
-from konwledge.quality import QualityPolicy
-from konwledge.storage import UnitOfWork, create_session_factory, create_sqlite_engine
+from knowledge.application import KnowledgeLibrary
+from knowledge.domain import EvaluationItem, EvaluationSet
+from knowledge.domain.evaluation import dump_evaluation_set
+from knowledge.quality import QualityPolicy
+from knowledge.storage import UnitOfWork, create_session_factory, create_sqlite_engine
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATHS = ("docs/auto-evaluation.md", "docs/acceptance.md")
@@ -573,7 +573,7 @@ def run_acceptance(output_dir: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="真实项目文档变更自动评测隔离验收")
     parser.add_argument(
-        "--output-dir", type=Path, default=Path(".konwledge/real-knowledge-acceptance")
+        "--output-dir", type=Path, default=Path(".knowledge/real-knowledge-acceptance")
     )
     args = parser.parse_args()
     report_path = run_acceptance(args.output_dir)

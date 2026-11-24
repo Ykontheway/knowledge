@@ -18,10 +18,10 @@ from sqlalchemy import event, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.domain import EvaluationItem, EvaluationSet
-from konwledge.evaluation import EvaluationService
-from konwledge.mcp.controlled import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.domain import EvaluationItem, EvaluationSet
+from knowledge.evaluation import EvaluationService
+from knowledge.mcp.controlled import (
     CONTROLLED_TOOL_ANNOTATIONS,
     CONTROLLED_TOOL_INPUTS,
     CONTROLLED_TOOL_OUTPUTS,
@@ -29,7 +29,7 @@ from konwledge.mcp.controlled import (
     McpControlledService,
     open_controlled_runtime,
 )
-from konwledge.mcp.controlled_models import (
+from knowledge.mcp.controlled_models import (
     ApplyDocumentUpdateInput,
     EmptyInput,
     GetMutationCommandInput,
@@ -38,11 +38,11 @@ from konwledge.mcp.controlled_models import (
     McpPreviewDTO,
     PreviewDocumentUpdateInput,
 )
-from konwledge.mcp.controlled_tables import McpApprovalRow
-from konwledge.mcp.models import McpModel
-from konwledge.mutations.tables import create_mutation_schema
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
-from konwledge.storage.tables import Base
+from knowledge.mcp.controlled_tables import McpApprovalRow
+from knowledge.mcp.models import McpModel
+from knowledge.mutations.tables import create_mutation_schema
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.storage.tables import Base
 
 ACTOR = "demo-editor"
 
@@ -56,7 +56,7 @@ class DemoSeed:
 
 def make_demo(tmp_path: Path) -> DemoSeed:
     """复制最小 B4 核心 fixture；全新隔离库，不 import scripts/旧 tests。"""
-    root = tmp_path / ".konwledge" / "mutation-demo"
+    root = tmp_path / ".knowledge" / "mutation-demo"
     root.mkdir(parents=True, mode=0o700)
     scope = root / str(uuid4())
     scope.mkdir(mode=0o700)
@@ -94,7 +94,7 @@ def make_demo(tmp_path: Path) -> DemoSeed:
         manifest.write_text(
             json.dumps(
                 {
-                    "kind": "konwledge-mutation-demo-v1",
+                    "kind": "knowledge-mutation-demo-v1",
                     "scope_id": scope.name,
                     "database": database.relative_to(scope).as_posix(),
                     "allowed_source_ids": [str(result.ingestion.document.source_id)],
@@ -244,7 +244,7 @@ def test_strict_text(bad: object) -> None:
 
 
 def test_global_default_schema_isolation() -> None:
-    importlib.import_module("konwledge.mcp.controlled_tables")
+    importlib.import_module("knowledge.mcp.controlled_tables")
     assert "mcp_approvals" not in Base.metadata.tables
     engine = create_sqlite_engine("sqlite://")
     try:
@@ -668,7 +668,7 @@ def test_authoritative_expiry_inside_b4_transaction(
     before = counts(seed)
     original = service._writer._commit_command
 
-    from konwledge.storage import UnitOfWork
+    from knowledge.storage import UnitOfWork
 
     def expired_at_commit(uow: UnitOfWork, command_id: UUID, fingerprint: str) -> None:
         # B4 已创建待提交知识事实，此时最终 guard 拒绝必须一起 rollback。
@@ -808,10 +808,10 @@ def test_dynamic_import_without_sdk_scripts_default_base() -> None:
 
     code = (
         "import importlib,sys; "
-        "from konwledge.storage.tables import Base; "
+        "from knowledge.storage.tables import Base; "
         "before=set(Base.metadata.tables); "
-        "importlib.import_module('konwledge.mcp.controlled'); "
-        "importlib.import_module('konwledge.mcp.approval_cli'); "
+        "importlib.import_module('knowledge.mcp.controlled'); "
+        "importlib.import_module('knowledge.mcp.approval_cli'); "
         "assert before==set(Base.metadata.tables); "
         "assert 'mcp_approvals' not in Base.metadata.tables; "
         "assert 'mcp' not in sys.modules; "

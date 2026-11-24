@@ -18,14 +18,14 @@ from uuid import UUID, uuid4
 import pytest
 from typer.testing import CliRunner, Result
 
-from konwledge import cli
-from konwledge.application import KnowledgeLibrary
-from konwledge.context import ContextPacket, TokenContextPacket, TokenCounter
-from konwledge.conversations import ConversationImportResult, ConversationReview
-from konwledge.domain import EvaluationItem, EvaluationSet
-from konwledge.evaluation import dump_evaluation_set
-from konwledge.retrieval import RetrievalResult
-from konwledge.storage import (
+from knowledge import cli
+from knowledge.application import KnowledgeLibrary
+from knowledge.context import ContextPacket, TokenContextPacket, TokenCounter
+from knowledge.conversations import ConversationImportResult, ConversationReview
+from knowledge.domain import EvaluationItem, EvaluationSet
+from knowledge.evaluation import dump_evaluation_set
+from knowledge.retrieval import RetrievalResult
+from knowledge.storage import (
     create_schema,
     create_session_factory,
     create_sqlite_engine,
@@ -52,7 +52,7 @@ def run_cli(*arguments: str, input_text: str | None = None) -> subprocess.Comple
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path("src").resolve())
     return subprocess.run(
-        [sys.executable, "-m", "konwledge", *arguments],
+        [sys.executable, "-m", "knowledge", *arguments],
         input=input_text,
         capture_output=True,
         text=True,
@@ -432,7 +432,7 @@ def test_missing_token_dependency_fails_before_database_creation(
         assert package is None
         raise ModuleNotFoundError(name)
 
-    monkeypatch.setattr("konwledge.context.tokens.importlib.import_module", missing_import)
+    monkeypatch.setattr("knowledge.context.tokens.importlib.import_module", missing_import)
     result = invoke(
         "context",
         ANSWER_TOKEN,

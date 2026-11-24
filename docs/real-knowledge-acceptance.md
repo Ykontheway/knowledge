@@ -9,7 +9,7 @@
 ```bash
 uv sync --locked --dev
 uv run python scripts/real_knowledge_acceptance.py \
-  --output-dir .konwledge/real-knowledge-acceptance
+  --output-dir .knowledge/real-knowledge-acceptance
 ```
 
 runner 每次创建独立目录和文件型 SQLite，不复用旧库、不覆盖旧报告。运行目录包含 `knowledge.db`、固定 `evaluation.json`、原始备份、可变副本、各阶段报告及汇总 `report.json`。全部运行数据位于 gitignore 范围，不进入 Git。
@@ -18,7 +18,7 @@ runner 每次创建独立目录和文件型 SQLite，不复用旧库、不覆盖
 
 ## 本次实际结果
 
-执行来源提交为 `acd1c2adf1eba3d29cde2413cd8feecc1d3428fc`。成功运行目录是 `.konwledge/real-knowledge-acceptance/20261113T062525019181Z-11d25751/`。具体运行标识仅用于定位本次记录，重新执行会生成新的目录、UUID 与时间。
+本节是 2026-11-13 的历史验收，源码提交、成功运行目录与固定数据集 hash 见 [原运行审计](releases/legacy-0.1.0.md#真实文档运行身份)。旧路径保持原样，重新执行会生成新的目录、UUID 与时间，不把旧记录改名为新运行。
 
 初次导入 2 份文档、11 个知识单元。评测集包含 4 条用例，3 条有答案，其中一条要求两份证据；另有一条无答案问题。
 
@@ -42,7 +42,7 @@ Precision@5 在正向和恢复阶段为 0.266667，故障时为 0.2。这些值�
 - 恢复新增 passed 任务，保留原 failed 任务及报告；恢复发布原始知识版本，不伪造新版本号。
 - 目标章节保留原始、正向与故障三个知识版本，恢复后原始版本重新 active，其余 superseded。
 - 启用后原样导入的任务数保持 0 → 0，恢复后原样导入保持 3 → 3；知识快照、任务 ID 列表均未变化。
-- 数据集 v1 hash 在三次任务间固定为 `1267746d99bf9114891b7667762d25056c6932a110b55db61093eb13df906787`，配置与策略也保持一致。
+- 数据集 v1 hash 在三次任务间保持固定，原值见 [运行身份审计](releases/legacy-0.1.0.md#真实文档运行身份)，配置与策略也保持一致。
 - 每个任务均检查触发 revision、知识指纹、检查项与指标，CLI `history/show` 的 JSON 与持久化结果一致。
 
 ## 证据与复现

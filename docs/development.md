@@ -2,7 +2,7 @@
 
 本页说明当前实现为何按能力依赖组织，以及修改时应检查哪些代码与测试。产品入口见 [README](../README.md)，机制约束见 [当前架构](architecture.md)，SDK／CLI 用法见 [核心参考](core-reference.md)。
 
-版本仍为 **`0.1.0` prepared alpha**，已有实现不等于正式发行或生产部署。包名 `konwledge`、主 CLI `knowledge`、兼容 CLI `konwledge` 与 stdio 入口 `konwledge-mcp` 保持不变。
+版本仍为 **`0.1.0` Alpha 候选**，新 distribution `knowledge-ykforward` 尚未发布。Python 导入为 `knowledge`，CLI 仅有 `knowledge` 与 `knowledge-mcp`，旧 import／CLI 不再兼容；已有实现不等于生产部署，见 [迁移说明](migration-to-knowledge.md)。
 
 ## 能力按事实依赖推进
 
@@ -12,15 +12,15 @@
 
 | 能力 | 依赖与修改重点 | 代码入口 | 对应测试 |
 | --- | --- | --- | --- |
-| 版本事实与事务 | 不可变文档／span 单元、lineage、revision／publication；知识与 FTS 一起提交 | `src/konwledge/domain/`、`src/konwledge/ingestion/service.py`、`src/konwledge/lifecycle/service.py`、`src/konwledge/storage/unit_of_work.py`、`src/konwledge/storage/full_text.py` | `tests/test_domain_models.py`、`tests/test_ingestion.py`、`tests/test_lifecycle.py`、`tests/test_storage.py`、`tests/test_full_text.py` |
-| 资格检索与证据 | 从版本日志还原资格，先过滤再限候选；引用绑定 normalized span，整块选取 | `src/konwledge/retrieval/service.py`、`src/konwledge/context/citations.py`、`src/konwledge/context/service.py` | `tests/test_retrieval.py`、`tests/test_citations.py`、`tests/test_context.py`、`tests/test_freshness.py` |
-| 固定评测 | 数据集不可变，报告可比，baseline 人工提升，质量 gate fail-closed | `src/konwledge/evaluation/`、`src/konwledge/quality/service.py` | `tests/test_evaluation_models.py`、`tests/test_evaluation_service.py`、`tests/test_evaluation_gates.py`、`tests/test_quality_contract.py` |
-| 变更驱动 CI | 同事务 outbox，提交后同步评测；lease／retry 只恢复评测 | `src/konwledge/storage/auto_evaluation.py`、`src/konwledge/auto_evaluation/service.py` | `tests/test_auto_evaluation.py`、`tests/test_auto_evaluation_integration.py`、`tests/test_auto_evaluation_end_to_end.py` |
-| 安全 read projection | 专用只读连接、strict DTO 白名单、历史证据；静态回放沿用读模型 | `src/konwledge/api/management_service.py`、`src/konwledge/api/management_models.py`、`src/konwledge/replay/` | `tests/test_management_api.py`、`tests/test_management_schema.py`、`tests/test_replay.py` |
-| controlled 命令 | scope／actor、preview、command、幂等原子提交；带外 grant；未知结果原键回查 | `src/konwledge/mutations/service.py`、`src/konwledge/mcp/controlled.py`、`src/konwledge/mcp/approval_cli.py` | `tests/test_mutations_integration.py`、`tests/test_mcp_controlled_service.py`、`tests/test_mcp_approval_cli.py` |
-| Agent 与 workbench | 默认 MCP 只读；工作台复用 DTO、导航与报告，受控入口显式启用 | `src/konwledge/mcp/service.py`、`web/src/management/`、`web/src/evaluation/`、`web/src/mutations/`、`scripts/workbench.py` | `tests/test_mcp_protocol.py`、`tests/test_mcp_service.py`、`tests/test_workbench_evaluation_acceptance.py`、`tests/test_mutation_workbench_acceptance.py` |
+| 版本事实与事务 | 不可变文档／span 单元、lineage、revision／publication；知识与 FTS 一起提交 | `src/knowledge/domain/`、`src/knowledge/ingestion/service.py`、`src/knowledge/lifecycle/service.py`、`src/knowledge/storage/unit_of_work.py`、`src/knowledge/storage/full_text.py` | `tests/test_domain_models.py`、`tests/test_ingestion.py`、`tests/test_lifecycle.py`、`tests/test_storage.py`、`tests/test_full_text.py` |
+| 资格检索与证据 | 从版本日志还原资格，先过滤再限候选；引用绑定 normalized span，整块选取 | `src/knowledge/retrieval/service.py`、`src/knowledge/context/citations.py`、`src/knowledge/context/service.py` | `tests/test_retrieval.py`、`tests/test_citations.py`、`tests/test_context.py`、`tests/test_freshness.py` |
+| 固定评测 | 数据集不可变，报告可比，baseline 人工提升，质量 gate fail-closed | `src/knowledge/evaluation/`、`src/knowledge/quality/service.py` | `tests/test_evaluation_models.py`、`tests/test_evaluation_service.py`、`tests/test_evaluation_gates.py`、`tests/test_quality_contract.py` |
+| 变更驱动 CI | 同事务 outbox，提交后同步评测；lease／retry 只恢复评测 | `src/knowledge/storage/auto_evaluation.py`、`src/knowledge/auto_evaluation/service.py` | `tests/test_auto_evaluation.py`、`tests/test_auto_evaluation_integration.py`、`tests/test_auto_evaluation_end_to_end.py` |
+| 安全 read projection | 专用只读连接、strict DTO 白名单、历史证据；静态回放沿用读模型 | `src/knowledge/api/management_service.py`、`src/knowledge/api/management_models.py`、`src/knowledge/replay/` | `tests/test_management_api.py`、`tests/test_management_schema.py`、`tests/test_replay.py` |
+| controlled 命令 | scope／actor、preview、command、幂等原子提交；带外 grant；未知结果原键回查 | `src/knowledge/mutations/service.py`、`src/knowledge/mcp/controlled.py`、`src/knowledge/mcp/approval_cli.py` | `tests/test_mutations_integration.py`、`tests/test_mcp_controlled_service.py`、`tests/test_mcp_approval_cli.py` |
+| Agent 与 workbench | 默认 MCP 只读；工作台复用 DTO、导航与报告，受控入口显式启用 | `src/knowledge/mcp/service.py`、`web/src/management/`、`web/src/evaluation/`、`web/src/mutations/`、`scripts/workbench.py` | `tests/test_mcp_protocol.py`、`tests/test_mcp_service.py`、`tests/test_workbench_evaluation_acceptance.py`、`tests/test_mutation_workbench_acceptance.py` |
 
-对话候选与 schema 捕获是其他来源入口，也要接回相同的版本与发布事实。改动分别检查 `src/konwledge/conversations/service.py` 与 `tests/test_conversation_core.py`、`src/konwledge/database_schema/service.py` 与 `tests/test_database_schema_core.py`；schema-only 不得变成业务行采集。
+对话候选与 schema 捕获是其他来源入口，也要接回相同的版本与发布事实。改动分别检查 `src/knowledge/conversations/service.py` 与 `tests/test_conversation_core.py`、`src/knowledge/database_schema/service.py` 与 `tests/test_database_schema_core.py`；schema-only 不得变成业务行采集。
 
 ## 运行依赖按能力安装
 
@@ -44,11 +44,11 @@
 
 | 设计选择 | 检查位置 | 评审问题 |
 | --- | --- | --- |
-| 日志与当前缓存分开 | `src/konwledge/lifecycle/service.py`、`tests/test_status.py`、`tests/test_freshness.py` | as-of 是否回到日志？移动或原样沿用是否误续 TTL？ |
-| 资格过滤前置 | `src/konwledge/retrieval/service.py`、`tests/test_retrieval.py` | 每条路由是否在 `candidate_limit` 前排除无资格版本？RRF 是否只融排名？ |
-| 引用可复算 | `src/konwledge/context/citations.py`、`tests/test_citations.py` | UUID5 是否绑定 exact 版本、字符范围与 quote hash？超预算时是否跳过整块？ |
-| 提交与质量结论分开 | `src/konwledge/storage/unit_of_work.py`、`tests/test_auto_evaluation_integration.py`、`tests/test_mutations_integration.py` | outbox 是否同事务？评测失败是否错误回滚知识？ |
-| 写权限与恢复单独校验 | `src/konwledge/mcp/controlled.py`、`tests/test_mcp_controlled_service.py` | grant 是否同事务消费？未知结果是否只原键回查？ |
+| 日志与当前缓存分开 | `src/knowledge/lifecycle/service.py`、`tests/test_status.py`、`tests/test_freshness.py` | as-of 是否回到日志？移动或原样沿用是否误续 TTL？ |
+| 资格过滤前置 | `src/knowledge/retrieval/service.py`、`tests/test_retrieval.py` | 每条路由是否在 `candidate_limit` 前排除无资格版本？RRF 是否只融排名？ |
+| 引用可复算 | `src/knowledge/context/citations.py`、`tests/test_citations.py` | UUID5 是否绑定 exact 版本、字符范围与 quote hash？超预算时是否跳过整块？ |
+| 提交与质量结论分开 | `src/knowledge/storage/unit_of_work.py`、`tests/test_auto_evaluation_integration.py`、`tests/test_mutations_integration.py` | outbox 是否同事务？评测失败是否错误回滚知识？ |
+| 写权限与恢复单独校验 | `src/knowledge/mcp/controlled.py`、`tests/test_mcp_controlled_service.py` | grant 是否同事务消费？未知结果是否只原键回查？ |
 
 新增行为须补对应边界测试，再更新文档或生成 schema；不能只更新页面提示，让服务端仍接受越界输入。
 
@@ -106,13 +106,8 @@ PR 目标分支为 `main`。通过 CI 不自动授权 merge、tag、GitHub Relea
 | 存储与运维 | 显式事务、只读投影、schema 与 drift 校验 | 备份／恢复演练、并发与锁竞争、迁移、监控、高可用及服务回滚 |
 | 平台与界面 | 本机工作台、默认只读 Agent 接口、公开静态 replay | macOS／Windows 等平台实测，live 服务部署；公开预览不连接业务库 |
 
-2026-11-23 已上线 [静态预览](https://ykontheway.github.io/konwledge/)，它使用固定公开合成数据。实现完成、包发行与生产上线分别记录，不用静态网站状态替代后两项。
+2026-11-23 旧静态预览的发布与验收见 [历史审计](releases/legacy-0.1.0.md#静态回放发布与验收)，它仅使用固定公开合成数据。更名后的新地址尚待验证；实现完成、新包发行与生产上线分别记录。
 
 历史 U／B 编号、阶段计划和验收记录归档在 [integrated-demo-roadmap.md](integrated-demo-roadmap.md)，仅供追溯。当前依赖以本页和架构为准；历史记录不能成为新测试统计或自动开工、合并、发布的依据。
 
-<!-- 文档校对记录
-本次仅压缩 development 的校对记录，正文只做结构与表述整理，不改依赖关系、命令、代码路径和评审边界。
-关键机制、验证入口和生产边界未变，技术片段和表格保持原意。
-已做中文半角标点机械扫描，结果为 0；代码、命令、路径、URL 中的半角语法按规则豁免。
-本记录只覆盖文档校对范围，不代表代码验证、发布或部署结论。
--->
+<!-- 本次更名更新包名、import、CLI、运行路径和历史审计链接；没有运行代码、发行验证或部署。 -->

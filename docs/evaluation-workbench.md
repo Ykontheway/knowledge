@@ -10,7 +10,7 @@ B3 已完成 V4 只读评测对照、手动阶段导览和有界轮询，并通�
 uv sync --locked --dev
 (cd web && pnpm install --frozen-lockfile)
 uv run python scripts/real_knowledge_acceptance.py \
-  --output-dir .konwledge/real-knowledge-acceptance
+  --output-dir .knowledge/real-knowledge-acceptance
 ```
 
 确认 seed 验收输出 `status` 为 `passed`，将它实际输出的 `report.json` 父目录代入启动命令：
@@ -85,13 +85,15 @@ B1 只提供安全汇总，没有 case-level query 或 cases 明细。B3 因此�
 uv run python scripts/workbench_evaluation_acceptance.py
 ```
 
-每次输出唯一 run ID，报告为 `.konwledge/workbench-evaluation-acceptance/<run-id>/report.json`，按其中 `artifacts` 查 seed report 和 frontend summary。不要把某次 ID 写死到通用命令。driver 在自己的运行目录生成 SQLite 和真实项目文档副本，正式 CLI 导入只写副本，不改仓库原始 docs 或用户业务库。
+每次输出唯一 run ID，报告为 `.knowledge/workbench-evaluation-acceptance/<run-id>/report.json`，按其中 `artifacts` 查 seed report 和 frontend summary。不要把某次 ID 写死到通用命令。driver 在自己的运行目录生成 SQLite 和真实项目文档副本，正式 CLI 导入只写副本，不改仓库原始 docs 或用户业务库。
 
 验收启动临时 loopback backend 与 Vite dev proxy，通过真实前端 client、运行时 DTO、comparison engine 和 jsdom UI 发真实 HTTP。副本再次 CLI import 后，检查新任务、UI 提示、原选择和旧失败报告。临时 secret 只注入服务子进程环境，不放命令参数或原始错误报告；命令 stdout／stderr 仅记录 hash。临时进程在 finally 中关闭。
 
-2026-11-16 在最终页面修订后复跑成功，run ID 为 `20261116T042018921245Z-951ad2f7`。seed 正常 → 故障 → 恢复的 mean Recall 为 `1 → 0.666667 → 1`；normal → fault 的 `mean_recall_delta=-0.33333333333333337`，fault → restore 为 `+0.33333333333333337`。再次 CLI import 产生 passed 新任务，UI 新任务提示可见，selection 与旧 failure 保留，`children_stopped=true`。这是 jsdom UI 与真实 HTTP dev proxy 联调，不是浏览器整链点击或视觉验收。
+2026-11-16 最终历史运行的原 ID 及报告位置见 [运行审计](releases/legacy-0.1.0.md#真实文档运行身份)。seed 正常 → 故障 → 恢复的 mean Recall 为 `1 → 0.666667 → 1`；normal → fault 的 `mean_recall_delta=-0.33333333333333337`，fault → restore 为 `+0.33333333333333337`。再次 CLI import 产生 passed 新任务，UI 新任务提示可见，selection 与旧 failure 保留，`children_stopped=true`。这是 jsdom UI 与真实 HTTP dev proxy 联调，不是浏览器整链点击或视觉验收。
 
 ## 回归命令与验收记录
+
+以下统计来自 B3 历史阶段，不是本次更名验证；原运行身份见 [审计](releases/legacy-0.1.0.md#真实文档运行身份)。
 
 ```bash
 uv run python scripts/export_management_schema.py --check

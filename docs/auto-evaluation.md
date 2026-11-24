@@ -7,11 +7,11 @@
 先按现有 `EvaluationSet` 格式制作并导入项目自己的评测集，期望答案使用稳定的 lineage ID。公开的 30 条验收基准用于验证工具，不替代业务评测集；冻结的 6 条 Demo 包含主动查询过期知识的用例，也不能直接当作默认严格质量策略的业务基线。
 
 ```bash
-knowledge evaluation import your-evaluation.json -d .konwledge/knowledge.db
+knowledge evaluation import your-evaluation.json -d .knowledge/knowledge.db
 knowledge auto-evaluation enable --set-id <set-id> --version 1 \
-  -d .konwledge/knowledge.db
-knowledge auto-evaluation status -d .konwledge/knowledge.db
-knowledge auto-evaluation run -d .konwledge/knowledge.db
+  -d .knowledge/knowledge.db
+knowledge auto-evaluation status -d .knowledge/knowledge.db
+knowledge auto-evaluation run -d .knowledge/knowledge.db
 ```
 
 `enable` 固定数据集 ID、版本、内容 hash、检索参数和策略，仅保存配置，不认定已有知识合格。可用 `--policy-json` 指定质量策略，用 `--baseline-json` 和 `--regression-policy-json` 指定经人工审核的回归基线与策略。缺少基线时不能启用回归策略；新评测集版本需要显式重新绑定。
@@ -32,12 +32,12 @@ knowledge auto-evaluation run -d .konwledge/knowledge.db
 同一外层事务合并为一个任务；嵌套事务提交后等待外层提交，回滚不留下任务。原样重导、重复终态审批、查询、评测集导入，以及只读 HTTP 请求不触发评测。直接改 SQLite 行、绕过 revision 的写入不属于自动触发接口。
 
 ```bash
-knowledge import ./knowledge -d .konwledge/knowledge.db
-knowledge auto-evaluation history -d .konwledge/knowledge.db
-knowledge auto-evaluation show <job-id> -d .konwledge/knowledge.db
-knowledge auto-evaluation retry <job-id> -d .konwledge/knowledge.db
-knowledge auto-evaluation recover -d .konwledge/knowledge.db
-knowledge auto-evaluation disable -d .konwledge/knowledge.db
+knowledge import ./knowledge -d .knowledge/knowledge.db
+knowledge auto-evaluation history -d .knowledge/knowledge.db
+knowledge auto-evaluation show <job-id> -d .knowledge/knowledge.db
+knowledge auto-evaluation retry <job-id> -d .knowledge/knowledge.db
+knowledge auto-evaluation recover -d .knowledge/knowledge.db
+knowledge auto-evaluation disable -d .knowledge/knowledge.db
 ```
 
 变更命令把新增任务摘要写到 stderr，普通结果或 JSON 仍写到 stdout。任一新增任务未通过时，CLI 返回 `3`，同时明确提示 `knowledge committed; evaluation did not pass`。这个退出码表示知识已提交但评测未通过，不能当作导入未发生而盲目重试。SDK 保持正常返回，通过 `library.automatic_evaluation.history()` 查看评测结果。

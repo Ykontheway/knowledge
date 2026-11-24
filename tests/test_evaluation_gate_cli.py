@@ -14,10 +14,10 @@ from uuid import UUID, uuid4
 import pytest
 from typer.testing import CliRunner, Result
 
-from konwledge import cli
-from konwledge.application import KnowledgeLibrary
-from konwledge.domain import EvaluationItem
-from konwledge.evaluation import (
+from knowledge import cli
+from knowledge.application import KnowledgeLibrary
+from knowledge.domain import EvaluationItem
+from knowledge.evaluation import (
     EvaluationBaseline,
     EvaluationComparison,
     EvaluationReport,
@@ -32,8 +32,8 @@ from konwledge.evaluation import (
     score_ranked_lineages,
     validate_evaluation_report,
 )
-from konwledge.retrieval import RetrievalMode
-from konwledge.storage import create_session_factory, create_sqlite_engine
+from knowledge.retrieval import RetrievalMode
+from knowledge.storage import create_session_factory, create_sqlite_engine
 
 runner = CliRunner()
 
@@ -428,7 +428,7 @@ def test_main_and_python_module_process(report_file: Path, tmp_path: Path) -> No
         [
             sys.executable,
             "-m",
-            "konwledge",
+            "knowledge",
             "evaluation",
             "compare",
             str(baseline),

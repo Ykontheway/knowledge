@@ -7,15 +7,15 @@ from uuid import UUID
 
 import pytest
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.conversations import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.conversations import (
     CandidateNotFoundError,
     CandidateStateError,
     CandidateStatus,
     ConversationVersionConflictError,
 )
-from konwledge.domain import SourceKind
-from konwledge.storage import (
+from knowledge.domain import SourceKind
+from knowledge.storage import (
     UnitOfWork,
     create_schema,
     create_session_factory,

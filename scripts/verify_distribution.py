@@ -20,6 +20,10 @@ from email.parser import Parser
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+# 发行元数据、构建归一化名与 Python 导入名是独立契约，不能互相推导。
+DISTRIBUTION_NAME = "knowledge-ykforward"
+PACKAGE_NAME = "knowledge"
+RELEASE_VERSION = "0.1.0"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_smoke.py"
@@ -30,7 +34,7 @@ POSTGRES_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_postgres_smoke.py"
 MCP_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_mcp_smoke.py"
 MCP_CONTROLLED_SMOKE_SCRIPT = PROJECT_ROOT / "scripts" / "installed_mcp_controlled_smoke.py"
 MCP_MODULES = tuple(
-    f"konwledge/mcp/{name}.py"
+    f"knowledge/mcp/{name}.py"
     for name in (
         "__init__",
         "models",
@@ -75,7 +79,7 @@ MCP_CONTROLLED_CHECKS = (
     "stdio_eof_no_orphans_no_secret_output",
 )
 API_MODULES = tuple(
-    f"konwledge/api/{name}.py"
+    f"knowledge/api/{name}.py"
     for name in (
         "__init__",
         "app",
@@ -87,7 +91,7 @@ API_MODULES = tuple(
     )
 )
 MUTATION_MODULES = tuple(
-    f"konwledge/mutations/{name}.py"
+    f"knowledge/mutations/{name}.py"
     for name in ("__init__", "models", "tables", "safety", "service", "router")
 )
 SCHEMA_SDIST_FILES = (
@@ -117,22 +121,22 @@ MUTATION_SDIST_FILES = (
     "web/src/mutations/tests/live-acceptance.test.ts",
 )
 QUALITY_MODULES = (
-    "konwledge/quality/__init__.py",
-    "konwledge/quality/models.py",
-    "konwledge/quality/service.py",
-    "konwledge/quality/acceptance.py",
-    "konwledge/quality/benchmark_corpus.py",
-    "konwledge/newcli_quality.py",
+    "knowledge/quality/__init__.py",
+    "knowledge/quality/models.py",
+    "knowledge/quality/service.py",
+    "knowledge/quality/acceptance.py",
+    "knowledge/quality/benchmark_corpus.py",
+    "knowledge/newcli_quality.py",
 )
 AUTO_EVALUATION_MODULES = (
-    "konwledge/auto_evaluation/__init__.py",
-    "konwledge/auto_evaluation/models.py",
-    "konwledge/auto_evaluation/service.py",
-    "konwledge/newcli_auto_evaluation.py",
-    "konwledge/storage/auto_evaluation.py",
+    "knowledge/auto_evaluation/__init__.py",
+    "knowledge/auto_evaluation/models.py",
+    "knowledge/auto_evaluation/service.py",
+    "knowledge/newcli_auto_evaluation.py",
+    "knowledge/storage/auto_evaluation.py",
 )
 REPLAY_MODULES = tuple(
-    f"konwledge/replay/{name}.py" for name in ("__init__", "bundle", "corpus", "files", "producer")
+    f"knowledge/replay/{name}.py" for name in ("__init__", "bundle", "corpus", "files", "producer")
 )
 REPLAY_SDIST_FILES = (
     "scripts/export_replay.py",
@@ -140,17 +144,17 @@ REPLAY_SDIST_FILES = (
     "tests/test_replay.py",
     "tests/test_distribution_replay.py",
 )
-TOKEN_MODULES = ("konwledge/context/tokens.py",)
+TOKEN_MODULES = ("knowledge/context/tokens.py",)
 DATABASE_SCHEMA_MODULES = (
-    "konwledge/database_schema/__init__.py",
-    "konwledge/database_schema/collector.py",
-    "konwledge/database_schema/models.py",
-    "konwledge/database_schema/repository.py",
-    "konwledge/database_schema/service.py",
-    "konwledge/database_schema/storage.py",
-    "konwledge/domain/database_schema.py",
-    "konwledge/newcli_database_schema.py",
-    "konwledge/storage/database_schema.py",
+    "knowledge/database_schema/__init__.py",
+    "knowledge/database_schema/collector.py",
+    "knowledge/database_schema/models.py",
+    "knowledge/database_schema/repository.py",
+    "knowledge/database_schema/service.py",
+    "knowledge/database_schema/storage.py",
+    "knowledge/domain/database_schema.py",
+    "knowledge/newcli_database_schema.py",
+    "knowledge/storage/database_schema.py",
 )
 FIXTURE_NAMES = (
     "evaluation-demo.json",
@@ -158,9 +162,8 @@ FIXTURE_NAMES = (
     "evaluation-gate.json",
 )
 CONSOLE_SCRIPTS = {
-    "knowledge": "konwledge.cli:main",
-    "konwledge": "konwledge.cli:main",
-    "konwledge-mcp": "konwledge.mcp.server:main",
+    "knowledge": f"{PACKAGE_NAME}.cli:main",
+    "knowledge-mcp": f"{PACKAGE_NAME}.mcp.server:main",
 }
 RUNTIME_COMPONENTS = {
     ".git",
@@ -197,6 +200,12 @@ def canonicalize_name(value: str) -> str:
     """Apply the package-name normalization used by distribution metadata."""
 
     return re.sub(r"[-_.]+", "-", value).lower()
+
+
+def normalized_distribution_name(value: str) -> str:
+    """uv 产物及 dist-info 使用下划线名；它不是 Python 包的导入名。"""
+
+    return canonicalize_name(value).replace("-", "_")
 
 
 def load_project_metadata(path: Path = PYPROJECT) -> tuple[str, str]:
@@ -340,9 +349,14 @@ def inspect_wheel(
         _metadata_identity(
             archive.read(metadata_names[0]).decode("utf-8"), expected_name, expected_version
         )
+        dist_info = f"{normalized_distribution_name(expected_name)}-{expected_version}.dist-info"
+        if metadata_names[0] != f"{dist_info}/METADATA":
+            raise ValueError("wheel dist-info name mismatch")
         entry_names = [name for name in names if name.endswith(".dist-info/entry_points.txt")]
         if len(entry_names) != 1:
             raise ValueError("wheel must contain exactly one dist-info/entry_points.txt")
+        if entry_names[0] != f"{dist_info}/entry_points.txt":
+            raise ValueError("wheel entry points dist-info name mismatch")
         parser = configparser.ConfigParser(interpolation=None)
         parser.read_string(archive.read(entry_names[0]).decode("utf-8"))
         entries = (
@@ -352,9 +366,9 @@ def inspect_wheel(
             raise ValueError(f"console entry points mismatch: {entries!r}")
 
     required = {
-        "konwledge/__init__.py",
-        "konwledge/__main__.py",
-        "konwledge/py.typed",
+        f"{PACKAGE_NAME}/__init__.py",
+        f"{PACKAGE_NAME}/__main__.py",
+        f"{PACKAGE_NAME}/py.typed",
         *API_MODULES,
         *MCP_MODULES,
         *MUTATION_MODULES,
@@ -369,7 +383,7 @@ def inspect_wheel(
     if missing:
         raise ValueError(f"wheel is missing packaged file: {missing[0]}")
     actual_mutations = {
-        name for name in names if name.startswith("konwledge/mutations/") and name.endswith(".py")
+        name for name in names if name.startswith("knowledge/mutations/") and name.endswith(".py")
     }
     if actual_mutations != set(MUTATION_MODULES):
         raise ValueError("wheel mutation module collection mismatch")
@@ -407,13 +421,16 @@ def inspect_sdist(
         if len(roots) != 1:
             raise ValueError("sdist must have one top-level directory")
         root = next(iter(roots))
+        expected_root = f"{normalized_distribution_name(expected_name)}-{expected_version}"
+        if root != expected_root:
+            raise ValueError("sdist archive prefix mismatch")
         required = {
             f"{root}/PKG-INFO",
             f"{root}/README.md",
             f"{root}/LICENSE",
             f"{root}/pyproject.toml",
-            f"{root}/src/konwledge/__init__.py",
-            f"{root}/src/konwledge/py.typed",
+            f"{root}/src/{PACKAGE_NAME}/__init__.py",
+            f"{root}/src/{PACKAGE_NAME}/py.typed",
             *(f"{root}/src/{module}" for module in API_MODULES),
             *(f"{root}/src/{module}" for module in MCP_MODULES),
             *(f"{root}/{filename}" for filename in MCP_SDIST_FILES),
@@ -430,7 +447,7 @@ def inspect_sdist(
             *(
                 f"{root}/src/{resource}"
                 for resource in expected_resources
-                if resource.startswith("konwledge/")
+                if resource.startswith("knowledge/")
             ),
         }
         missing = sorted(required.difference(names))
@@ -440,7 +457,7 @@ def inspect_sdist(
         actual_mutations = {
             name.removeprefix(prefix)
             for name in names
-            if name.startswith(prefix + "konwledge/mutations/") and name.endswith(".py")
+            if name.startswith(prefix + "knowledge/mutations/") and name.endswith(".py")
         }
         if actual_mutations != set(MUTATION_MODULES):
             raise ValueError("sdist mutation module collection mismatch")
@@ -521,9 +538,11 @@ def _venv_python(venv: Path) -> Path:
 
 
 def _expected_resource_names() -> tuple[str, ...]:
-    corpus = PROJECT_ROOT / "src" / "konwledge" / "demo" / "corpus"
+    corpus = PROJECT_ROOT / "src" / PACKAGE_NAME / "demo" / "corpus"
     return tuple(
-        sorted(f"konwledge/demo/corpus/{path.name}" for path in corpus.iterdir() if path.is_file())
+        sorted(
+            f"{PACKAGE_NAME}/demo/corpus/{path.name}" for path in corpus.iterdir() if path.is_file()
+        )
     )
 
 
@@ -738,13 +757,13 @@ def _smoke_install(
             "-I",
             "-c",
             (
-                "import importlib.util, sys; import konwledge, konwledge.cli; "
-                "assert konwledge.cli.main(['--help']) == 0; "
-                "assert konwledge.cli.main(['mcp', 'approve', '--help']) == 0; "
-                "assert not any(n.startswith(('konwledge.mcp.controlled', "
-                "'konwledge.mcp.approval_cli')) for n in sys.modules), "
+                "import importlib.util, sys; import knowledge, knowledge.cli; "
+                "assert knowledge.cli.main(['--help']) == 0; "
+                "assert knowledge.cli.main(['mcp', 'approve', '--help']) == 0; "
+                "assert not any(n.startswith(('knowledge.mcp.controlled', "
+                "'knowledge.mcp.approval_cli')) for n in sys.modules), "
                 "'core help eagerly imported controlled'; "
-                "assert not any(n.startswith('konwledge.mutations') for n in sys.modules), "
+                "assert not any(n.startswith('knowledge.mutations') for n in sys.modules), "
                 "'core install eagerly imported mutations'; "
                 "assert importlib.util.find_spec('fastapi') is None; "
                 "assert importlib.util.find_spec('uvicorn') is None; "
@@ -928,7 +947,9 @@ def verify(output_dir: Path, target_python: str) -> tuple[Path, Path, tuple[Path
     if uv is None:
         raise RuntimeError("uv is required to verify distributions")
     name, version = load_project_metadata()
-    normalized = canonicalize_name(name).replace("-", "_")
+    if name != DISTRIBUTION_NAME or version != RELEASE_VERSION:
+        raise ValueError("project distribution identity must be knowledge-ykforward 0.1.0")
+    normalized = normalized_distribution_name(name)
     output_dir.mkdir(parents=True, exist_ok=True)
     build_dir = output_dir / "build"
     if build_dir.exists():
@@ -954,7 +975,7 @@ def verify(output_dir: Path, target_python: str) -> tuple[Path, Path, tuple[Path
             print(f"warning: {warning}", file=sys.stderr)
 
     summary_paths: list[Path] = []
-    with tempfile.TemporaryDirectory(prefix="konwledge-isolated-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="knowledge-isolated-") as temporary:
         scratch = Path(temporary)
         fixtures = scratch / "fixtures"
         fixtures.mkdir()
@@ -1002,7 +1023,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     output_dir = (
         args.output_dir.expanduser().resolve()
         if args.output_dir is not None
-        else Path(tempfile.mkdtemp(prefix="konwledge-distribution-")).resolve()
+        else Path(tempfile.mkdtemp(prefix="knowledge-distribution-")).resolve()
     )
     try:
         wheel, sdist, summaries = verify(output_dir, str(args.python))

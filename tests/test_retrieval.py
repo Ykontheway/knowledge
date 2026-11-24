@@ -12,17 +12,17 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import Engine, event, text
 
-from konwledge.domain import KnowledgeUnit, KnowledgeUnitStatus, Source, SourceKind
-from konwledge.embedding import EmbeddingService, EmbeddingVector
-from konwledge.indexing import IndexingService, InMemoryVectorIndex, VectorRecord
-from konwledge.ingestion import (
+from knowledge.domain import KnowledgeUnit, KnowledgeUnitStatus, Source, SourceKind
+from knowledge.embedding import EmbeddingService, EmbeddingVector
+from knowledge.indexing import IndexingService, InMemoryVectorIndex, VectorRecord
+from knowledge.ingestion import (
     FileIngestionService,
     KnowledgeUnitService,
     TraceableIngestionResult,
     TraceableIngestionService,
 )
-from konwledge.lifecycle import LifecycleService
-from konwledge.retrieval import (
+from knowledge.lifecycle import LifecycleService
+from knowledge.retrieval import (
     FusedUnit,
     RankedUnit,
     RetrievalConfigurationError,
@@ -32,14 +32,14 @@ from konwledge.retrieval import (
     RetrievalService,
     fuse_rankings,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.full_text import FullTextRepository
+from knowledge.storage.full_text import FullTextRepository
 
 NOW = datetime(2026, 11, 9, 12, tzinfo=UTC)
 V1 = "# Guide\ntarget intro.\n\n## Legacy\ntarget legacy.\n\n## Edit\ntarget old instructions.\n"

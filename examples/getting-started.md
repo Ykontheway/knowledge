@@ -1,6 +1,6 @@
 # Traceable knowledge
 
-Konwledge keeps each imported passage connected to its source document.
+Knowledge keeps each imported passage connected to its source document.
 
 ## Character ranges
 

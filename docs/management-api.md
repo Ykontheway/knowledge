@@ -9,7 +9,7 @@ B1 提供真实任务、知识版本和证据的读取契约，B2 已接入 V3 �
 ```bash
 python -m pip install '.[api]'
 knowledge serve --enable-management \
-  --database .konwledge/knowledge.db --host 127.0.0.1 --port 8000
+  --database .knowledge/knowledge.db --host 127.0.0.1 --port 8000
 ```
 
 数据库必须已经存在，`serve` 不创建缺失文件。服务仍只绑定 loopback，不自动开启公网访问、CORS、后台调度或多租户能力。开启管理端即使在本机也必须提供有效密钥；不支持通过隐式环境开关开启管理路由。
@@ -18,7 +18,7 @@ knowledge serve --enable-management \
 
 ```python
 import os
-from konwledge.api import create_app
+from knowledge.api import create_app
 
 app = create_app(
     library,
@@ -82,10 +82,10 @@ DTO 及嵌套模型均 frozen、extra forbid。前端按 schema 获取字段，�
 
 ```bash
 uv run python scripts/real_knowledge_acceptance.py \
-  --output-dir .konwledge/real-knowledge-acceptance
+  --output-dir .knowledge/real-knowledge-acceptance
 uv run python scripts/management_api_acceptance.py \
   --database "<run-directory>/knowledge.db" \
-  --report .konwledge/b1-management-acceptance-new.json
+  --report .knowledge/b1-management-acceptance-new.json
 ```
 
 第二个脚本通过 HTTPX ASGITransport 实际调用 app，不监听公网，也不把内存调用表述为已部署服务。报告默认拒绝覆盖；复跑需换报告文件名。脚本是针对前一个真实验收场景的导航验收，不是任意生产库的通用检查工具。

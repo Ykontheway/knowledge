@@ -5,7 +5,7 @@ import { managementProxy } from "./dev/management-proxy.ts";
 import { mutationProxy } from "./dev/mutation-proxy.ts";
 
 // A relative base keeps the build portable: the same dist/ works on GitHub Pages
-// (served under /konwledge/) and on any static host, because routing uses the hash.
+// (served under /knowledge/) and on any static host, because routing uses the hash.
 export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss(), managementProxy(), mutationProxy()],

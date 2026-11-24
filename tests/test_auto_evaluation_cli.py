@@ -13,17 +13,17 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.auto_evaluation import AutoEvaluationStatus
-from konwledge.auto_evaluation.notifications import notify_cli
-from konwledge.domain import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.auto_evaluation import AutoEvaluationStatus
+from knowledge.auto_evaluation.notifications import notify_cli
+from knowledge.domain import (
     EvaluationItem,
     EvaluationSet,
     Revision,
     RevisionChangeType,
     RevisionEntityType,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,

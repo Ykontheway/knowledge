@@ -46,16 +46,17 @@ def numeric_version(value: str) -> tuple[int, ...]:
 def verify_identity(expected_version: str) -> tuple[Any, str]:
     import tiktoken
 
-    import konwledge
+    import knowledge
 
-    require(konwledge.__version__ == expected_version, "installed Konwledge version mismatch")
+    require(knowledge.__version__ == expected_version, "installed Knowledge version mismatch")
     require(
-        importlib.metadata.version("konwledge") == expected_version, "metadata version mismatch"
+        importlib.metadata.version("knowledge-ykforward") == expected_version,
+        "metadata version mismatch",
     )
     tiktoken_version = importlib.metadata.version("tiktoken")
     parsed = numeric_version(tiktoken_version)
     require(parsed >= (0, 12) and parsed < (1,), "tiktoken version is outside >=0.12,<1")
-    for module in (konwledge, tiktoken):
+    for module in (knowledge, tiktoken):
         filename = module.__file__
         require(
             filename is not None and is_installed(Path(filename)),
@@ -70,7 +71,7 @@ def verify_identity(expected_version: str) -> tuple[Any, str]:
 
 
 def verify_real_encoding(tiktoken: Any) -> tuple[Any, dict[str, int]]:
-    from konwledge.context import TiktokenTokenCounter
+    from knowledge.context import TiktokenTokenCounter
 
     get_encoding = tiktoken.get_encoding
     encoding = get_encoding("cl100k_base")
@@ -97,11 +98,11 @@ def verify_real_encoding(tiktoken: Any) -> tuple[Any, dict[str, int]]:
 
 
 def verify_context_budget(encoding: Any) -> dict[str, int]:
-    from konwledge import KnowledgeLibrary
-    from konwledge.context import TokenContextPacket
-    from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+    from knowledge import KnowledgeLibrary
+    from knowledge.context import TokenContextPacket
+    from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
-    with tempfile.TemporaryDirectory(prefix="konwledge-tokens-installed-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="knowledge-tokens-installed-") as temporary:
         root = Path(temporary)
         source = root / "token-evidence.md"
         evidence = "Tokenbudget exact evidence 中文 🚀 and <|endoftext|> stays ordinary."

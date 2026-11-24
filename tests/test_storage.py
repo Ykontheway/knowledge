@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import Engine
 from sqlalchemy.exc import IntegrityError
 
-from konwledge.domain import (
+from knowledge.domain import (
     Citation,
     Document,
     DocumentContentType,
@@ -20,7 +20,7 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     EntityNotFoundError,
     ImmutableEntityError,
     SessionFactory,

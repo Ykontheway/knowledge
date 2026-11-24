@@ -93,7 +93,7 @@ _B4_CHECKS = frozenset(
 _SMOKE_CHECKS = frozenset(
     {
         "installed_identity",
-        "cli_aliases",
+        "cli_entry_points",
         "packaged_resources",
         "demo_timeline",
         "context_and_stale_filtering",
@@ -195,7 +195,7 @@ def _boundary(path: Path) -> tuple[Path, bool]:
     """只授权固定根；返回 session/scope 边界和是否要求整个子树 private。"""
     try:
         parts = path.relative_to(ROOT).parts
-        _require(len(parts) >= 3 and parts[0] == ".konwledge", "path_invalid")
+        _require(len(parts) >= 3 and parts[0] == ".knowledge", "path_invalid")
         _require(parts[1] in {"workbench", "mutation-demo"}, "path_invalid")
         _uuid(parts[2])
         return ROOT / parts[0] / parts[1] / parts[2], parts[1] == "mutation-demo"
@@ -239,7 +239,7 @@ def _directory_fd(path: Path, boundary: Path, private: bool) -> Iterator[int]:
 
 
 def validate_session(session: Path) -> Path:
-    """只接受 ROOT/.konwledge/workbench/<canonical UUID>，owned 0700 且无链接。"""
+    """只接受 ROOT/.knowledge/workbench/<canonical UUID>，owned 0700 且无链接。"""
     try:
         path = _absolute(session)
         boundary, private = _boundary(path)
@@ -543,7 +543,7 @@ def _evaluation(report: dict[str, Any], path: Path, session: Path) -> tuple[list
 
 def _mutations(report: dict[str, Any], path: Path) -> tuple[list[str], list[float]]:
     scope = _uuid(report.get("scope_id"))
-    _require(path == ROOT / ".konwledge" / "mutation-demo" / scope / "b4-acceptance-report.json")
+    _require(path == ROOT / ".knowledge" / "mutation-demo" / scope / "b4-acceptance-report.json")
     jobs = [_object(job) for job in _array(report.get("jobs"))]
     commands = [_object(command) for command in _array(report.get("commands"))]
     _require(len(jobs) == len(commands) == 3 and [j.get("status") for j in jobs] == _SEQUENCE)
@@ -644,6 +644,7 @@ def _distribution(report: dict[str, Any], path: Path) -> tuple[int, bool]:
     count = _named_checks(report.get("check_names"), _SMOKE_CHECKS)
     counts = _object(report.get("counts"))
     _require(_integer(counts.get("checks")) == len(report["check_names"]))
+    _require(_integer(counts.get("cli_commands")) == 6)
     for key in ("demo_steps", "evaluation_cases", "gate_checks"):
         _integer(counts.get(key), 1)
     version = report.get("version")

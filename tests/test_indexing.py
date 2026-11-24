@@ -9,20 +9,20 @@ from uuid import UUID
 
 import pytest
 
-from konwledge.domain.models import (
+from knowledge.domain.models import (
     DocumentContentType,
     KnowledgeUnit,
     KnowledgeUnitStatus,
     Source,
     SourceKind,
 )
-from konwledge.embedding import (
+from knowledge.embedding import (
     EmbeddingService,
     EmbeddingVector,
     HashEmbeddingProvider,
     InMemoryEmbeddingCache,
 )
-from konwledge.indexing import (
+from knowledge.indexing import (
     IndexingService,
     InMemoryVectorIndex,
     LanceVectorIndex,
@@ -371,7 +371,7 @@ def test_lance_vector_index_uses_in_memory_dependency_message(
 ) -> None:
     """When ``lancedb`` is missing, the error names the install hint."""
 
-    import konwledge.indexing.lance as lance_module
+    import knowledge.indexing.lance as lance_module
 
     original_connect = lance_module.LanceVectorIndex._connect
 

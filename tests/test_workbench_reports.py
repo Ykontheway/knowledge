@@ -33,7 +33,7 @@ def session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "repo"
     root.mkdir(mode=0o755)
     monkeypatch.setattr(reports, "ROOT", root)
-    base = root / ".konwledge" / "workbench"
+    base = root / ".knowledge" / "workbench"
     base.mkdir(parents=True, mode=0o700)
     path = base / str(uuid4())
     path.mkdir(mode=0o700)
@@ -190,7 +190,7 @@ def mutation_payload() -> dict[str, Any]:
 
 
 def mutation_file(value: dict[str, Any]) -> Path:
-    root = reports.ROOT / ".konwledge" / "mutation-demo"
+    root = reports.ROOT / ".knowledge" / "mutation-demo"
     root.mkdir(mode=0o700, exist_ok=True)
     path = root / value["scope_id"] / "b4-acceptance-report.json"
     return put(path, value)
@@ -201,7 +201,13 @@ def smoke_payload(fmt: str) -> dict[str, Any]:
         "distribution_format": fmt,
         "version": "0.1.0",
         "check_names": sorted(reports._SMOKE_CHECKS),
-        "counts": {"checks": 9, "demo_steps": 8, "evaluation_cases": 6, "gate_checks": 42},
+        "counts": {
+            "checks": 9,
+            "cli_commands": 6,
+            "demo_steps": 8,
+            "evaluation_cases": 6,
+            "gate_checks": 42,
+        },
     }
     for key, names in reports._EXTRA_CHECKS.items():
         payload[key] = {"checks": sorted(names), "version": "0.1.0"}
@@ -225,7 +231,7 @@ def smoke_payload(fmt: str) -> dict[str, Any]:
 
 # 从 559fcce3-a270-4739-80e8-ebe3598bd044 的两份实物抄录必要聚合；
 # 不从待测常量生成检查名，不保留 env/网络描述/原日志；未分发隐藏目录也能回归。
-_DIST_SESSION = ".konwledge/workbench/559fcce3-a270-4739-80e8-ebe3598bd044"
+_DIST_SESSION = ".knowledge/workbench/559fcce3-a270-4739-80e8-ebe3598bd044"
 _DIST_DRIVER = f"{_DIST_SESSION}/distribution/f8ddc582-eab6-4ec2-98ba-1a554596ea90/driver"
 
 
@@ -235,7 +241,7 @@ def actual_smoke_payload(fmt: str) -> dict[str, Any]:
         "version": "0.1.0",
         "check_names": [
             "installed_identity",
-            "cli_aliases",
+            "cli_entry_points",
             "packaged_resources",
             "demo_timeline",
             "context_and_stale_filtering",
@@ -244,7 +250,13 @@ def actual_smoke_payload(fmt: str) -> dict[str, Any]:
             "historical_demo_retrieval",
             "evaluation_baseline_gate",
         ],
-        "counts": {"checks": 9, "demo_steps": 8, "evaluation_cases": 6, "gate_checks": 42},
+        "counts": {
+            "checks": 9,
+            "cli_commands": 6,
+            "demo_steps": 8,
+            "evaluation_cases": 6,
+            "gate_checks": 42,
+        },
         "quality_acceptance": {
             "checks": [
                 "installed_site_packages_identity",
@@ -530,7 +542,7 @@ def test_reference_foreign_stale_links(session: Path) -> None:
     with pytest.raises(reports.WorkbenchReportError):
         reports.project_report("seed", [path], session=session)
     stale = put(
-        reports.ROOT / ".konwledge" / "real-knowledge-acceptance" / "old" / "report.json",
+        reports.ROOT / ".knowledge" / "real-knowledge-acceptance" / "old" / "report.json",
         seed_payload(),
     )
     with pytest.raises(reports.WorkbenchReportError):
@@ -875,6 +887,19 @@ def test_actual_distribution_each_smoke_result_required(
         )
 
 
+@pytest.mark.parametrize("fmt", ["wheel", "sdist"])
+def test_actual_distribution_removed_cli_alias_check_cannot_replace_entry_points(
+    session: Path, actual_distribution: dict[str, dict[str, Any]], fmt: str
+) -> None:
+    value = actual_distribution[fmt]
+    value["check_names"][value["check_names"].index("cli_entry_points")] = "cli_aliases"
+    assert value["counts"]["checks"] == len(value["check_names"])
+    with pytest.raises(reports.WorkbenchReportError, match="report_invalid"):
+        reports.project_report(
+            "distribution", put_distribution(session, actual_distribution), session=session
+        )
+
+
 @pytest.mark.parametrize(
     "scope", ["core", "quality_acceptance", "api_extra", "tokens_extra", "postgres_extra"]
 )
@@ -919,6 +944,14 @@ def test_actual_distribution_explicit_failure_not_washed(
         lambda p: p.update(failed_checks="failed"),
         lambda p: p["counts"].update(checks=True),
         lambda p: p["counts"].update(checks=8),
+        lambda p: p["counts"].pop("cli_commands"),
+        lambda p: p["counts"].update(cli_commands=True),
+        lambda p: p["counts"].update(cli_commands="6"),
+        lambda p: p["counts"].update(cli_commands=6.0),
+        lambda p: p["counts"].update(cli_commands=0),
+        lambda p: p["counts"].update(cli_commands=5),
+        lambda p: p["counts"].update(cli_commands=7),
+        lambda p: p["counts"].update(cli_commands=8),
         lambda p: p["counts"].update(demo_steps=0),
         lambda p: p["check_names"].append(p["check_names"][0]),
         lambda p: p["api_extra"].update(checks={"installed_api": False}),
@@ -1110,17 +1143,17 @@ def test_fixture_factories_do_not_share_mutable_checks() -> None:
 # 这些历史实物仅用于可选的 schema 回归，不授予生产读取任意路径的权限。
 # 缺失时可移植测试仍完整执行；固定路径不用 glob、不选“最新一次”。
 _FIXED = {
-    "seed": ".konwledge/real-knowledge-acceptance/20261113T062525019181Z-11d25751/report.json",
-    "management": ".konwledge/b1-management-acceptance-final.json",
+    "seed": ".knowledge/real-knowledge-acceptance/20261113T062525019181Z-11d25751/report.json",
+    "management": ".knowledge/b1-management-acceptance-final.json",
     "evaluation": (
-        ".konwledge/workbench-evaluation-acceptance/20261116T042018921245Z-951ad2f7/report.json"
+        ".knowledge/workbench-evaluation-acceptance/20261116T042018921245Z-951ad2f7/report.json"
     ),
     "evaluation_seed": (
-        ".konwledge/workbench-evaluation-acceptance/20261116T042018921245Z-951ad2f7/"
+        ".knowledge/workbench-evaluation-acceptance/20261116T042018921245Z-951ad2f7/"
         "real-knowledge/20261116T042018921469Z-ae0094fc/report.json"
     ),
     "mutations": (
-        ".konwledge/mutation-demo/c2c9b890-e706-4362-a7fe-e4675edef052/b4-acceptance-report.json"
+        ".knowledge/mutation-demo/c2c9b890-e706-4362-a7fe-e4675edef052/b4-acceptance-report.json"
     ),
     "wheel": f"{_DIST_DRIVER}/wheel-smoke-summary.json",
     "sdist": f"{_DIST_DRIVER}/sdist-smoke-summary.json",

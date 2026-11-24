@@ -28,7 +28,9 @@ htmlcov/
 *.db-wal
 *.sqlite
 *.sqlite3
-.konwledge/
+.knowledge/
+# Keep historical local data directories ignored.
+.k*n*wledge/
 
 # Editors and operating systems
 .DS_Store

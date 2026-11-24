@@ -10,9 +10,9 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import Engine
 
-from konwledge.conflicts import ConflictService
-from konwledge.conflicts.rules import extract_port_assertion
-from konwledge.domain import (
+from knowledge.conflicts import ConflictService
+from knowledge.conflicts.rules import extract_port_assertion
+from knowledge.domain import (
     Conflict,
     ConflictStatus,
     Document,
@@ -21,14 +21,14 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.repository import RevisionRepository
+from knowledge.storage.repository import RevisionRepository
 
 T0 = datetime(2026, 11, 9, 9, 0, tzinfo=UTC)
 T1 = T0 + timedelta(hours=1)

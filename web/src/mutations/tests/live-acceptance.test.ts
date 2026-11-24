@@ -58,7 +58,7 @@ function privateTarget(manifest: string, target: string) {
 }
 function readonlySnapshot(manifest: string) {
   const repo = resolve(import.meta.dirname, "../../../..");
-  const relativeManifest = relative(resolve(repo, ".konwledge/mutation-demo"), manifest);
+  const relativeManifest = relative(resolve(repo, ".knowledge/mutation-demo"), manifest);
   must(relativeManifest !== "" && !relativeManifest.startsWith("..") && !isAbsolute(relativeManifest), "B4_NOT_OWNED");
   const result = spawnSync(env("B4_PYTHON"), [resolve(repo, "scripts/mutation_workbench_acceptance.py"),
     "--snapshot-manifest", manifest], { cwd: repo, encoding: "utf8", timeout: 20_000,

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from sqlalchemy import Engine, inspect
 from sqlalchemy.exc import IntegrityError
 
-from konwledge.domain import (
+from knowledge.domain import (
     Conflict,
     ConflictEvidence,
     ConflictStatus,
@@ -20,7 +20,7 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     EntityNotFoundError,
     ImmutableEntityError,
     SessionFactory,
@@ -29,7 +29,7 @@ from konwledge.storage import (
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.tables import Base, ConflictRow
+from knowledge.storage.tables import Base, ConflictRow
 
 SOURCE_A = UUID("10000000-0000-0000-0000-000000000001")
 SOURCE_B = UUID("10000000-0000-0000-0000-000000000002")

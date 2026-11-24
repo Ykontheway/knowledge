@@ -15,9 +15,9 @@ from pydantic import ValidationError
 from sqlalchemy import Engine
 from typer.testing import CliRunner
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.cli import app
-from konwledge.domain import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.cli import app
+from knowledge.domain import (
     Document,
     DocumentContentType,
     FreshnessPolicy,
@@ -29,8 +29,8 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.lifecycle import FreshnessService, SourceNotFoundError
-from konwledge.storage import (
+from knowledge.lifecycle import FreshnessService, SourceNotFoundError
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
@@ -560,7 +560,7 @@ def test_cli_freshness_lifecycle(
 
     # Import, policy configuration and scans must use the same controlled clock.
     # Mixing a fixed future date with a wall-clock import makes this test expire.
-    monkeypatch.setattr("konwledge.cli._open_library", _open_controlled)
+    monkeypatch.setattr("knowledge.cli._open_library", _open_controlled)
 
     def _invoke(*args: str) -> tuple[int, str, str]:
         result = CliRunner().invoke(app, list(args))
@@ -845,7 +845,7 @@ def test_cli_dry_run_counts_only_expired_active_units_as_pending(
     corpus_b.library.lifecycle.mark_stale(unit_b, reason="already stale")
     library = KnowledgeLibrary(session_factory, clock=lambda: evaluated_at)
 
-    with patch("konwledge.cli._open_library", return_value=library):
+    with patch("knowledge.cli._open_library", return_value=library):
         result = CliRunner().invoke(app, ["freshness", "scan"])
 
     assert result.exit_code == 0

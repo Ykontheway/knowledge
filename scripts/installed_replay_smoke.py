@@ -13,10 +13,10 @@ from pathlib import Path
 def main() -> None:
     for name in ("fastapi", "uvicorn", "mcp", "tiktoken", "httpx", "openai", "lancedb"):
         assert importlib.util.find_spec(name) is None, "replay core optional boundary"
-    import konwledge
-    from konwledge.replay import export_replay, load_validate
+    import knowledge
+    from knowledge.replay import export_replay, load_validate
 
-    location = Path(konwledge.__file__).resolve()
+    location = Path(knowledge.__file__).resolve()
     assert "site-packages" in location.parts, "replay must use installed package"
     original = Path.cwd()
     with tempfile.TemporaryDirectory(prefix="replay-installed-") as temporary:

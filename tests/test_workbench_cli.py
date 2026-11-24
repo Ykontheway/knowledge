@@ -114,7 +114,7 @@ def test_main_only_safe_parent_output(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    summary_path = runtime.ROOT / ".konwledge/workbench/test/summary.json"
+    summary_path = runtime.ROOT / ".knowledge/workbench/test/summary.json"
 
     def execute(options: runtime.Options) -> tuple[Path, dict[str, Any], int]:
         return summary_path, {"status": "prepared", "secret": options.actor}, 0
@@ -127,7 +127,7 @@ def test_main_only_safe_parent_output(
         == 0
     )
     output = capsys.readouterr()
-    assert "summary .konwledge/workbench/test/summary.json" in output.out
+    assert "summary .knowledge/workbench/test/summary.json" in output.out
     assert "status prepared" in output.out
     assert "ready" not in output.out and "private-actor" not in output.out
 
@@ -155,8 +155,8 @@ def test_real_controlled_prepare_only_private_unique_and_no_overwrite() -> None:
     from scripts import prepare_mutation_demo as demo
 
     root = runtime.ROOT
-    workbench_root = root / ".konwledge" / "workbench"
-    demo_root = root / ".konwledge" / "mutation-demo"
+    workbench_root = root / ".knowledge" / "workbench"
+    demo_root = root / ".knowledge" / "mutation-demo"
     previous_sessions = {p.name for p in workbench_root.glob("*")}
     previous_scopes = {p.name for p in demo_root.glob("*")}
     argv = [sys.executable, str(root / "scripts/workbench.py"), "demo", "--mode", "controlled"]

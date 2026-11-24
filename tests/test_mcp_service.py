@@ -22,23 +22,23 @@ from sqlalchemy import Engine, delete, event, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.mcp import models
-from konwledge.mcp.models import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.mcp import models
+from knowledge.mcp.models import (
     BuildContextInput,
     CompareDocumentsInput,
     GetEvidenceInput,
     GetLineageInput,
     SearchInput,
 )
-from konwledge.mcp.service import McpReadError, McpReadOnlyService
-from konwledge.storage import (
+from knowledge.mcp.service import McpReadError, McpReadOnlyService
+from knowledge.storage import (
     SessionFactory,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.tables import (
+from knowledge.storage.tables import (
     Base,
     DocumentRow,
     KnowledgeUnitRow,
@@ -331,7 +331,7 @@ def test_context_exact_whole_blocks_and_character_budget(store: Store) -> None:
 def test_search_fixed_lexical_and_stale_excluded(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from konwledge.retrieval import RetrievalMode, RetrievalService
+    from knowledge.retrieval import RetrievalMode, RetrievalService
 
     original = RetrievalService.search
     calls: list[dict[str, Any]] = []
@@ -522,7 +522,7 @@ def test_parallel_reads_and_pending_writer_do_not_poison_pool(store: Store) -> N
 
 def test_service_import_does_not_load_optional_sdks() -> None:
     code = (
-        "import sys; import konwledge.mcp.service; "
+        "import sys; import knowledge.mcp.service; "
         "assert not any(name.split('.')[0] in "
         "{'mcp', 'openai', 'langchain_openai', 'lancedb'} for name in sys.modules)"
     )

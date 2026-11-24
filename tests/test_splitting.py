@@ -8,15 +8,15 @@ from uuid import UUID
 import pytest
 from sqlalchemy import Engine
 
-from konwledge.domain import Document, DocumentContentType, KnowledgeUnit, Source, SourceKind
-from konwledge.ingestion import (
+from knowledge.domain import Document, DocumentContentType, KnowledgeUnit, Source, SourceKind
+from knowledge.ingestion import (
     FileIngestionService,
     KnowledgeUnitService,
     TraceableIngestionService,
     TraceableTextSplitter,
     fingerprint_text,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,

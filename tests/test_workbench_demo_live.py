@@ -158,7 +158,7 @@ class Demo:
         self.requests: list[tuple[str, str, int]] = []
         self.proc: subprocess.Popen[bytes] | None = None
         self.selector = selectors.DefaultSelector()
-        scopes = ROOT / ".konwledge" / "mutation-demo"
+        scopes = ROOT / ".knowledge" / "mutation-demo"
         self.old_scopes = {p.name for p in scopes.iterdir()} if scopes.exists() else set()
 
     def start(self) -> None:
@@ -225,7 +225,7 @@ class Demo:
                     continue
                 if b"_adapter" in argv and b"--session-id" in argv:
                     session_id = uuid_text(argv[argv.index(b"--session-id") + 1].decode("ascii"))
-                    self.session = ROOT / ".konwledge" / "workbench" / session_id
+                    self.session = ROOT / ".knowledge" / "workbench" / session_id
                     require(self.session.is_dir(), "SESSION_MISSING")
         return owned
 
@@ -250,7 +250,7 @@ class Demo:
                 if line == f"ready {self.origin}/".encode():
                     self.ready = True
                 match = re.fullmatch(
-                    rb"summary (\.konwledge/workbench/"
+                    rb"summary (\.knowledge/workbench/"
                     + UUID_PATTERN.encode()
                     + rb"/summary\.json)",
                     line,
@@ -366,7 +366,7 @@ class Demo:
             self.manifest = present(self.manifest, "MANIFEST_MISSING")
             scope = self.manifest.parent
             require(
-                scope.parent == ROOT / ".konwledge" / "mutation-demo"
+                scope.parent == ROOT / ".knowledge" / "mutation-demo"
                 and uuid_text(scope.name) not in self.old_scopes,
                 "CONTROLLED_SCOPE_NOT_FRESH",
             )

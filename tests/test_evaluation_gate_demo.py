@@ -19,17 +19,17 @@ from uuid import UUID
 
 import jsonschema
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.demo import build_demo
-from konwledge.domain import EvaluationSet, KnowledgeUnitStatus
-from konwledge.evaluation import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.demo import build_demo
+from knowledge.domain import EvaluationSet, KnowledgeUnitStatus
+from knowledge.evaluation import (
     EvaluationBaseline,
     EvaluationReport,
     baseline_from_report,
     dump_baseline,
     validate_evaluation_report,
 )
-from konwledge.evaluation.gates import (
+from knowledge.evaluation.gates import (
     GatePolicy,
     GateResult,
     MetricName,
@@ -37,8 +37,8 @@ from konwledge.evaluation.gates import (
     dump_gate_policy,
     evaluate_gate,
 )
-from konwledge.retrieval import RetrievalMode
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.retrieval import RetrievalMode
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 REPO = Path(__file__).resolve().parents[1]
 BASELINE = REPO / "examples" / "evaluation-baseline.json"
@@ -95,7 +95,7 @@ def _policy() -> GatePolicy:
 
 def _cli(*arguments: str, exit_code: int = 0) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
-        [sys.executable, "-m", "konwledge", *arguments],
+        [sys.executable, "-m", "knowledge", *arguments],
         cwd=REPO,
         capture_output=True,
         text=True,

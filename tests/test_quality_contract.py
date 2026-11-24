@@ -14,7 +14,7 @@ from uuid import UUID
 import pytest
 from typer.testing import CliRunner
 
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     EvaluationItem,
@@ -24,9 +24,9 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.quality import QualityPolicy, QualityService
-from konwledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
-from konwledge.storage import (
+from knowledge.quality import QualityPolicy, QualityService
+from knowledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
@@ -118,7 +118,7 @@ def test_quality_healthy_run(
     quality_service._evaluation.import_set(ds)
 
     def mock_search(*args: Any, **kwargs: Any) -> RetrievalResult:
-        from konwledge.retrieval.models import RetrievalHit
+        from knowledge.retrieval.models import RetrievalHit
 
         rhit = RetrievalHit(
             unit=KnowledgeUnit(
@@ -230,7 +230,7 @@ def test_quality_no_answer_failure(
     quality_service._evaluation.import_set(ds)
 
     def mock_search(*args: Any, **kwargs: Any) -> RetrievalResult:
-        from konwledge.retrieval.models import RetrievalHit
+        from knowledge.retrieval.models import RetrievalHit
 
         rhit = RetrievalHit(
             unit=KnowledgeUnit(
@@ -299,7 +299,7 @@ def test_quality_stale_config_fail(
 
 
 def test_performance_percentile_slow_fail() -> None:
-    from konwledge.quality.acceptance import populate_corpus, run_performance
+    from knowledge.quality.acceptance import populate_corpus, run_performance
 
     engine = create_sqlite_engine("sqlite+pysqlite:///:memory:")
     create_schema(engine)
@@ -320,9 +320,9 @@ def test_performance_percentile_slow_fail() -> None:
 def test_installation_path_contract() -> None:
     """Ensure scripts/quality_acceptance.py runs correctly from any directory."""
 
-    import konwledge
+    import knowledge
 
-    repo_root = Path(konwledge.__file__).resolve().parents[2]
+    repo_root = Path(knowledge.__file__).resolve().parents[2]
     script_path = repo_root / "scripts" / "quality_acceptance.py"
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -350,7 +350,7 @@ def test_installation_path_contract() -> None:
 
 
 def test_cli_report_safe_write(tmp_path: Path) -> None:
-    from konwledge.newcli_quality import quality_app
+    from knowledge.newcli_quality import quality_app
 
     runner = CliRunner()
     report = tmp_path / "report.json"
@@ -364,7 +364,7 @@ def test_cli_report_safe_write(tmp_path: Path) -> None:
 
 
 def test_cli_no_traceback_on_validation_error(tmp_path: Path) -> None:
-    from konwledge.newcli_quality import quality_app
+    from knowledge.newcli_quality import quality_app
 
     runner = CliRunner()
     policy = tmp_path / "policy.json"
@@ -381,14 +381,14 @@ def test_cli_no_traceback_on_validation_error(tmp_path: Path) -> None:
 
 
 def test_quality_regression_incompatible_baseline() -> None:
-    from konwledge.quality.acceptance import (
+    from knowledge.quality.acceptance import (
         populate_corpus,
         run_quality,
     )
-    from konwledge.quality.benchmark_corpus import (
+    from knowledge.quality.benchmark_corpus import (
         EVALUATED_AT,
     )
-    from konwledge.quality.benchmark_corpus import (
+    from knowledge.quality.benchmark_corpus import (
         SET_ID as CORPUS_SET_ID,
     )
 

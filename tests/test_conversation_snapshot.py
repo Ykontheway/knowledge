@@ -11,13 +11,13 @@ from typing import Any
 
 import pytest
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.conversations import CandidateStatus
-from konwledge.demo import build_demo, export_demo
-from konwledge.domain import SourceKind as DomainSourceKind
-from konwledge.snapshot import dump_schema, dump_snapshot, export_snapshot
-from konwledge.snapshot.v1_contract import SourceKind as SnapshotSourceKind
-from konwledge.storage import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.conversations import CandidateStatus
+from knowledge.demo import build_demo, export_demo
+from knowledge.domain import SourceKind as DomainSourceKind
+from knowledge.snapshot import dump_schema, dump_snapshot, export_snapshot
+from knowledge.snapshot.v1_contract import SourceKind as SnapshotSourceKind
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
@@ -85,8 +85,8 @@ def test_snapshot_v1_schema_and_demo_goldens_remain_byte_identical(tmp_path: Pat
         "repository",
         "manual",
     ]
-    assert SnapshotSourceKind.__module__ == "konwledge.snapshot.v1_contract"
-    assert DomainSourceKind.__module__ == "konwledge.domain.models"
+    assert SnapshotSourceKind.__module__ == "knowledge.snapshot.v1_contract"
+    assert DomainSourceKind.__module__ == "knowledge.domain.models"
 
     demo = build_demo(tmp_path / "demo")
     snapshot = export_demo(demo.workspace)

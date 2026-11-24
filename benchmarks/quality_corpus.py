@@ -1,9 +1,9 @@
 """薄引用包装器，用于重用已安装的 30-case 验收语料库定义。
 
-实际定义已移至 konwledge.quality.benchmark_corpus 以支持在非仓库路径下运行。
+实际定义已移至 knowledge.quality.benchmark_corpus 以支持在非仓库路径下运行。
 """
 
-from konwledge.quality.benchmark_corpus import (
+from knowledge.quality.benchmark_corpus import (
     CASES,
     CREATED_AT,
     CURRENT_DOCUMENT_ID,

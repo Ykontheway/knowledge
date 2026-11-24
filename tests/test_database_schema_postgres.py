@@ -22,16 +22,16 @@ from sqlalchemy import Engine, create_engine, event, make_url, text
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import DBAPIError
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.database_schema import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.database_schema import (
     DatabaseConnectionError,
     DatabaseObjectType,
     DatabaseSchemaService,
     PostgreSQLSchemaCollector,
     dump_database_schema_json,
 )
-from konwledge.domain import Citation, RevisionEntityType, SourceKind
-from konwledge.storage import (
+from knowledge.domain import Citation, RevisionEntityType, SourceKind
+from knowledge.storage import (
     UnitOfWork,
     create_schema,
     create_session_factory,
@@ -351,7 +351,7 @@ def test_collector_executes_catalog_sql_only_and_never_fetches_business_rows(
         f'CREATE TABLE "{pg_schema}".sentinel(payload text); '
         f"INSERT INTO \"{pg_schema}\".sentinel VALUES ('{SENTINEL}')",
     )
-    import konwledge.database_schema.collector as collector_module
+    import knowledge.database_schema.collector as collector_module
 
     real_create_engine = create_engine
     executed: list[tuple[str, str]] = []

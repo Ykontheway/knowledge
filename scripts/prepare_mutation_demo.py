@@ -17,7 +17,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
-KIND = "konwledge-mutation-demo-v1"
+KIND = "knowledge-mutation-demo-v1"
 
 
 class DemoError(Exception):
@@ -104,7 +104,7 @@ def validate_demo(manifest_path: Path, database_path: Path) -> Path:
     try:
         manifest = no_symlinks(manifest_path)
         database = no_symlinks(database_path)
-        root = no_symlinks(ROOT / ".konwledge" / "mutation-demo")
+        root = no_symlinks(ROOT / ".knowledge" / "mutation-demo")
         parent = manifest.parent
         if (
             manifest.name != "mutation-manifest.json"
@@ -120,7 +120,7 @@ def validate_demo(manifest_path: Path, database_path: Path) -> Path:
         if database.parent.parent != parent or database.name != "knowledge.db":
             raise DemoError("GENERATED_DEMO_REQUIRED")
         private_owned(database.parent, 0o700, directory=True)
-        safety = importlib.import_module("konwledge.mutations.safety")
+        safety = importlib.import_module("knowledge.mutations.safety")
         scope = safety.load_mutation_scope(manifest, database)
         if str(scope.scope_id) != parent.name:
             raise DemoError("INVALID_DEMO_SCOPE")
@@ -177,14 +177,14 @@ def prepare() -> dict[str, object]:
         runner_module = importlib.import_module(
             "scripts.real_knowledge_acceptance" if __package__ else "real_knowledge_acceptance"
         )
-        tables = importlib.import_module("konwledge.mutations.tables")
-        storage = importlib.import_module("konwledge.storage")
+        tables = importlib.import_module("knowledge.mutations.tables")
+        storage = importlib.import_module("knowledge.storage")
     except ImportError:
         raise DemoError("MUTATION_DEPENDENCIES_UNAVAILABLE") from None
     except Exception:
         raise DemoError("DEMO_PREPARATION_FAILED") from None
     try:
-        root = no_symlinks(ROOT / ".konwledge" / "mutation-demo")
+        root = no_symlinks(ROOT / ".knowledge" / "mutation-demo")
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         private_owned(root, 0o700, directory=True)
         scope_id = str(uuid4())

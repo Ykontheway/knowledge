@@ -7,7 +7,7 @@ from uuid import UUID
 
 import pytest
 
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     EvaluationItem,
@@ -17,9 +17,9 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.quality import QualityService
-from konwledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
-from konwledge.storage import (
+from knowledge.quality import QualityService
+from knowledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
@@ -111,7 +111,7 @@ def test_quality_run_passing(
     quality_service._evaluation.import_set(ds)
 
     def mock_search(*args: Any, **kwargs: Any) -> RetrievalResult:
-        from konwledge.retrieval.models import RetrievalHit
+        from knowledge.retrieval.models import RetrievalHit
 
         unit = KnowledgeUnit(
             id=UNIT_ID,

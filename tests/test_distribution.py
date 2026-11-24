@@ -27,11 +27,11 @@ from scripts.verify_distribution import (
     load_project_metadata,
 )
 
-NAME = "konwledge"
+NAME = "knowledge-ykforward"
 VERSION = "0.1.0"
-RESOURCE = "konwledge/demo/corpus/demo.md"
+RESOURCE = "knowledge/demo/corpus/deployment-guide.v1.md"
 WHEEL_METADATA = (
-    "Metadata-Version: 2.4\nName: konwledge\nVersion: 0.1.0\n"
+    "Metadata-Version: 2.4\nName: knowledge-ykforward\nVersion: 0.1.0\n"
     "Provides-Extra: api\n"
     "Provides-Extra: postgres\n"
     "Provides-Extra: tokens\n"
@@ -44,10 +44,9 @@ WHEEL_METADATA = (
 )
 SDIST_METADATA = WHEEL_METADATA
 ENTRY_POINTS = (
-    "[console_scripts]\nknowledge = konwledge.cli:main\nkonwledge = konwledge.cli:main\n"
-    "konwledge-mcp = konwledge.mcp.server:main\n"
+    "[console_scripts]\nknowledge = knowledge.cli:main\nknowledge-mcp = knowledge.mcp.server:main\n"
 )
-SDIST_ROOT = "konwledge-0.1.0"
+SDIST_ROOT = "knowledge_ykforward-0.1.0"
 
 
 def _sdist_files(root: str = SDIST_ROOT) -> dict[str, str]:
@@ -56,8 +55,8 @@ def _sdist_files(root: str = SDIST_ROOT) -> dict[str, str]:
         f"{root}/README.md": "readme",
         f"{root}/LICENSE": "license",
         f"{root}/pyproject.toml": "[project]",
-        f"{root}/src/konwledge/__init__.py": "",
-        f"{root}/src/konwledge/py.typed": "",
+        f"{root}/src/knowledge/__init__.py": "",
+        f"{root}/src/knowledge/py.typed": "",
         **dict.fromkeys((f"{root}/src/{module}" for module in API_MODULES), ""),
         **dict.fromkeys((f"{root}/src/{module}" for module in MCP_MODULES), ""),
         **dict.fromkeys((f"{root}/{filename}" for filename in MCP_SDIST_FILES), ""),
@@ -82,9 +81,9 @@ def fixture_expected_sdist_file_count() -> int:
 
 def _wheel_files() -> dict[str, str]:
     return {
-        "konwledge/__init__.py": "",
-        "konwledge/__main__.py": "",
-        "konwledge/py.typed": "",
+        "knowledge/__init__.py": "",
+        "knowledge/__main__.py": "",
+        "knowledge/py.typed": "",
         **dict.fromkeys(API_MODULES, ""),
         **dict.fromkeys(MCP_MODULES, ""),
         **dict.fromkeys(MUTATION_MODULES, ""),
@@ -94,8 +93,8 @@ def _wheel_files() -> dict[str, str]:
         **dict.fromkeys(TOKEN_MODULES, ""),
         **dict.fromkeys(REPLAY_MODULES, ""),
         RESOURCE: "demo",
-        "konwledge-0.1.0.dist-info/METADATA": WHEEL_METADATA,
-        "konwledge-0.1.0.dist-info/entry_points.txt": ENTRY_POINTS,
+        "knowledge_ykforward-0.1.0.dist-info/METADATA": WHEEL_METADATA,
+        "knowledge_ykforward-0.1.0.dist-info/entry_points.txt": ENTRY_POINTS,
     }
 
 
@@ -132,8 +131,8 @@ def test_project_identity_comes_from_pyproject() -> None:
 
 def test_installed_location_rejects_source_checkout(tmp_path: Path) -> None:
     prefix = tmp_path / "venv"
-    installed = prefix / "lib" / "python3.11" / "site-packages" / "konwledge" / "__init__.py"
-    source = tmp_path / "checkout" / "src" / "konwledge" / "__init__.py"
+    installed = prefix / "lib" / "python3.11" / "site-packages" / "knowledge" / "__init__.py"
+    source = tmp_path / "checkout" / "src" / "knowledge" / "__init__.py"
     installed.parent.mkdir(parents=True)
     source.parent.mkdir(parents=True)
     installed.write_text("")
@@ -143,8 +142,8 @@ def test_installed_location_rejects_source_checkout(tmp_path: Path) -> None:
     assert not is_installed_location(source, prefix, (installed.parents[1],))
 
 
-def test_inspect_wheel_accepts_metadata_resources_and_three_entry_points(tmp_path: Path) -> None:
-    wheel = tmp_path / "konwledge-0.1.0-py3-none-any.whl"
+def test_inspect_wheel_accepts_metadata_resources_and_two_entry_points(tmp_path: Path) -> None:
+    wheel = tmp_path / "knowledge_ykforward-0.1.0-py3-none-any.whl"
     write_wheel(wheel)
 
     result = inspect_wheel(wheel, NAME, VERSION, (RESOURCE,))
@@ -167,12 +166,16 @@ def test_inspect_wheel_accepts_metadata_resources_and_three_entry_points(tmp_pat
     ("overrides", "message"),
     [
         (
-            {"konwledge-0.1.0.dist-info/METADATA": WHEEL_METADATA.replace(VERSION, "9.9.9")},
+            {
+                "knowledge_ykforward-0.1.0.dist-info/METADATA": WHEEL_METADATA.replace(
+                    VERSION, "9.9.9"
+                )
+            },
             "version mismatch",
         ),
         ({"tests/test_leak.py": ""}, "forbidden member"),
-        ({"konwledge/state.db": ""}, "forbidden member"),
-        ({"konwledge/private.pem": "secret"}, "forbidden member"),
+        ({"knowledge/state.db": ""}, "forbidden member"),
+        ({"knowledge/private.pem": "secret"}, "forbidden member"),
         ({"../escape": ""}, "unsafe archive member"),
     ],
 )
@@ -191,8 +194,8 @@ def test_inspect_wheel_rejects_missing_resource_and_entry_point(tmp_path: Path) 
     write_wheel(
         wheel,
         overrides={
-            "konwledge-0.1.0.dist-info/entry_points.txt": (
-                "[console_scripts]\nknowledge = konwledge.cli:main\n"
+            "knowledge_ykforward-0.1.0.dist-info/entry_points.txt": (
+                "[console_scripts]\nknowledge = knowledge.cli:main\n"
             )
         },
     )
@@ -202,13 +205,13 @@ def test_inspect_wheel_rejects_missing_resource_and_entry_point(tmp_path: Path) 
     missing = tmp_path / "missing.whl"
     write_wheel(missing)
     with pytest.raises(ValueError, match="missing packaged file"):
-        inspect_wheel(missing, NAME, VERSION, (RESOURCE, "konwledge/demo/corpus/missing.md"))
+        inspect_wheel(missing, NAME, VERSION, (RESOURCE, "knowledge/demo/corpus/missing.md"))
 
 
 def test_inspect_sdist_allows_source_tests_with_narrow_warning(
     tmp_path: Path, expected_sdist_file_count: int
 ) -> None:
-    sdist = tmp_path / "konwledge-0.1.0.tar.gz"
+    sdist = tmp_path / "knowledge_ykforward-0.1.0.tar.gz"
     write_sdist(sdist)
 
     result = inspect_sdist(sdist, NAME, VERSION)
@@ -222,10 +225,13 @@ def test_inspect_sdist_allows_source_tests_with_narrow_warning(
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        ({"konwledge-0.1.0/PKG-INFO": SDIST_METADATA.replace(NAME, "other")}, "name mismatch"),
-        ({"konwledge-0.1.0/.venv/bin/python": ""}, "forbidden member"),
-        ({"konwledge-0.1.0/cache.sqlite": ""}, "forbidden member"),
-        ({"konwledge-0.1.0/id_rsa": "secret"}, "forbidden member"),
+        (
+            {"knowledge_ykforward-0.1.0/PKG-INFO": SDIST_METADATA.replace(NAME, "other")},
+            "name mismatch",
+        ),
+        ({"knowledge_ykforward-0.1.0/.venv/bin/python": ""}, "forbidden member"),
+        ({"knowledge_ykforward-0.1.0/cache.sqlite": ""}, "forbidden member"),
+        ({"knowledge_ykforward-0.1.0/id_rsa": "secret"}, "forbidden member"),
         ({"../../escape": ""}, "unsafe archive member"),
     ],
 )
@@ -243,12 +249,12 @@ def test_inspect_sdist_rejects_bad_metadata_runtime_files_and_unsafe_paths(
 def test_distributions_require_type_marker(tmp_path: Path, kind: str) -> None:
     if kind == "wheel":
         wheel = tmp_path / "missing-marker.whl"
-        write_wheel(wheel, omit=("konwledge/py.typed",))
+        write_wheel(wheel, omit=("knowledge/py.typed",))
         with pytest.raises(ValueError, match=r"py\.typed"):
             inspect_wheel(wheel, NAME, VERSION, (RESOURCE,))
     else:
         sdist = tmp_path / "missing-marker.tar.gz"
-        write_sdist(sdist, omit=("konwledge-0.1.0/src/konwledge/py.typed",))
+        write_sdist(sdist, omit=("knowledge_ykforward-0.1.0/src/knowledge/py.typed",))
         with pytest.raises(ValueError, match=r"py\.typed"):
             inspect_sdist(sdist, NAME, VERSION)
 
@@ -272,7 +278,8 @@ def test_inspection_rejects_sdk_runtime_dependencies(tmp_path: Path, dependency:
     write_wheel(
         wheel,
         overrides={
-            "konwledge-0.1.0.dist-info/METADATA": WHEEL_METADATA + f"Requires-Dist: {dependency}\n"
+            "knowledge_ykforward-0.1.0.dist-info/METADATA": WHEEL_METADATA
+            + f"Requires-Dist: {dependency}\n"
         },
     )
     with pytest.raises(ValueError, match="SDK/test runtime"):
@@ -283,7 +290,7 @@ def test_inspection_rejects_sdk_runtime_dependencies(tmp_path: Path, dependency:
 def test_inspection_rejects_nonoptional_api_dependencies(tmp_path: Path, dependency: str) -> None:
     wheel = tmp_path / "nonoptional.whl"
     metadata = WHEEL_METADATA + f"Requires-Dist: {dependency}\n"
-    write_wheel(wheel, overrides={"konwledge-0.1.0.dist-info/METADATA": metadata})
+    write_wheel(wheel, overrides={"knowledge_ykforward-0.1.0.dist-info/METADATA": metadata})
     with pytest.raises(ValueError, match="conditional"):
         inspect_wheel(wheel, NAME, VERSION, (RESOURCE,))
 
@@ -311,7 +318,7 @@ def test_inspection_requires_api_extra(tmp_path: Path) -> None:
     write_wheel(
         wheel,
         overrides={
-            "konwledge-0.1.0.dist-info/METADATA": WHEEL_METADATA.replace(
+            "knowledge_ykforward-0.1.0.dist-info/METADATA": WHEEL_METADATA.replace(
                 "Provides-Extra: api\n", ""
             )
         },
@@ -349,7 +356,7 @@ def test_inspection_rejects_invalid_postgres_extra(
     wheel = tmp_path / "invalid-postgres-extra.whl"
     write_wheel(
         wheel,
-        overrides={"konwledge-0.1.0.dist-info/METADATA": metadata},
+        overrides={"knowledge_ykforward-0.1.0.dist-info/METADATA": metadata},
     )
 
     with pytest.raises(ValueError, match=message):
@@ -366,7 +373,7 @@ def test_inspection_rejects_invalid_postgres_extra(
 )
 def test_sdist_inspection_requires_new_runtime_modules(tmp_path: Path, module: str) -> None:
     sdist = tmp_path / "missing-new-module.tar.gz"
-    write_sdist(sdist, omit=(f"konwledge-0.1.0/src/{module}",))
+    write_sdist(sdist, omit=(f"knowledge_ykforward-0.1.0/src/{module}",))
 
     with pytest.raises(ValueError, match="missing source file"):
         inspect_sdist(sdist, NAME, VERSION)
@@ -406,7 +413,7 @@ def test_inspection_rejects_invalid_tokens_extra(
     wheel = tmp_path / "invalid-tokens-extra.whl"
     write_wheel(
         wheel,
-        overrides={"konwledge-0.1.0.dist-info/METADATA": metadata},
+        overrides={"knowledge_ykforward-0.1.0.dist-info/METADATA": metadata},
     )
 
     with pytest.raises(ValueError, match=message):
@@ -416,7 +423,7 @@ def test_inspection_rejects_invalid_tokens_extra(
 @pytest.mark.parametrize("module", MUTATION_MODULES)
 def test_sdist_requires_mutation_package(tmp_path: Path, module: str) -> None:
     sdist = tmp_path / "missing.tar.gz"
-    write_sdist(sdist, omit=(f"konwledge-0.1.0/src/{module}",))
+    write_sdist(sdist, omit=(f"knowledge_ykforward-0.1.0/src/{module}",))
     with pytest.raises(ValueError, match="missing source file"):
         inspect_sdist(sdist, NAME, VERSION)
 
@@ -424,7 +431,7 @@ def test_sdist_requires_mutation_package(tmp_path: Path, module: str) -> None:
 @pytest.mark.parametrize("filename", MUTATION_SDIST_FILES)
 def test_sdist_requires_mutation_acceptance_assets(tmp_path: Path, filename: str) -> None:
     sdist = tmp_path / "missing.tar.gz"
-    write_sdist(sdist, omit=(f"konwledge-0.1.0/{filename}",))
+    write_sdist(sdist, omit=(f"knowledge_ykforward-0.1.0/{filename}",))
     with pytest.raises(ValueError, match="missing source file"):
         inspect_sdist(sdist, NAME, VERSION)
 
@@ -432,14 +439,14 @@ def test_sdist_requires_mutation_acceptance_assets(tmp_path: Path, filename: str
 def test_mutation_module_collection_matches_actual_backend() -> None:
     root = Path(__file__).resolve().parents[1] / "src"
     actual = {
-        path.relative_to(root).as_posix() for path in (root / "konwledge/mutations").glob("*.py")
+        path.relative_to(root).as_posix() for path in (root / "knowledge/mutations").glob("*.py")
     }
     assert actual == set(MUTATION_MODULES)
 
 
 def test_wheel_rejects_unlisted_mutation_module(tmp_path: Path) -> None:
     wheel = tmp_path / "unexpected.whl"
-    write_wheel(wheel, overrides={"konwledge/mutations/unlisted.py": ""})
+    write_wheel(wheel, overrides={"knowledge/mutations/unlisted.py": ""})
     with pytest.raises(ValueError, match="mutation module collection mismatch"):
         inspect_wheel(wheel, NAME, VERSION, (RESOURCE,))
 

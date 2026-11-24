@@ -14,12 +14,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, select
 from typer.testing import CliRunner
 
-from konwledge.api import server
-from konwledge.api.app import create_app
-from konwledge.application import KnowledgeLibrary
-from konwledge.cli import app
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
-from konwledge.storage.tables import AutoEvaluationJobRow
+from knowledge.api import server
+from knowledge.api.app import create_app
+from knowledge.application import KnowledgeLibrary
+from knowledge.cli import app
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.storage.tables import AutoEvaluationJobRow
 
 KEY = "management-test-key"
 MANAGEMENT_PATH = "/v1/management/jobs"

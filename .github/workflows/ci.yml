@@ -45,7 +45,7 @@ jobs:
         run: uv run mypy src tests scripts
 
       - name: Test
-        run: uv run pytest --cov=konwledge --cov-report=term-missing
+        run: uv run pytest --cov=knowledge --cov-report=term-missing
 
       - name: Verify the versioned snapshot contract
         run: |
@@ -108,18 +108,17 @@ jobs:
       fail-fast: false
       matrix:
         postgres-version: ["16", "17"]
-
     services:
       postgres:
         image: postgres:${{ matrix.postgres-version }}
         env:
-          POSTGRES_USER: konwledge_test
-          POSTGRES_PASSWORD: konwledge_test
-          POSTGRES_DB: konwledge_test
+          POSTGRES_USER: knowledge_test
+          POSTGRES_PASSWORD: knowledge_test
+          POSTGRES_DB: knowledge_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U konwledge_test -d konwledge_test"
+          --health-cmd "pg_isready -U knowledge_test -d knowledge_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -139,7 +138,7 @@ jobs:
 
       - name: Test PostgreSQL schema capture
         env:
-          KNOWLEDGE_TEST_POSTGRES_DSN: postgresql+psycopg://konwledge_test:konwledge_test@127.0.0.1:5432/konwledge_test
+          KNOWLEDGE_TEST_POSTGRES_DSN: postgresql+psycopg://knowledge_test:knowledge_test@127.0.0.1:5432/knowledge_test
         run: uv run --no-sync pytest tests/test_database_schema_postgres.py
 
   web:

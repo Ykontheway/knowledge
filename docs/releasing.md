@@ -1,301 +1,79 @@
-# Releasing
+# 发布维护说明
 
-This document is a maintainer checklist. It separates a release-ready source tree, verified local artifacts, and an actually published release.
+本页说明 Knowledge 的新发行候选如何准备和审核。旧发布审计集中保留在 [旧 0.1.0 记录](releases/legacy-0.1.0.md)，不把旧文件、hash、源码提交或 Actions run 改名为新发行证据。
 
-## Current v0.1.0 state
+## 新发行仍是候选
 
-v0.1.0 alpha was first published to PyPI on 2026-11-23: [konwledge 0.1.0](https://pypi.org/project/konwledge/0.1.0/). The published artifact set is bound to the fixed source commit `3768ceba0719cd21916ea80ae175151a92d4ded1`; the upload was executed by the publisher workflow commit `7e263833b4f2a316c87f4091306ea6def26ba865`. Treat that pair as the approved publication provenance for this PyPI release. It is a fixed-source publication record, not evidence that `main` was merged or pushed for this release, that a tag was created, that a GitHub Release exists, or that GitHub Pages was updated.
+当前目标是 `knowledge-ykforward==0.1.0` Alpha，尚未发布到 PyPI。实现完成、候选构建通过、包发布、main 合并、tag、GitHub Release 和 Pages 部署分别记录，任何一项都不自动证明其他项完成。源码安装及命名区别见 [迁移说明](migration-to-knowledge.md)。
 
-Publication evidence and verified scope:
-
-- preflight run: [GitHub Actions run 45151862632](https://github.com/Ykontheway/konwledge/actions/runs/45151862632) — all checks succeeded and upload was skipped;
-- actual publish run: [GitHub Actions run 45154046544](https://github.com/Ykontheway/konwledge/actions/runs/45154046544) — all 8 jobs completed, including `UploadSuccess`;
-- verified artifact hashes: wheel SHA256 `801e74af65419db1877d16c87cd2a53c5f67fcae4927fbba59c19a58ed950f17`; sdist SHA256 `2e9dd69ff48582f1117befc33328ef38324a185f3a3008bc263e9ed8e08f46ee`;
-- the published index JSON and downloaded-byte hashes were independently verified;
-- local full validation was `2590 passed, 7 skipped` in `583.21s`;
-- three remote Python CI jobs succeeded, but anonymous complete logs were not readable, so this document does not invent remote test counts;
-- post-publication verification succeeded in a fresh external Linux Python 3.11.15 environment with no cache and isolated `pip` for both the wheel and `--no-binary konwledge` sdist install paths; imports came from `site-packages`, CLI aliases reported `0.1.0`, and the verified scope covered the core `9` checks / `8` steps / `6` cases / `42` gates plus Replay checks over `3` jobs and `16` diffs;
-- an independent PyPI MCP follow-up passed `15` additional checks across `5` tools using real stdio via SDK `1.30`, and `pip check` passed; the first MCP install attempt timed out and is not counted as passed, while a fresh retry succeeded;
-- post-publication install verification was not rerun for `[api]`, `[tokens]`, `[postgres]`, or `[lancedb]`;
-- Windows and macOS were not accepted, and package publication does not deploy a GUI, a web service, or a public live backend.
-
-README may now state that `konwledge==0.1.0` is available from PyPI, but release notes must still distinguish PyPI publication from merge-to-`main`, tagging, GitHub Release publication, and static-site publication.
-
-Operational note: the user secret `PYPI_API_TOKEN` was consumed only by the GitHub upload step through `UV_PUBLISH_TOKEN`; the plaintext token and its scope were not inspected here. If an account-wide token was used for first publication, replace it with a project-scoped token and revoke the original token. Prefer Trusted Publishing for future releases. These post-publication documentation updates do not change the immutable published artifacts; do not rebuild and upload a different artifact set as `0.1.0`.
-
-## Historical pre-publication note from 2026-11-12
-
-The following note is preserved exactly as a historical pre-publication snapshot.
-
-As of 2026-11-12, v0.1.0 is prepared as an alpha release candidate in source metadata. U14–U16 acceptance, automatic knowledge-change evaluation, and U18–U20 remain Unreleased additions and do not change the version. This work does not merge `main`, create a pull request, tag a commit, create a GitHub Release, publish to PyPI, or deploy/verify a public site. Local artifacts produced during verification are not a published release.
-
-No installation instructions should claim that `konwledge==0.1.0` is available from PyPI until the package index confirms it.
-
-## Release roles and approval boundary
-
-One maintainer may prepare and validate a candidate. A maintainer with release authority must explicitly approve each external side effect:
-
-1. merge to `main`;
-2. create and push the version tag;
-3. create a GitHub Release and upload artifacts;
-4. publish to PyPI;
-5. publish the static site.
-
-Approval of one action does not imply approval of the others. CI passing is necessary but is not publication approval. Never run release publication commands from an unreviewed working tree.
-
-Because `.github/workflows/deploy-demo.yml` is configured for pushes to `main`, maintainers must decide explicitly whether a proposed merge is allowed to initiate that workflow. Use a protected GitHub Pages environment or pause the workflow when site publication is not approved.
-
-## 1. Confirm scope and repository state
-
-- Confirm the intended version and alpha classification.
-- Confirm release notes describe only implemented behavior.
-- Record deferred scope: frontend remains at V2; V3/V4, live-page publication, and further deployment are not part of the candidate.
-- Confirm there are no claims of a live page, PyPI availability, tag, or GitHub Release before those actions actually succeed.
-- Review all changes and verify that unrelated working-tree changes are not entering the candidate.
-- Ensure secrets, local databases, vector indexes, caches, logs, and private runtime reports are absent.
-
-Use normal Git inspection commands such as `git status`, `git diff`, and `git log`; do not clean or reset another contributor's work to manufacture a clean tree.
-
-## 2. Check version truth
-
-The release version must agree in all three locations:
-
-| Source | Expected v0.1.0 value |
+| 核对位置 | 目标值 |
 | --- | --- |
-| `pyproject.toml` | `project.version = "0.1.0"` |
-| `src/konwledge/__init__.py` | `__version__ = "0.1.0"` |
-| `uv.lock` | editable `konwledge` package record version `0.1.0` |
+| `pyproject.toml` | `project.name = "knowledge-ykforward"`，`project.version = "0.1.0"`，Python `>=3.11`，Alpha classifier |
+| `src/knowledge/__init__.py` | `__version__ = "0.1.0"`，lazy `KnowledgeLibrary` 导出 |
+| `uv.lock` | editable `knowledge-ykforward` 记录，版本 `0.1.0` |
+| console scripts | 仅 `knowledge = knowledge.cli:main`、`knowledge-mcp = knowledge.mcp.server:main` |
+| 导入与模块运行 | `import knowledge`、`python -m knowledge`，不使用 distribution 名作为 import |
+| 仓库地址 | `https://github.com/Ykontheway/knowledge` |
 
-Also verify:
+如元数据或依赖改动，使用 `uv lock` 生成锁文件并审阅 diff，不手工改一处来凑版本一致。不要清理或重置其他协作者的工作来制造干净工作区。
 
-- `requires-python` remains `>=3.11`;
-- the classifier reflects alpha status;
-- `knowledge` and legacy `konwledge` entry points both target `konwledge.cli:main`;
-- README expected output and the `0.1.0` CHANGELOG heading match the candidate;
-- root `KnowledgeLibrary` remains a lazy export.
+## 本地检查与隔离安装
 
-Run the focused metadata contract:
+本地验收结果见下方 2026-11-24 记录。以下命令保留供维护者复核，不表示远端 workflow 已运行：
 
 ```bash
 uv sync --locked --dev
-uv run pytest tests/test_release_metadata.py tests/test_cli.py
-```
-
-If the version was intentionally changed, update project metadata and regenerate `uv.lock` with `uv lock`; then review the lock diff. Do not hand-edit only one source of version truth.
-
-## 3. Run local validation
-
-Run the complete Python quality and behavior suite:
-
-```bash
+uv run pytest tests/test_release_metadata.py tests/test_project_naming.py tests/test_pypi_workflow.py
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests scripts
-uv run pytest --cov=konwledge --cov-report=term-missing
-```
-
-Verify the committed demo contract and U16 gate behavior:
-
-```bash
+uv run pytest --cov=knowledge --cov-report=term-missing
 uv run knowledge demo build --force
 uv run knowledge demo export --check
 uv run pytest tests/test_evaluation_gate_demo.py
-```
-
-If the optional adapter is in release scope:
-
-```bash
-uv sync --locked --dev --extra lancedb
-uv run pytest tests/test_indexing.py -k lance
-```
-
-The default tests and demo gate do not require provider credentials or a network service. SQLite must provide FTS5.
-
-## 4. Build and verify isolated distributions
-
-Run the project verifier, not only `pytest`:
-
-```bash
-uv run python scripts/verify_distribution.py
-```
-
-The script performs these release checks:
-
-- builds an exact wheel and source distribution with `uv build`;
-- validates archive paths, metadata identity, console entry points, the PEP 561 `py.typed` marker, packaged demo resources, and runtime-file exclusions;
-- installs each artifact into a fresh environment outside the source checkout;
-- proves imports come from that environment's `site-packages`;
-- smoke-tests `knowledge`, `konwledge`, and `python -m konwledge`;
-- runs the packaged eight-step demo, historical retrieval, context/citation behavior, evaluation, baseline comparison, and both passing and blocking gates.
-
-Preserve an explicit output directory when artifacts are candidates for review:
-
-```bash
+uv run python scripts/export_management_schema.py --check
+uv run python scripts/export_mutation_schema.py --check
+uv run --frozen python scripts/export_replay.py --check --output web/public/replay.json
 uv run python scripts/verify_distribution.py --output-dir release-verification
 ```
 
-A successful run prepares verified local files such as `release-verification/build/konwledge-0.1.0-py3-none-any.whl` and the matching source archive. These files are not published merely because they exist or were uploaded as CI artifacts.
+前端在 `web/` 下运行 `pnpm install --frozen-lockfile`、`pnpm verify` 和 `pnpm verify:preview`。PostgreSQL、LanceDB、MCP 和 Linux live 用例按各自合成隔离环境验收，不连接用户生产数据库；默认 skip 不计为通过。
 
-Review smoke summaries and archive contents before approving publication. Do not publish an artifact rebuilt by an unverified, different path.
+发行验证必须检查 wheel／sdist 的 distribution metadata、`knowledge/` 包路径、PEP 561、打包语料、仅有的新 CLI 与运行数据排除规则。每种产物在仓库外新环境安装，确认 import 来自 `site-packages`；先证明 core-only help／version 与缺 extra 安全失败，再对同一产物验证可选能力。demo、引用、历史检索、baseline 比较、通过和阻断门禁均须保留。旧 import／CLI 的停止使用也须检查，不能由源码 checkout 掩盖隔离安装问题。
 
-## 5. Review release evidence
+## 2026-11-24 本地验收
 
-Before merge or tag approval, confirm:
+- GitHub 已更名为 `Ykontheway/knowledge`，项目目录已为 `knowledge`。`uv sync --locked --dev` 通过，依赖版本未变；Ruff check／format 检查 256 个文件通过，mypy 检查 221 个源文件通过，actionlint 自动检查全部 3 个 workflow 通过。
+- 清除 `PYTHONPATH`，设置 `GITHUB_ACTIONS=true`、`NO_COLOR=1`、`TERM=dumb` 后，`python -m pytest --cov=knowledge` 全量结果为 2673 passed、14 skipped，耗时 580.14 秒。跳过项不计为通过。
+- 前端 `pnpm verify` 为 529 passed、2 skipped；`pnpm verify:preview` 为 91 passed。预览构建产物检查包含 17 个允许资源，回放为 3 个 job、263215 字节，普通与 preview 构建均通过；现有 606 kB chunk warning 未修。snapshot 重新生成仅有 schema `$id` 的新 URL diff，snapshot JSON 不变。
+- 发布 workflow／manifest 的 123 项测试通过。下节所列手动触发、当前源码 SHA、完整 CI gates、同次运行 artifact、manifest 校验及上传隔离契约均已在本地核验，远端尚未执行。
+- wheel／sdist 在隔离环境中分别通过 core 9 项检查、CLI 6 步、demo 8 步、evaluation 6 个 case／42 个 gate，以及 quality 10 项检查／30 个 case／1000 个 unit；API 10 项、tokens 6 项、PostgreSQL 6 项检查均通过。
+- 每种产物的只读 MCP 15 项检查通过，各有 18 次成功调用、39 次预期拒绝；受控 MCP 17 项检查通过，各有 36 次成功调用、17 次预期拒绝。成功调用与预期拒绝分别统计，不将拒绝或跳过项写成成功调用。
+- 真实候选文件名为 `knowledge_ykforward-0.1.0-py3-none-any.whl` 和 `knowledge_ykforward-0.1.0.tar.gz`。本次文档收尾后必须重新构建并验收，sdist hash 会变化；不记录临时候选 hash，也不将其作为最终发布 hash。
 
-- pull-request CI passed on supported Python versions;
-- the fixed-time candidate passes `examples/evaluation-gate.json` against the committed baseline;
-- CI did not regenerate the approved baseline;
-- demo snapshot and schema golden files changed only when intentionally reviewed;
-- raw reports do not leak local source paths or source text into public artifacts;
-- compact baselines are still validated, portable, and free of hit quotes and absolute corpus paths;
-- wheel and sdist smoke summaries both passed;
-- documentation links resolve within the repository.
+以上仅为本地验收。新 workflow 尚未远端运行，新 PyPI 包未发布，main 未合并，Pages 未重新部署。
 
-A valid blocked gate exits `3` and must stop the release. Invalid evidence exits `2`; runtime or file failures exit `1`. Do not convert these outcomes into an unconditional success.
+## 仅手动发布已验证产物
 
-## 6. Approve merge and identify the release commit
+**新 workflow 的 YAML 与测试契约已在本地核验，远端尚未执行。以下说明已核验的本地配置及仍需远端确认的事项，不代表新包已发布。**
 
-Merge to `main` only after maintainer review and explicit merge approval. After merge:
+- PyPI workflow 仅接受 `workflow_dispatch`，`publish` 为 boolean，默认 `false`。旧 push marker 触发路径已移除，不因 feature／main push 或提交消息自动上传。
+- 手动执行默认只做候选验证。上传 job 依赖全部 CI gates 成功：受支持 Python 版本、静态检查、行为测试、冻结 demo／schema／回放漂移、固定时间回归门禁、前端与 preview 验证、发行 metadata 和各隔离 smoke，以及 PostgreSQL、LanceDB lane。配置依赖已本地核验，各远端 lane 尚未运行。
+- 只有显式 `publish=true`、所有必要 gates 成功并获发布授权，上传 job 才能下载并上传**同一次 workflow run** 验证的 artifact。构建一次，后续检查和上传复用同一 wheel／sdist；publish job 不 checkout、不运行仓库代码、不 rebuild，也不取旧 run 或任意 ref 的产物。
+- 源码固定为当次 `github.sha`，不使用旧 release SHA。manifest 绑定该 SHA，严格核对项目名 `knowledge-ykforward`、版本 `0.1.0`、两个真实文件名和 SHA256，上传前再次校验。不在文档中预填新 hash／run，不把旧文件重命名当成新包。
+- token 仅通过 secret 环境变量提供给上传步骤，不打印明文或传给其他步骤。远端 secret、项目身份、environment、默认分支 dispatch 可用性和所选 ref 仍需维护者确认。
+- gate 阻断退出 `3`、无效证据退出 `2`、运行／I/O 失败退出 `1`，任何失败都不能转为无条件成功或继续上传。CI artifact 存在不等于 PyPI 发布成功。
 
-- wait for `main` CI to pass;
-- identify the exact immutable commit to release;
-- verify the tag does not already exist locally or remotely;
-- ensure release artifacts correspond to that exact commit.
+本地 YAML、manifest 与测试核验不能替代远端 Actions 运行、发布授权或 PyPI 上传结果。
 
-If site publication remains deferred, enforce that decision before a `main` push can reach the Pages deployment job.
+## 外部动作分别授权
 
-## 7. Optional future publication commands
+main 合并／推送、tag、GitHub Release、PyPI 和静态站点发布都需分别获得明确授权。CI 通过不自动授权发布；本次文档工作不执行 git add／commit／push 或部署。
 
-The commands below are examples for a future maintainer session after explicit approval. They were not executed as part of U17.
+Pages 发布也须单独核对手动 dispatch、默认 `publish=false`、已验证 artifact、GitHub Actions Source、environment 保护及更名后的 base path。旧站点可访问的历史结果见 [审计记录](releases/legacy-0.1.0.md#静态回放发布与验收)，不能据此宣布新地址已上线。
 
-### Tag
+## 上传后再写可安装
 
-```bash
-git tag -s v0.1.0 <approved-main-commit> -m "Konwledge v0.1.0"
-git push origin v0.1.0
-```
+仅在上传真正成功后，记录新 distribution 的真实 PyPI URL、源码 SHA、workflow SHA／run、wheel／sdist 文件名和 SHA256。独立核对索引与下载字节，在仓库外新环境分别安装 wheel／sdist，检查 `import knowledge`、`knowledge --version`、`knowledge-mcp` 和 `python -m knowledge --version`，再运行离线端到端 smoke。
 
-Use the repository's accepted signing policy. If signed tags are not configured, stop and obtain an approved alternative rather than silently changing provenance.
-
-### GitHub Release
-
-After verifying checksums for the exact approved wheel and source archive, a maintainer may create a release through the GitHub UI or an authenticated CLI. One possible command shape is:
-
-```bash
-gh release create v0.1.0 \
-  release-verification/build/konwledge-0.1.0-py3-none-any.whl \
-  release-verification/build/konwledge-0.1.0.tar.gz \
-  --verify-tag --title "Konwledge v0.1.0" --notes-file CHANGELOG.md
-```
-
-Review the rendered notes; using the whole changelog as notes may not be desirable. A GitHub Release is distinct from a PyPI publication.
-
-### PyPI
-
-Publish only the already verified artifacts, with an approved trusted-publishing or credential flow. For example, in a configured maintainer environment:
-
-```bash
-uv publish release-verification/build/konwledge-0.1.0-py3-none-any.whl \
-  release-verification/build/konwledge-0.1.0.tar.gz
-```
-
-Do not rebuild between approval and upload. After publishing, verify package-index metadata and install the exact version in a new external environment before changing README availability claims.
-
-### Static site
-
-Site publication is a separate decision. If approved, run `pnpm verify` in `web/`, confirm the snapshot contract and intended base path, and explicitly dispatch or approve the Pages workflow. Record the resulting URL only after it is accessible and its content has been checked. Do not infer a live site from workflow configuration alone.
-
-## 8. Post-publication verification
-
-Only after each action succeeds:
-
-- verify the remote tag resolves to the approved commit;
-- verify GitHub Release assets and checksums;
-- verify a clean install imports version `0.1.0` from site-packages;
-- run `knowledge --version`, `konwledge --version`, and `python -m konwledge --version`;
-- verify packaged demo resources and one offline end-to-end smoke path;
-- verify the public site if it was separately approved and published;
-- update status language to distinguish which channels are actually live.
-
-If any channel fails, report that channel as incomplete. Do not delete or overwrite evidence to make the release appear complete.
-
-## U18 集成检查补充（Unreleased，非发布）
-
-U18 保持 `0.1.0`，新增可选本机上下文 API；v0.1.0 仍然是已准备、未发布候选。没有提交/推送、tag、发布、部署或远端 CI 通过的隐含承诺。工作分支 push 不触发当前默认 CI，触发条件仍为 PR/`main`。
-
-```bash
-uv sync --locked --dev
-uv run pytest tests/test_api.py tests/test_api_cli.py tests/test_api_clients.py tests/test_distribution.py tests/test_release_metadata.py
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy src tests scripts
-uv run pytest --cov=konwledge --cov-report=term-missing
-uv run python scripts/verify_distribution.py --output-dir dist/u18-verification
-```
-
-发布评审需额外确认：
-
-1. wheel 与 sdist 含 `api/__init__.py`、`app.py`、`models.py`、`server.py`；FastAPI/Uvicorn 的 `Requires-Dist` 仅在 `extra == 'api'` 时生效，SDK/HTTPX 不进入运行时依赖。
-2. `uv.lock` 通过 `uv lock` 重新生成；默认 dev 含 FastAPI/Uvicorn，保证不显式选 extra 时静态类型和默认测试也能运行。dev 同时包含真实 SDK 验收依赖，但不能把 dev 安装成功当作 core-only 证据。
-3. `verify_distribution.py` 分别先安装 wheel/sdist 的 core-only 版本，证明 optional 包缺失时 root/API 导入、help/version 和缺 extra 友好错误仍有效；再安装同一产物的 `[api]`。复制到仓库外的 `installed_api_smoke.py` 用 `python -I` 证明 API 来自 site-packages、不含 OpenAI/LangChain/HTTPX，驱动 ASGI 验证 packet、鉴权、严格错误与请求只读，并替换 `uvicorn.run` 验证 CLI 启动及 engine 释放。
-4. 两份 `*-smoke-summary.json` 中新增 `api_extra` 结果，CI 原有上传模式会保存它们；默认 CI 同步 dev 已覆盖 API 类型/SDK 测试，无需把 SDK 加到 wheel 或改变 feature-push 触发条件。
-5. [API 文档](api.md) 明确 `serve` 的已有数据库要求、loopback/端口/环境密钥约束及启动 additive schema/FTS 可能写库，与 HTTP 请求只读区分；OpenAI 子集只返回 packet，无真实推理、usage、stream/tools/sampling/Responses/对话历史。
-
-测试不得调用外部 provider，不启动后台服务或部署；本地产物仍须单独取得发布授权，不能因为分发 smoke 成功而标记为已发布。
-
-
-## U19 集成检查补充（Unreleased，非发布）
-
-U19 保持 `0.1.0`，不增加运行时依赖，也不修改 U18 只读 HTTP schema。候选审核是本地显式操作，不是发布授权、身份认证或自动事实验证。
-
-建议在其他协作者完成安全测试后运行：
-
-```bash
-uv run pytest tests/test_conversation_cli.py tests/test_candidate_cli.py \
-  tests/test_conversation_safety.py
-uv run ruff format --check .
-uv run ruff check .
-uv run mypy src tests scripts
-uv run python scripts/verify_distribution.py --output-dir dist/u19-verification
-```
-
-发布评审还要确认以下事项：
-
-- core-only wheel/sdist 都能从仓库外完成对话 stdin 导入、默认 pending 列表、批准与拒绝、重复导入和审计查询；测试不读取源码 checkout。
-- 非法 JSON、重复 key、非 UTF-8、超过 10 MiB 和不合 schema 的输入在创建数据库或父目录前失败，诊断不回显原始私密正文。
-- 待审核与已拒绝候选不出现在 search/context；批准候选可检索。重复相同决定保留最初审核记录，反向终态操作退出 `2`。
-- `[api]` 隔离 smoke 先通过 CLI 准备批准/拒绝记录，再在只读 SQL 监听阶段验证 HTTP 只能检索批准内容，不产生写入。
-- `examples/conversation-demo.json` 是合成数据；原始聊天、conversation/candidate JSON、导出和数据库均按私密本地制品处理，不加入公开发布资产。
-
-U19 不要求新增 console entry point、依赖、API 路由、前端或部署。分发验证成功仍只说明本地产物可供评审，不表示 v0.1.0 已发布。
-
-## U20 集成检查补充（Unreleased，非发布）
-
-U20 保持 `0.1.0`。核心安装支持 SQLite schema 捕获；PostgreSQL 驱动仅由 `[postgres]` extra 提供。测试只能使用合成 SQLite 文件或 CI 临时 PostgreSQL 服务，不得连接用户数据库、读取真实凭据或调用外部服务。
-
-建议在数据库安全测试与 PostgreSQL 集成测试文件就绪后运行：
-
-```bash
-uv lock --check
-uv run --no-sync pytest tests/test_database_schema_cli.py tests/test_database_schema_core.py
-uv sync --locked --dev --extra postgres
-KNOWLEDGE_TEST_POSTGRES_DSN='postgresql+psycopg://konwledge_test:konwledge_test@127.0.0.1:5432/konwledge_test' \
-  uv run --no-sync pytest tests/test_database_schema_postgres.py
-uv run ruff format --check .
-uv run ruff check .
-uv run mypy src tests scripts
-uv run python scripts/verify_distribution.py --output-dir dist/u20-verification
-```
-
-发布评审还要确认以下事项：
-
-- wheel 与 sdist 的核心依赖不含 psycopg；`psycopg[binary]>=3.2,<4` 只在 `extra == 'postgres'` 时生效。默认 quality job 仍执行 `uv sync --locked --dev`，PostgreSQL 16/17 专用 job 才选择该 extra。
-- `capture-postgres` 只接受 `--dsn-env ENVNAME`，没有 `--dsn`。日志、JSON、错误、来源 URI 和 `Source.metadata` 都不能包含 DSN、用户名、密码、原始 SQL 或底层连接错误。
-- 无效标题、timeout、环境变量名、schema、缺失 SQLite 文件、目录及元数据库 symlink/hardlink 在创建元数据库和父目录前退出。外部捕获失败也不能留下新元数据库。
-- core-only wheel/sdist 从仓库外创建合成 SQLite 源，完成首次捕获、未变化幂等捕获、schema 变更、history/diff/export，并证明 sentinel 业务行不进入 snapshot。list/history 不改变元数据行数。
-- `[api]` 隔离 smoke 捕获两版合成 schema 后，在 SQL 写监听阶段验证当前字段可检索、已删除字段不可检索，HTTP 请求不产生写入。
-- wheel 和 sdist 各有独立的 `[postgres]` 隔离环境，验证 psycopg 3 的 binary 实现、标准 DSN 归一化、连接失败脱敏和导入路径。smoke 不连接业务数据库，结果记录在 `postgres_extra` 中。
-- PostgreSQL 角色使用最小只读权限；捕获事务为 read-only，并设置连接、statement 和 lock timeout。集成测试的账号和密码只能是 CI 临时 dummy 值，不是用户 secret。
-- schema 注释、默认值、表达式和 DDL 可能敏感。数据库、snapshot 和导出文件不进入公开发布资产。`SourceKind.DATABASE` 继续让 V1 snapshot 导出明确失败，不改 demo golden 和前端类型。
-
-U20 不新增前端、部署、LLM 调用、真实数据库访问或发布动作。CI 与本地检查通过只说明代码可供评审。
+各 extra 与平台的已测／未测范围分别写清。只有索引确认和安装验收完成后，README 才能写“已发布／可安装”；任一渠道失败就如实记录，不删失败记录或覆盖旧发行证据。

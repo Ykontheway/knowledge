@@ -6,13 +6,13 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from konwledge.api.app import create_app
-from konwledge.application import KnowledgeLibrary
-from konwledge.domain import EvaluationItem, EvaluationSet
-from konwledge.evaluation import EvaluationService
-from konwledge.mutations.safety import load_mutation_scope
-from konwledge.mutations.tables import create_mutation_schema
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.api.app import create_app
+from knowledge.application import KnowledgeLibrary
+from knowledge.domain import EvaluationItem, EvaluationSet
+from knowledge.evaluation import EvaluationService
+from knowledge.mutations.safety import load_mutation_scope
+from knowledge.mutations.tables import create_mutation_schema
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 WRITE_KEY = "write-key"
 READ_KEY = "read-key"
@@ -48,7 +48,7 @@ def _demo(tmp_path: Path) -> tuple[KnowledgeLibrary, Path, dict[str, object]]:
     tmp_path.chmod(0o700)
     database.chmod(0o600)
     manifest: dict[str, object] = {
-        "kind": "konwledge-mutation-demo-v1",
+        "kind": "knowledge-mutation-demo-v1",
         "scope_id": str(uuid4()),
         "database": "knowledge.db",
         "allowed_source_ids": [str(source_id)],

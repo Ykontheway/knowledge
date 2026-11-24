@@ -42,7 +42,7 @@ def light_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "repo"
     root.mkdir()
     monkeypatch.setattr(runtime, "ROOT", root)
-    session = root / ".konwledge" / "workbench" / str(uuid4())
+    session = root / ".knowledge" / "workbench" / str(uuid4())
     session.mkdir(parents=True, mode=0o700)
     return session
 
@@ -72,7 +72,7 @@ def test_session_private_unique_and_no_overwrite(session: Path) -> None:
 
 
 def test_no_symlink_roots(session_root: Path, tmp_path: Path) -> None:
-    (session_root / ".konwledge").symlink_to(tmp_path, target_is_directory=True)
+    (session_root / ".knowledge").symlink_to(tmp_path, target_is_directory=True)
     with pytest.raises(runtime.RuntimeErrorCode):
         runtime.create_session()
 
@@ -503,7 +503,7 @@ def test_adapter_fixed_public_interfaces(
     monkeypatch.setattr(runtime, "reports", lambda: shared)
     driver = MagicMock()
     scope = str(uuid4())
-    controlled = root / ".konwledge" / "mutation-demo" / scope
+    controlled = root / ".knowledge" / "mutation-demo" / scope
     prepared_db = controlled / "seed" / "knowledge.db"
     prepared_manifest = controlled / "mutation-manifest.json"
     driver.Runner.return_value.run.return_value = 0
@@ -607,7 +607,7 @@ def fresh_controlled_demo(root: Path) -> dict[str, Any]:
     from scripts import prepare_mutation_demo as demo
 
     scope, source, dataset = uuid4(), uuid4(), uuid4()
-    base = root / ".konwledge" / "mutation-demo"
+    base = root / ".knowledge" / "mutation-demo"
     base.mkdir(mode=0o700, exist_ok=True)
     parent = base / str(scope)
     parent.mkdir(mode=0o700, exist_ok=False)

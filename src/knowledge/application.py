@@ -1,0 +1,482 @@
+"""Application services for importing and inspecting a local knowledge library."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import UUID, uuid4
+
+from sqlalchemy.exc import IntegrityError
+
+from knowledge.auto_evaluation import AutoEvaluationService
+from knowledge.conflicts import ConflictService
+from knowledge.context import ContextPacket, ContextService, TokenCounter
+from knowledge.conversations import ConversationService
+from knowledge.database_schema import DatabaseSchemaService
+from knowledge.domain import (
+    Document,
+    KnowledgeUnit,
+    KnowledgeUnitStatus,
+    Revision,
+    RevisionEntityType,
+    Source,
+    SourceKind,
+)
+from knowledge.evaluation import EvaluationService
+from knowledge.indexing import IndexingService
+from knowledge.ingestion import (
+    FileIngestionService,
+    KnowledgeUnitService,
+    TraceableIngestionResult,
+    TraceableIngestionService,
+    TraceableTextSplitter,
+)
+from knowledge.lifecycle import (
+    FreshnessService,
+    KnowledgeSnapshot,
+    KnowledgeUnitNotFoundError,
+    LifecycleService,
+    UnitState,
+)
+from knowledge.quality import QualityService
+from knowledge.retrieval import RetrievalMode, RetrievalResult, RetrievalService
+from knowledge.storage import SessionFactory, UnitOfWork
+
+__all__ = [
+    "SUPPORTED_SUFFIXES",
+    "ConversationService",
+    "DocumentSummary",
+    "FileDiscovery",
+    "ImportPathError",
+    "ImportReport",
+    "ImportedFile",
+    "KnowledgeLibrary",
+    "KnowledgeUnitDetail",
+    "KnowledgeUnitNotFoundError",
+    "UnitHistory",
+    "discover_import_files",
+]
+
+SUPPORTED_SUFFIXES = frozenset({".md", ".markdown", ".txt"})
+
+IdFactory = Callable[[], UUID]
+Clock = Callable[[], datetime]
+
+
+class ImportPathError(ValueError):
+    """Raised when an import target cannot produce supported files."""
+
+
+@dataclass(frozen=True, slots=True)
+class FileDiscovery:
+    """Stable supported-file discovery plus ignored files."""
+
+    files: tuple[Path, ...]
+    skipped: tuple[Path, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ImportedFile:
+    """Result of importing one discovered file."""
+
+    path: Path
+    result: TraceableIngestionResult
+
+
+@dataclass(frozen=True, slots=True)
+class ImportReport:
+    """Complete result for a single-file or directory import."""
+
+    imported: tuple[ImportedFile, ...]
+    skipped: tuple[Path, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentSummary:
+    """A document, its source, its traceable units, and their current statuses.
+
+    ``is_head`` marks the version currently published for the source;
+    ``statuses`` is empty for a version that was never published.
+    """
+
+    document: Document
+    source: Source
+    units: tuple[KnowledgeUnit, ...]
+    is_head: bool = False
+    statuses: Mapping[UUID, KnowledgeUnitStatus] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeUnitDetail:
+    """A knowledge unit with its document and source context."""
+
+    unit: KnowledgeUnit
+    document: Document
+    source: Source
+
+
+@dataclass(frozen=True, slots=True)
+class UnitHistory:
+    """All stored versions of one knowledge lineage and its revision chain."""
+
+    unit: KnowledgeUnit
+    lineage_id: UUID
+    versions: tuple[KnowledgeUnit, ...]
+    revisions: tuple[Revision, ...]
+    statuses: Mapping[UUID, KnowledgeUnitStatus] = field(default_factory=dict)
+
+
+def discover_import_files(target: Path) -> FileDiscovery:
+    """Discover supported files recursively in deterministic relative-path order."""
+
+    path = target.expanduser()
+    if not path.exists():
+        raise ImportPathError(f"import path does not exist: {path}")
+    if path.is_file():
+        if path.suffix.lower() not in SUPPORTED_SUFFIXES:
+            supported = ", ".join(sorted(SUPPORTED_SUFFIXES))
+            raise ImportPathError(
+                f"unsupported file extension {path.suffix or '<none>'}; "
+                f"expected one of: {supported}"
+            )
+        return FileDiscovery(files=(path.resolve(),), skipped=())
+    if not path.is_dir():
+        raise ImportPathError(f"import path is neither a regular file nor a directory: {path}")
+
+    all_files = sorted(
+        (candidate for candidate in path.rglob("*") if candidate.is_file()),
+        key=lambda candidate: candidate.relative_to(path).as_posix(),
+    )
+    files = tuple(candidate.resolve() for candidate in all_files if _is_supported(candidate))
+    skipped = tuple(candidate.resolve() for candidate in all_files if not _is_supported(candidate))
+    if not files:
+        supported = ", ".join(sorted(SUPPORTED_SUFFIXES))
+        raise ImportPathError(f"no supported files found in {path} (expected: {supported})")
+    return FileDiscovery(files=files, skipped=skipped)
+
+
+def _is_supported(path: Path) -> bool:
+    return path.suffix.lower() in SUPPORTED_SUFFIXES
+
+
+def _statuses_by_unit(snapshot: KnowledgeSnapshot) -> dict[UUID, KnowledgeUnitStatus]:
+    return {
+        state.unit.id: state.status
+        for source in snapshot.sources
+        for state in (*source.units, *source.retired)
+    }
+
+
+class KnowledgeLibrary:
+    """Import files and query persisted knowledge through UnitOfWork boundaries."""
+
+    def __init__(
+        self,
+        session_factory: SessionFactory,
+        *,
+        id_factory: IdFactory = uuid4,
+        clock: Clock | None = None,
+        ingestion_service: TraceableIngestionService | None = None,
+        indexing_service: IndexingService | None = None,
+    ) -> None:
+        self._session_factory = session_factory
+        self._id_factory = id_factory
+        self._clock = clock or (lambda: datetime.now(UTC))
+        # The injected id factory and clock reach every layer, so a library built
+        # with deterministic ones (tests, the demo scenario) is fully reproducible.
+        self._ingestion_service = ingestion_service or TraceableIngestionService(
+            FileIngestionService(session_factory, id_factory=id_factory, clock=clock),
+            KnowledgeUnitService(
+                session_factory,
+                splitter=TraceableTextSplitter(id_factory=id_factory),
+                revision_id_factory=id_factory,
+                clock=clock,
+            ),
+        )
+        self._lifecycle = LifecycleService(session_factory, id_factory=id_factory, clock=clock)
+        self._freshness = FreshnessService(session_factory, id_factory=id_factory, clock=clock)
+        self._conflicts = ConflictService(session_factory, id_factory=id_factory, clock=clock)
+        self._conversations = ConversationService(session_factory, clock=clock)
+        self._database_schema = DatabaseSchemaService(
+            session_factory, id_factory=id_factory, clock=clock
+        )
+        self._retrieval = RetrievalService(
+            session_factory, indexing_service=indexing_service, clock=clock
+        )
+        self._evaluation = EvaluationService(session_factory, self._retrieval, clock=self._clock)
+        self._quality = QualityService(session_factory, self._retrieval, clock=self._clock)
+        self._automatic_evaluation = AutoEvaluationService(session_factory, clock=self._clock)
+        self._context = ContextService(self._retrieval)
+
+    @property
+    def lifecycle(self) -> LifecycleService:
+        """Status queries, as-of snapshots, and explicit stale/refresh marks."""
+
+        return self._lifecycle
+
+    @property
+    def freshness(self) -> FreshnessService:
+        """Freshness policy configuration and automated stale scans."""
+
+        return self._freshness
+
+    @property
+    def conflicts(self) -> ConflictService:
+        """Deterministic conflict candidates, frozen evidence, and human review."""
+
+        return self._conflicts
+
+    @property
+    def conversations(self) -> ConversationService:
+        """Immutable conversation import, candidate queue, and terminal review."""
+
+        return self._conversations
+
+    @property
+    def database_schema(self) -> DatabaseSchemaService:
+        """Read-only external schema capture with atomic local version publication."""
+
+        return self._database_schema
+
+    @property
+    def evaluation(self) -> EvaluationService:
+        """Immutable evaluation datasets and read-only retrieval scoring."""
+
+        return self._evaluation
+
+    @property
+    def quality(self) -> QualityService:
+        """Absolute retrieval quality checks with optional baseline regression."""
+
+        return self._quality
+
+    @property
+    def automatic_evaluation(self) -> AutoEvaluationService:
+        """Crash-safe quality checks after committed knowledge changes."""
+
+        return self._automatic_evaluation
+
+    @property
+    def retrieval(self) -> RetrievalService:
+        """Read-only full-text, vector, and hybrid retrieval over eligible knowledge."""
+
+        return self._retrieval
+
+    def search(
+        self,
+        query: str,
+        *,
+        mode: RetrievalMode = RetrievalMode.LEXICAL,
+        top_k: int = 5,
+        candidate_limit: int | None = None,
+        rrf_k: int = 60,
+        at: datetime | None = None,
+        include_stale: bool = False,
+        source_id: UUID | None = None,
+    ) -> RetrievalResult:
+        """Search published knowledge; vector routes require injected indexing."""
+
+        return self._retrieval.search(
+            query,
+            mode=mode,
+            top_k=top_k,
+            candidate_limit=candidate_limit,
+            rrf_k=rrf_k,
+            at=at,
+            include_stale=include_stale,
+            source_id=source_id,
+        )
+
+    @property
+    def context(self) -> ContextService:
+        """Exact citations and bounded context built from one retrieval result."""
+
+        return self._context
+
+    def build_context(
+        self,
+        query: str,
+        *,
+        mode: RetrievalMode = RetrievalMode.LEXICAL,
+        top_k: int = 5,
+        candidate_limit: int | None = None,
+        rrf_k: int = 60,
+        at: datetime | None = None,
+        include_stale: bool = False,
+        source_id: UUID | None = None,
+        max_chars: int = 8000,
+        max_units: int = 10,
+        max_tokens: int | None = None,
+        token_encoding: str = "cl100k_base",
+        token_counter: TokenCounter | None = None,
+    ) -> ContextPacket:
+        """Retrieve once and assemble whole, source-backed evidence without writes."""
+
+        return self._context.build(
+            query,
+            mode=mode,
+            top_k=top_k,
+            candidate_limit=candidate_limit,
+            rrf_k=rrf_k,
+            at=at,
+            include_stale=include_stale,
+            source_id=source_id,
+            max_chars=max_chars,
+            max_units=max_units,
+            max_tokens=max_tokens,
+            token_encoding=token_encoding,
+            token_counter=token_counter,
+        )
+
+    def publishable_units(
+        self, at: datetime | None = None, *, include_stale: bool = False
+    ) -> tuple[UnitState, ...]:
+        """Return units that are ready for retrieval at ``at``.
+
+        By default only ``active`` units are returned. With ``include_stale``
+        units marked as ``stale`` (e.g. by a freshness scan) are included too.
+        """
+
+        snapshot = self.snapshot(at)
+        if include_stale:
+            return snapshot.effective_units
+        return snapshot.publishable_units
+
+    def import_path(self, target: Path) -> ImportReport:
+        """Import every supported target file in stable order."""
+
+        discovery = discover_import_files(target)
+        imported = tuple(self._import_file(path) for path in discovery.files)
+        return ImportReport(imported=imported, skipped=discovery.skipped)
+
+    def list_documents(self) -> tuple[DocumentSummary, ...]:
+        """Return all document versions with source and unit details in stable order."""
+
+        current = self._lifecycle.snapshot(include_retired=True)
+        heads = {snapshot.head.id for snapshot in current.sources if snapshot.head is not None}
+        statuses = _statuses_by_unit(current)
+        with UnitOfWork(self._session_factory) as uow:
+            documents = sorted(
+                uow.documents.list(),
+                key=lambda document: (
+                    document.locator.casefold(),
+                    document.locator,
+                    document.ingested_at,
+                    str(document.id),
+                ),
+            )
+            summaries: list[DocumentSummary] = []
+            for document in documents:
+                source = uow.sources.get(document.source_id)
+                if source is None:
+                    raise RuntimeError(f"document {document.id} references a missing source")
+                units = tuple(uow.knowledge_units.list_by_document(document.id))
+                summaries.append(
+                    DocumentSummary(
+                        document=document,
+                        source=source,
+                        units=units,
+                        is_head=document.id in heads,
+                        statuses={
+                            unit.id: statuses[unit.id] for unit in units if unit.id in statuses
+                        },
+                    )
+                )
+            return tuple(summaries)
+
+    def snapshot(
+        self, at: datetime | None = None, *, include_retired: bool = False
+    ) -> KnowledgeSnapshot:
+        """Return the effective knowledge at ``at`` (now when omitted)."""
+
+        return self._lifecycle.snapshot(at, include_retired=include_retired)
+
+    def unit_state(self, unit_id: UUID, at: datetime | None = None) -> UnitState | None:
+        """Return a unit's status at ``at``; ``None`` if not yet published then."""
+
+        return self._lifecycle.unit_state(unit_id, at)
+
+    def show_unit(self, unit_id: UUID) -> KnowledgeUnitDetail:
+        """Return one unit with its document and source, or raise a clear lookup error."""
+
+        with UnitOfWork(self._session_factory) as uow:
+            unit = uow.knowledge_units.get(unit_id)
+            if unit is None:
+                raise KnowledgeUnitNotFoundError(f"knowledge unit {unit_id} was not found")
+            document = uow.documents.get(unit.document_id)
+            if document is None:
+                raise RuntimeError(f"knowledge unit {unit.id} references a missing document")
+            source = uow.sources.get(document.source_id)
+            if source is None:
+                raise RuntimeError(f"document {document.id} references a missing source")
+            return KnowledgeUnitDetail(unit=unit, document=document, source=source)
+
+    def unit_history(self, unit_id: UUID) -> UnitHistory:
+        """Return every stored version and the revision chain of a unit's lineage."""
+
+        with UnitOfWork(self._session_factory) as uow:
+            unit = uow.knowledge_units.get(unit_id)
+            if unit is None:
+                raise KnowledgeUnitNotFoundError(f"knowledge unit {unit_id} was not found")
+            versions = tuple(uow.knowledge_units.list_by_lineage(unit.lineage_id))
+            ingested_at: dict[UUID, datetime] = {}
+            source_ids: set[UUID] = set()
+            for version in versions:
+                document = uow.documents.get(version.document_id)
+                if document is None:
+                    raise RuntimeError(f"knowledge unit {version.id} references a missing document")
+                ingested_at[version.document_id] = document.ingested_at
+                source_ids.add(document.source_id)
+            versions = tuple(
+                sorted(
+                    versions,
+                    key=lambda version: (ingested_at[version.document_id], str(version.id)),
+                )
+            )
+            revisions = tuple(
+                uow.revisions.list_for(RevisionEntityType.KNOWLEDGE_UNIT, unit.lineage_id)
+            )
+        statuses: dict[UUID, KnowledgeUnitStatus] = {}
+        for source_id in source_ids:
+            current = self._lifecycle.snapshot(include_retired=True, source_id=source_id)
+            statuses.update(_statuses_by_unit(current))
+        return UnitHistory(
+            unit=unit,
+            lineage_id=unit.lineage_id,
+            versions=versions,
+            revisions=revisions,
+            statuses={
+                version.id: statuses[version.id] for version in versions if version.id in statuses
+            },
+        )
+
+    def _import_file(self, path: Path) -> ImportedFile:
+        source = self._ensure_file_source(path)
+        return ImportedFile(path=path, result=self._ingestion_service.ingest(source.id))
+
+    def _ensure_file_source(self, path: Path) -> Source:
+        uri = str(path.resolve())
+        with UnitOfWork(self._session_factory) as uow:
+            existing = uow.sources.get_by_kind_uri(kind=SourceKind.FILE, uri=uri)
+            if existing is not None:
+                return existing
+
+            source = Source(
+                id=self._id_factory(),
+                kind=SourceKind.FILE,
+                uri=uri,
+                title=path.name,
+                created_at=self._clock(),
+            )
+            try:
+                uow.sources.add(source)
+                uow.commit()
+            except IntegrityError:
+                uow.rollback()
+                existing = uow.sources.get_by_kind_uri(kind=SourceKind.FILE, uri=uri)
+                if existing is None:
+                    raise
+                return existing
+            return source

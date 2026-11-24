@@ -16,20 +16,20 @@ import pytest
 from sqlalchemy import Engine, text
 from typer.testing import CliRunner, Result
 
-from konwledge import cli
-from konwledge.application import DocumentSummary, KnowledgeLibrary
-from konwledge.domain import KnowledgeUnitStatus
-from konwledge.embedding import EmbeddingService, EmbeddingVector
-from konwledge.indexing import IndexingService, InMemoryVectorIndex, VectorRecord
-from konwledge.retrieval import RetrievalConfigurationError, RetrievalMode, RetrievalResult
-from konwledge.storage import (
+from knowledge import cli
+from knowledge.application import DocumentSummary, KnowledgeLibrary
+from knowledge.domain import KnowledgeUnitStatus
+from knowledge.embedding import EmbeddingService, EmbeddingVector
+from knowledge.indexing import IndexingService, InMemoryVectorIndex, VectorRecord
+from knowledge.retrieval import RetrievalConfigurationError, RetrievalMode, RetrievalResult
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.full_text import FullTextRepository
+from knowledge.storage.full_text import FullTextRepository
 
 runner = CliRunner()
 VECTOR_MODES = (RetrievalMode.VECTOR, RetrievalMode.HYBRID)
@@ -695,7 +695,7 @@ def test_python_module_cli_works_with_space_paths_and_separate_streams(
         [
             sys.executable,
             "-m",
-            "konwledge",
+            "knowledge",
             "search",
             "中文检索",
             *options,

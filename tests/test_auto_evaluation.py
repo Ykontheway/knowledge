@@ -7,12 +7,12 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import update
 
-from konwledge.auto_evaluation import (
+from knowledge.auto_evaluation import (
     AutoEvaluationError,
     AutoEvaluationService,
     AutoEvaluationStatus,
 )
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     EvaluationItem,
@@ -24,16 +24,16 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.evaluation import EvaluationService
-from konwledge.retrieval import RetrievalMode, RetrievalService
-from konwledge.storage import (
+from knowledge.evaluation import EvaluationService
+from knowledge.retrieval import RetrievalMode, RetrievalService
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.tables import AutoEvaluationJobRow
+from knowledge.storage.tables import AutoEvaluationJobRow
 
 NOW = datetime(2026, 11, 12, 10, 0, tzinfo=UTC)
 SOURCE_ID = UUID("10000000-0000-0000-0000-000000000001")

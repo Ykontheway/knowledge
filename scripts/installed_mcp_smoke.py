@@ -90,18 +90,20 @@ def console(name: str) -> str:
 
 
 def verify_identity(expected_version: str, mode: str) -> str | None:
-    import konwledge
-    import konwledge.cli
-    import konwledge.mcp
+    import knowledge
+    import knowledge.cli
+    import knowledge.mcp
 
-    require(konwledge.__version__ == expected_version, "installed version mismatch")
-    require(importlib.metadata.version("konwledge") == expected_version, "metadata mismatch")
-    for module in (konwledge, konwledge.cli, konwledge.mcp):
+    require(knowledge.__version__ == expected_version, "installed version mismatch")
+    require(
+        importlib.metadata.version("knowledge-ykforward") == expected_version, "metadata mismatch"
+    )
+    for module in (knowledge, knowledge.cli, knowledge.mcp):
         require(
             module.__file__ is not None and is_installed(Path(module.__file__)), "not installed"
         )
     require("mcp" not in sys.modules, "eager SDK import")
-    require("konwledge.mcp.server" not in sys.modules, "eager server import")
+    require("knowledge.mcp.server" not in sys.modules, "eager server import")
     for package in ("fastapi", "psycopg", "tiktoken", "lancedb", "pyarrow", "openai"):
         require(importlib.util.find_spec(package) is None, "unrelated extra installed")
     if mode == "base":
@@ -131,15 +133,15 @@ def run_base(root: Path) -> dict[str, int]:
     before = fingerprint(root)
     code = """
 import sys
-import konwledge
-import konwledge.cli
+import knowledge
+import knowledge.cli
 assert 'mcp' not in sys.modules
-assert 'konwledge.mcp.server' not in sys.modules
+assert 'knowledge.mcp.server' not in sys.modules
 for arguments in (['--version'], ['--help'], ['serve', '--help'],
                   ['mcp', '--help'], ['mcp', 'serve', '--help']):
-    assert konwledge.cli.main(arguments) == 0
+    assert knowledge.cli.main(arguments) == 0
 assert 'mcp' not in sys.modules
-assert 'konwledge.mcp.server' not in sys.modules
+assert 'knowledge.mcp.server' not in sys.modules
 """
     result = subprocess.run(
         [sys.executable, "-I", "-c", code],
@@ -152,8 +154,8 @@ assert 'konwledge.mcp.server' not in sys.modules
     )
     require(result.returncode == 0, "core help failed")
     commands = (
-        [console("konwledge-mcp"), "--database", "missing.db"],
-        [sys.executable, "-I", "-m", "konwledge", "mcp", "serve", "--database", "missing.db"],
+        [console("knowledge-mcp"), "--database", "missing.db"],
+        [sys.executable, "-I", "-m", "knowledge", "mcp", "serve", "--database", "missing.db"],
     )
     for command in commands:
         result = subprocess.run(
@@ -167,7 +169,9 @@ assert 'konwledge.mcp.server' not in sys.modules
             check=False,
         )
         require(result.returncode == 1 and result.stdout == "", "missing extra exit/stdout unsafe")
-        require("pip install 'konwledge[mcp]'" in result.stderr, "missing pip install hint")
+        require(
+            "pip install 'knowledge-ykforward[mcp]'" in result.stderr, "missing pip install hint"
+        )
         require(
             "Traceback" not in result.stderr and str(root) not in result.stderr,
             "missing extra stderr unsafe",
@@ -189,9 +193,9 @@ def prepare_store(root: Path) -> Store:
     """只在新临时目录用核心 facade 准备两版本，注入合成敏感 metadata。"""
     from sqlalchemy import update
 
-    from konwledge import KnowledgeLibrary
-    from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
-    from konwledge.storage.tables import DocumentRow, KnowledgeUnitRow, SourceRow
+    from knowledge import KnowledgeLibrary
+    from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
+    from knowledge.storage.tables import DocumentRow, KnowledgeUnitRow, SourceRow
 
     database = root / "sandbox.db"
     engine = create_sqlite_engine(f"sqlite+pysqlite:///{database.as_posix()}")
@@ -398,7 +402,7 @@ def verify_schemas(tools: list[dict[str, Any]]) -> None:
 
 
 def exercise(client: ProtocolClient, store: Store, version: str) -> tuple[int, int]:
-    from konwledge.mcp.models import (
+    from knowledge.mcp.models import (
         ContextPacket,
         DocumentDiffDTO,
         EvidenceDTO,
@@ -415,7 +419,7 @@ def exercise(client: ProtocolClient, store: Store, version: str) -> tuple[int, i
         },
     )
     require(
-        initialized["serverInfo"] == {"name": "konwledge", "version": version},
+        initialized["serverInfo"] == {"name": "knowledge", "version": version},
         "server metadata mismatch",
     )
     require("tools" in initialized["capabilities"], "tools capability missing")
@@ -510,18 +514,18 @@ def run_extra(root: Path, version: str) -> dict[str, int]:
     store = prepare_store(root)
     before = fingerprint(root)  # 写准备完成并 dispose 后才开始 MCP 零写门禁。
     commands = (
-        [console("konwledge-mcp"), "--database", str(store.database)],
+        [console("knowledge-mcp"), "--database", str(store.database)],
         [
             sys.executable,
             "-I",
             "-m",
-            "konwledge",
+            "knowledge",
             "mcp",
             "serve",
             "--database",
             str(store.database),
         ],
-        [sys.executable, "-I", "-m", "konwledge.mcp.server", "--database", str(store.database)],
+        [sys.executable, "-I", "-m", "knowledge.mcp.server", "--database", str(store.database)],
     )
     successes = rejects = responses = 0
     for command in commands:
@@ -554,7 +558,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # 捕获 fixture/应用意外 print；stdout 仅一次安全 summary。
         with redirect_stdout(sys.stderr):
             sdk_version = verify_identity(args.expected_version, args.mode)
-            with tempfile.TemporaryDirectory(prefix="konwledge-mcp-installed-") as temporary:
+            with tempfile.TemporaryDirectory(prefix="knowledge-mcp-installed-") as temporary:
                 root = Path(temporary)
                 counts = (
                     run_base(root)

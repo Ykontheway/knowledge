@@ -1,35 +1,32 @@
-# Konwledge
+# Knowledge
 
-Konwledge 是本地优先的 **Knowledge CI 知识生命周期与质量门禁基础设施**。它记录可追溯的版本事实，把知识变更接到质量验收，并向应用提供绑定精确版本的检索证据与上下文。
+Knowledge 是本地优先的 **Knowledge CI 知识生命周期与质量门禁基础设施**。它记录可追溯的版本事实，把知识变更接到质量验收，并向应用提供绑定精确版本的检索证据与上下文。
 
-当前核心开发与工作台实现已完成，版本为 0.1.0，处于 Alpha 阶段。`konwledge==0.1.0` 已于 2026-11-23 发布到 [PyPI](https://pypi.org/project/konwledge/0.1.0/)；实现完成、包发布和生产部署仍是三个不同状态。
+当前核心与工作台已有实现，版本为 `0.1.0` Alpha。新 Python distribution 为 `knowledge-ykforward`，目前仍是未发布候选；Python 导入为 `knowledge`，CLI 仅有 `knowledge` 与 `knowledge-mcp`，模块入口为 `python -m knowledge`。旧拼写的 import／CLI 不再兼容。项目面向本机、单库工程使用，不是自治答案系统或生产服务。
 
-包名保留 `konwledge`，主 CLI 为 `knowledge`，兼容别名 `konwledge` 和模块入口 `python -m konwledge` 继续可用。项目面向本机、单库工程使用，不是自治答案系统或生产服务。
+旧包首次发布与静态预览的真实审计记录见 [旧 0.1.0 记录](docs/releases/legacy-0.1.0.md)。这些历史结果不能证明新 distribution 已发布或更名后的预览已部署。当前静态回放只读取固定数据、不连接 live backend，见 [静态回放预览](docs/replay-preview.md)。
 
-2026-11-23 已发布 [在线只读预览](https://ykontheway.github.io/konwledge/#replay/guide)。页面只读取静态回放数据，不连接 live backend；导出、构建与发布边界见 [静态回放预览](docs/replay-preview.md)。
+## 当前从源码安装
 
-## 安装已发布的 0.1.0
-
-需要 Python 3.11 或更新版本，建议在虚拟环境中安装。如果直接使用已发布包，无须先下载源码仓库：
+需要 Python 3.11 或更新版本和支持 FTS5 的 SQLite，建议新建虚拟环境以免旧入口混入 PATH：
 
 ```bash
-pip install konwledge==0.1.0
+git clone https://github.com/Ykontheway/knowledge.git
+cd knowledge
+python -m venv .venv
+# Linux／macOS；Windows 使用对应环境的激活命令
+. .venv/bin/activate
+python -m pip install .
 knowledge --version
 ```
 
-也可以按需安装已发布的可选 extra：
+从当前 checkout 安装可选依赖使用 `python -m pip install '.[api,mcp,tokens]'`。新包尚未发布到 PyPI；`pip install 'knowledge-ykforward[api,mcp,tokens]==0.1.0'` 是发布并核验后才可使用的包索引写法，不是当前安装入口。不要把 distribution 名写成 Python import。
 
-```bash
-pip install 'konwledge[api,mcp,tokens]==0.1.0'
-```
-
-这些 extra 只会补充本机 HTTP、stdio MCP 和精确 token 预算相关依赖，不会自动部署 GUI、Web 服务或公开站点。
-
-纯 `pip install` 不会把仓库里的 `examples/` 文件自动复制到你当前目录。下面基于 `examples/` 的命令需要先下载源码仓库，或自行准备等价的 `.md`／`.txt` 输入文件。
+这些 extra 只补充本机 HTTP、stdio MCP 和精确 token 预算依赖，不会部署 GUI、Web 服务或公开站点。普通 pip 安装不自动复制 `examples/` 到当前目录；下面使用仓库示例的命令需要先取得源码，或准备等价的 `.md`／`.txt` 文件。旧目录、个人知识库与演示记录如何处理，见 [迁移说明](docs/migration-to-knowledge.md)。
 
 ## 知识变更留下可验收的事实
 
-导入文档后，Konwledge 保留来源、不可变文档版本、知识单元和 append-only revision。更新、移动、删除和重新发布历史版本都有记录，旧内容不会被静默覆盖。
+导入文档后，Knowledge 保留来源、不可变文档版本、知识单元和 append-only revision。更新、移动、删除和重新发布历史版本都有记录，旧内容不会被静默覆盖。
 
 source publication timeline 与 lineage revision chain 是历史事实。`knowledge_units.status` 只是当前查询缓存；as-of 查询从日志重建当时可见的版本，不用今天的状态冒充历史状态。
 
@@ -84,18 +81,18 @@ knowledge 0.1.0
 以下示例直接使用仓库自带的 `examples/` 文件；只有在你已经下载源码仓库时，这些路径才会存在：
 
 ```bash
-knowledge import examples/getting-started.md -d .konwledge/knowledge.db
-knowledge import examples/lifecycle.txt -d .konwledge/knowledge.db
-knowledge list -d .konwledge/knowledge.db
-knowledge search "character range" -d .konwledge/knowledge.db
-knowledge context "character range" --max-units 1 -d .konwledge/knowledge.db
+knowledge import examples/getting-started.md -d .knowledge/knowledge.db
+knowledge import examples/lifecycle.txt -d .knowledge/knowledge.db
+knowledge list -d .knowledge/knowledge.db
+knowledge search "character range" -d .knowledge/knowledge.db
+knowledge context "character range" --max-units 1 -d .knowledge/knowledge.db
 ```
 
 `import` 接受 `.md`、`.markdown`、`.txt` 文件，也可递归导入目录；按稳定相对路径顺序处理，跳过并汇总无关格式。相同内容重导是幂等操作，正文变化创建新版本并与当前 head 做 Diff。
 
-默认库路径就是 `.konwledge/knowledge.db`，`--database` 与 `-d` 等价。已有普通 CLI 会自动创建父目录并执行增量 schema 初始化；HTTP `serve` 和默认只读 MCP 必须指向已准备好的库，不借查询启动修复或升级。
+默认库路径就是 `.knowledge/knowledge.db`，`--database` 与 `-d` 等价。普通 CLI 会自动创建父目录并执行增量 schema／FTS 初始化；HTTP `serve` 要求已有库，但启动也可能初始化 schema／FTS，这与请求只读不同。默认只读 MCP 要求兼容的已准备库，不建表、不升级、不回填 FTS。使用旧库前先备份并核对兼容范围，见 [迁移说明](docs/migration-to-knowledge.md)。
 
-运行时数据库留在 `.konwledge/` 或使用 `*.db`／`*.sqlite`，不要提交业务库、凭据或本机验收产物。后续 SDK／CLI 用法见 [核心参考](docs/core-reference.md)，事务与存储职责见 [架构](docs/architecture.md)。
+运行时数据库留在 `.knowledge/` 或使用 `*.db`／`*.sqlite`，不要提交业务库、凭据或本机验收产物。后续 SDK／CLI 用法见 [核心参考](docs/core-reference.md)，事务与存储职责见 [架构](docs/architecture.md)。
 
 ### 可选依赖按能力安装
 
@@ -111,22 +108,22 @@ knowledge context "character range" --max-units 1 -d .konwledge/knowledge.db
 
 开发环境可用 `uv sync --locked --dev`，按需追加 `--extra`。开发组中的测试依赖不等于核心运行时依赖；help／version 不需要 `[api]` 或 `[mcp]`。
 
-Python 公共入口为 `from konwledge import KnowledgeLibrary, __version__`，`KnowledgeLibrary` 与 `konwledge.application` 中的 facade 是同一实现。根导入延迟加载，不主动初始化数据库。`konwledge.domain`、`konwledge.evaluation` 和 PEP 561 `py.typed` 保留；alpha 阶段不承诺完整向后兼容。
+Python 公共入口为 `from knowledge import KnowledgeLibrary, __version__`，`KnowledgeLibrary` 与 `knowledge.application` 中的 facade 是同一实现。根导入延迟加载，不主动初始化数据库。`knowledge.domain`、`knowledge.evaluation` 和 PEP 561 `py.typed` 保留；alpha 阶段不承诺完整向后兼容。
 
 ## 给知识变更绑定质量门禁
 
 先根据库中已导入的 source／lineage 制作业务评测集，再导入同一个知识库。下面的 `your-evaluation.json` 表示实际文件，`DATASET_UUID` 必须替换为导入结果或 `evaluation list` 中的 dataset UUID；`--version 1` 必须对应已导入的不可变版本。
 
 ```bash
-knowledge evaluation import your-evaluation.json -d .konwledge/knowledge.db
-knowledge evaluation list -d .konwledge/knowledge.db --json
+knowledge evaluation import your-evaluation.json -d .knowledge/knowledge.db
+knowledge evaluation list -d .knowledge/knowledge.db --json
 knowledge evaluation run DATASET_UUID --version 1 --mode lexical \
   --top-k 5 --candidate-limit 50 --rrf-k 60 \
-  -d .konwledge/knowledge.db --json
+  -d .knowledge/knowledge.db --json
 knowledge auto-evaluation enable --set-id DATASET_UUID --version 1 \
-  -d .konwledge/knowledge.db
-knowledge auto-evaluation status -d .konwledge/knowledge.db
-knowledge auto-evaluation run -d .konwledge/knowledge.db
+  -d .knowledge/knowledge.db
+knowledge auto-evaluation status -d .knowledge/knowledge.db
+knowledge auto-evaluation run -d .knowledge/knowledge.db
 ```
 
 `enable` 固定 dataset ID／version／hash、检索参数与策略，仅保存配置，不认定已有知识合格。升级评测集版本后须显式重新绑定；`run` 用于检查当前知识。
@@ -138,11 +135,11 @@ knowledge auto-evaluation run -d .konwledge/knowledge.db
 **质量 failed 时 CLI 退出 `3`，不回滚已提交知识，也不替换基线。** stderr 会提示 `knowledge committed; evaluation did not pass`，stdout 保留普通结果或 JSON。不能据此假定导入未发生而盲目重试。
 
 ```bash
-knowledge auto-evaluation history -d .konwledge/knowledge.db
-knowledge auto-evaluation show JOB_UUID -d .konwledge/knowledge.db
-knowledge auto-evaluation retry JOB_UUID -d .konwledge/knowledge.db
-knowledge auto-evaluation recover -d .konwledge/knowledge.db
-knowledge auto-evaluation disable -d .konwledge/knowledge.db
+knowledge auto-evaluation history -d .knowledge/knowledge.db
+knowledge auto-evaluation show JOB_UUID -d .knowledge/knowledge.db
+knowledge auto-evaluation retry JOB_UUID -d .knowledge/knowledge.db
+knowledge auto-evaluation recover -d .knowledge/knowledge.db
+knowledge auto-evaluation disable -d .knowledge/knowledge.db
 ```
 
 `JOB_UUID` 取自任务历史。retry 新建关联任务，不覆盖旧终态；recover 回收过期租约。评测任务恢复与知识写入恢复是不同操作，完整状态和安全报告规则见 [自动评测](docs/auto-evaluation.md)。
@@ -177,7 +174,7 @@ knowledge evaluation gate approved-baseline.json CANDIDATE_REPORT_JSON \
 | `knowledge mcp serve --controlled ...` | 默认关闭，只更新私有隔离 scope 的 allowlist 当前正文 |
 | 工作台与 `#replay/*` | 本机视图与静态回放分开；公开预览没有 live API fallback |
 
-默认 MCP 使用 SQLite `mode=ro`／`query_only`，不建表、不回填 FTS、不写 outbox 或批准审计。工具输入不接受数据库路径、SQL、凭据或 URL；`konwledge-mcp` 保留为等价独立 stdio 入口。
+默认 MCP 使用 SQLite `mode=ro`／`query_only`，不建表、不回填 FTS、不写 outbox 或批准审计。工具输入不接受数据库路径、SQL、凭据或 URL；`knowledge-mcp` 保留为等价独立 stdio 入口。
 
 受控 MCP 须显式 `--controlled`，由本机操作人员绑定 `--mutation-manifest`、`--actor`、`--demo-root` 与数据库。只接受已准备的私有 sandbox，不接任意业务库；候选批准、任意导入、retire／remove 和 SQL 写入未开放。
 
@@ -187,17 +184,17 @@ apply 在同一事务写知识、revision／publication、FTS、command、outbox
 
 证据文本与 Diff 仍是不可信输入，JSON 转义不保证下游模型免受提示注入。接入前阅读 [只读 MCP](docs/mcp-readonly.md)、[受控 MCP](docs/mcp-controlled.md) 和 [工作台说明](web/README.md)。
 
-## 兼容命令与路径保持原名
+## 子命令与协议保留
 
-产品定位调整不重命名已建立的命令、目录、flags 或协议。`demo` 继续用于打包语料、gold set、快照及隔离验收，不是业务知识库的唯一起点。
+本次更名改变 Python import、CLI 旧别名与默认运行根目录；旧目录不会自动搬迁，个人知识库用显式 `-d` 或 MCP `--database` 选择原路径，demo markers／receipt 用新工具重建。`demo` 子命令继续用于打包语料、gold set、快照及隔离验收，不是业务知识库的唯一起点。详见 [迁移说明](docs/migration-to-knowledge.md)。
 
-- `knowledge demo build`、`knowledge demo export`、`--force`、`--check` 保留；数据仍使用 `.konwledge/demo/knowledge.db`、`demo/snapshot.json` 和 `demo/snapshot.schema.json`。
+- `knowledge demo build`、`knowledge demo export`、`--force`、`--check` 保留；数据仍使用 `.knowledge/demo/knowledge.db`、`demo/snapshot.json` 和 `demo/snapshot.schema.json`。
 - `knowledge show`／`history`／`asof`／`stale`／`refresh`／`reconcile`／`publishable`、`freshness`、`conflicts`、`conversation`／`candidate`、`database`、`evaluation`、`quality` 和 `auto-evaluation` 路径保留。
 - `--database`／`-d`、`--json`、`--at`、`--all`、`--document`、`--source`、`--include-stale`、`--mode`、`--demo-vectors` 及各命令原有 flags 保留，适用范围按原接口校验。
 - `scripts/workbench.py` 的 `list`／`demo`／`accept`、`--mode controlled --actor demo-editor --prepare-only` 与 `--with-distribution` 保留；统一入口只支持具备清理核验能力的 Linux，不接受外部业务库参数。
 - 旧前端 `#overview`、`#trace`、`#diff`，本机 `#lifecycle`、`#evaluation`、`#guide`，受控 `#changes` 及 `#replay/*` 路由保留，各模式仍独立限制访问。
 
-完整内置链路见 [核心参考](docs/core-reference.md#versioned-snapshot)。历史实现编号与验收数字已留在 CHANGELOG 和历史路线文档，不拿旧统计充当本轮测试结果。
+完整内置链路见 [核心参考](docs/core-reference.md#versioned-snapshot)。历史实现编号与验收数字见 [旧审计记录](docs/releases/legacy-0.1.0.md) 和 [历史路线](docs/integrated-demo-roadmap.md)，不拿旧统计充当本次更名测试结果。
 
 ## 开发验证入口
 
@@ -208,7 +205,7 @@ uv sync --locked --dev
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests scripts
-uv run pytest --cov=konwledge --cov-report=term-missing
+uv run pytest --cov=knowledge --cov-report=term-missing
 uv run knowledge demo build --force
 uv run knowledge demo export --check
 uv run python scripts/export_management_schema.py --check
@@ -240,9 +237,4 @@ pnpm verify:preview
 - [静态回放预览](docs/replay-preview.md)／[工作台说明](web/README.md)：静态、实时与受控模式。
 - [参与贡献](CONTRIBUTING.md)／[变更记录](CHANGELOG.md)／[Apache License 2.0](LICENSE)。
 
-<!-- 文档校对记录
-本次补记 PyPI 首次正式发布事实，并新增已发布版本安装段，同时保留从源码 checkout 安装与仓库 examples 的原有示例边界。
-关键机制、示例命令、版本名词和兼容入口未改；examples 仍要求先取得源码仓库，本记录不宣称 GUI、Web 服务或公开 live backend 已部署。
-已对本次新增中文做半角标点机械扫描，结果为 0；代码块、命令、路径、URL、hash、版本号与既有历史文本按规则保留。
-本记录只覆盖文档文字、链接与发布状态表述核对，不代表本次在本地重新执行 README 中的安装命令。
--->
+<!-- 更名文档核对：当前安装使用源码，distribution／import／CLI 分开说明；旧发布事实及原运行证据转入 docs/releases/legacy-0.1.0.md。旧目录不会自动搬迁，旧库及 session 不删除、不移动。本文未执行安装、代码测试或发布操作，发布流程由主 agent 验证。 -->

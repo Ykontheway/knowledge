@@ -11,8 +11,8 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner, Result
 
-from konwledge.cli import app
-from konwledge.database_schema import DatabaseConnectionError, DatabaseSchemaSnapshot
+from knowledge.cli import app
+from knowledge.database_schema import DatabaseConnectionError, DatabaseSchemaSnapshot
 
 runner = CliRunner()
 
@@ -242,7 +242,7 @@ def test_postgres_missing_extra_is_friendly_and_credentials_are_not_echoed(
         del args, kwargs
         raise ModuleNotFoundError("psycopg")
 
-    monkeypatch.setattr("konwledge.database_schema.collector.create_engine", missing_driver)
+    monkeypatch.setattr("knowledge.database_schema.collector.create_engine", missing_driver)
     database = tmp_path / "metadata.sqlite"
     result = invoke(
         "database",
@@ -271,7 +271,7 @@ def test_postgres_runtime_error_is_sanitized(
         raise DatabaseConnectionError("PostgreSQL schema capture failed")
 
     monkeypatch.setattr(
-        "konwledge.newcli_database_schema.PostgreSQLSchemaCollector.capture", fail_capture
+        "knowledge.newcli_database_schema.PostgreSQLSchemaCollector.capture", fail_capture
     )
     result = invoke(
         "database",

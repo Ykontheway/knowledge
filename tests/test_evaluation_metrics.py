@@ -6,8 +6,8 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
-from konwledge.evaluation.metrics import aggregate_metrics, score_ranked_lineages
-from konwledge.evaluation.models import AggregateMetrics, ItemMetrics
+from knowledge.evaluation.metrics import aggregate_metrics, score_ranked_lineages
+from knowledge.evaluation.models import AggregateMetrics, ItemMetrics
 
 A = UUID("10000000-0000-0000-0000-000000000001")
 B = UUID("20000000-0000-0000-0000-000000000002")
@@ -221,7 +221,7 @@ def test_models_are_frozen_forbid_extras_and_round_trip_json() -> None:
 def test_models_reject_nonfinite_out_of_bounds_and_inconsistent_shapes() -> None:
     valid_item = score([A], [A], k=1).model_dump()
 
-    # extra="forbid" and frozen are inherited from KonwledgeModel
+    # extra="forbid" and frozen are inherited from KnowledgeModel
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         ItemMetrics.model_validate({**valid_item, "unknown": 1})
 
