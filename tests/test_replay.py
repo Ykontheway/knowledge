@@ -16,11 +16,11 @@ import pytest
 from scripts.export_replay import main
 from sqlalchemy import Engine, event
 
-from konwledge.api.management_service import ManagementService
-from konwledge.replay import ReplayBundle, ReplayError, export_replay, load_validate, producer
-from konwledge.replay.bundle import MAX_BYTES, loads_validate
-from konwledge.replay.corpus import DOCUMENT_TEXTS, SEGMENTS
-from konwledge.storage.full_text import fts_document
+from knowledge.api.management_service import ManagementService
+from knowledge.replay import ReplayBundle, ReplayError, export_replay, load_validate, producer
+from knowledge.replay.bundle import MAX_BYTES, loads_validate
+from knowledge.replay.corpus import DOCUMENT_TEXTS, SEGMENTS
+from knowledge.storage.full_text import fts_document
 
 
 @pytest.fixture(scope="module")
@@ -99,7 +99,7 @@ def test_real_story_frozen_pins_metrics_history_and_exact_b1(static_file: Path) 
     ):
         assert denied not in text
     assert static_file.stat().st_size < MAX_BYTES
-    report = next(static_file.parent.glob(".konwledge/replay/*/report.json"))
+    report = next(static_file.parent.glob(".knowledge/replay/*/report.json"))
     assert stat.S_IMODE(report.stat().st_mode) == 0o600
     assert stat.S_IMODE(report.parent.stat().st_mode) == 0o700
     assert json.loads(report.read_text())["bundle_bytes"] == static_file.stat().st_size
@@ -311,7 +311,7 @@ def test_public_output_refusal_before_seed(
         output = tmp_path / "absent" / "out.json"
     with pytest.raises(ReplayError):
         export_replay(output)
-    assert not (tmp_path / ".konwledge").exists()
+    assert not (tmp_path / ".knowledge").exists()
     if kind == "existing":
         assert output.read_bytes() == b"keep"
 
@@ -341,7 +341,7 @@ def test_private_root_symlink_rejected(tmp_path: Path, monkeypatch: pytest.Monke
     monkeypatch.chdir(tmp_path)
     outside = tmp_path / "outside"
     outside.mkdir()
-    (tmp_path / ".konwledge").symlink_to(outside, target_is_directory=True)
+    (tmp_path / ".knowledge").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ReplayError, match="REPLAY_FILE_UNSAFE"):
         export_replay(tmp_path / "out.json")
     assert not list(outside.iterdir()) and not (tmp_path / "out.json").exists()
@@ -354,7 +354,7 @@ def test_fresh_scopes_and_external_output(tmp_path: Path, monkeypatch: pytest.Mo
     first = export_replay(tmp_path / "external-first.json")
     second = export_replay(tmp_path / "external-second.json")
     assert first.story != second.story
-    assert len(list((repo / ".konwledge/replay").iterdir())) == 2
+    assert len(list((repo / ".knowledge/replay").iterdir())) == 2
     assert not (repo / "web").exists()
 
 
@@ -461,7 +461,7 @@ def test_optional_import_boundary() -> None:
         " def find_spec(self, fullname, path=None, target=None):\\n"
         '  if fullname.split(".")[0] in blocked: raise AssertionError(fullname)\'); '
         "sys.meta_path.insert(0,Block()); "
-        "from konwledge.replay import export_replay, load_validate; "
+        "from knowledge.replay import export_replay, load_validate; "
         "assert not any(n.split('.')[0] in blocked for n in sys.modules)"
     )
     result = subprocess.run(

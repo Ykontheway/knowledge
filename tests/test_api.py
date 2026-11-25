@@ -11,10 +11,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 
-from konwledge.api.app import create_app
-from konwledge.application import KnowledgeLibrary
-from konwledge.context import ContextPacket
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.api.app import create_app
+from knowledge.application import KnowledgeLibrary
+from knowledge.context import ContextPacket
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 
 @pytest.fixture

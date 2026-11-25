@@ -1,6 +1,6 @@
 # 本机工作台（B2～B4）
 
-工作台已支持生命周期与变更视图、只读评测对照、使用导览，以及显式启用的隔离受控变更。版本快照视图独立保留；实时工作台通过只读管理 API 读取已有数据库，写入另按显式开关接入 `/v1/mutations`。当前没有公开 live 后端部署，包版本仍为 `0.1.0` prepared alpha；已发布的 [静态回放预览](replay-preview.md) 不连接本机管理服务。
+工作台已支持生命周期与变更视图、只读评测对照、使用导览，以及显式启用的隔离受控变更。版本快照视图独立保留；实时工作台通过只读管理 API 读取已有数据库，写入另按显式开关接入 `/v1/mutations`。当前没有公开 live 后端部署，新 Python distribution `knowledge-ykforward==0.1.0` 仍是未发布 Alpha 候选；旧静态预览历史见 [回放说明](replay-preview.md)，更名后的站点尚待验证，也不连接本机管理服务。
 
 B4 阶段的历史收尾校验已完成：ruff check、ruff format --check（208 files）、mypy（183 sources）、management／mutation schema --check、Python 回归（1495 passed、3 skipped）、前端 `pnpm verify`（352 passed、2 skipped）、B4 driver 和发行包隔离 smoke 均通过。两个前端 skipped 是需要联调服务环境的 live acceptance 默认跳过，不是假失败。
 
@@ -12,7 +12,7 @@ B4 阶段的历史收尾校验已完成：ruff check、ruff format --check（208
 uv sync --locked --dev
 (cd web && pnpm install --frozen-lockfile)
 uv run python scripts/real_knowledge_acceptance.py \
-  --output-dir .konwledge/real-knowledge-acceptance
+  --output-dir .knowledge/real-knowledge-acceptance
 ```
 
 验收脚本每次建立唯一运行目录。确认输出 `status` 为 `passed`，从输出的 `report` 路径找到这次 `report.json` 的父目录，再用其中已有的 `knowledge.db`。不要把输出根目录当作运行目录，也不要复用某台机器的固定目录或凭据。将下面的占位路径替换为实际运行目录后执行：
@@ -35,7 +35,7 @@ B4 只接受 `scripts/prepare_mutation_demo.py` 新建的私有演示副本，�
 uv run python scripts/prepare_mutation_demo.py
 ```
 
-脚本会在 `.konwledge/mutation-demo/<scope-id>/` 下创建私有目录、隔离 `knowledge.db`、`mutation-manifest.json` 和 `report.json`，并在 stdout 返回本次 `manifest`、`database`、`scope_id` 与 `source_ids`。
+脚本会在 `.knowledge/mutation-demo/<scope-id>/` 下创建私有目录、隔离 `knowledge.db`、`mutation-manifest.json` 和 `report.json`，并在 stdout 返回本次 `manifest`、`database`、`scope_id` 与 `source_ids`。
 
 拿到上一步实际输出的 `manifest` 和 `database` 后，再显式打开 B4：
 
@@ -110,14 +110,14 @@ uv run python scripts/mutation_workbench_acceptance.py
 
 B4 验收脚本会先调用 `scripts/prepare_mutation_demo.py` 准备独占演示副本，再启动真实 backend、Vite dev 和固定的前端 live test。报告写到对应运行目录的 `b4-acceptance-report.json`。当前仓库里的最后一次通过报告位于：
 
-- [`.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json`](../.konwledge/mutation-demo/b239f388-6ef5-401f-879b-e43cf59fb68e/b4-acceptance-report.json)
+- [B4 原始运行记录](releases/legacy-0.1.0.md#b4-受控变更)
 
-已知结果：
+以下保留 B3／B4 历史结果，不是本次更名后的重测：
 
-- B3：2026-11-16 最后一次运行 `20261116T042018921245Z-951ad2f7` 通过，真实前端 client／DTO／comparison engine／jsdom UI 经 HTTP dev proxy 联调，mean Recall 为 `1 → 0.666667 → 1`。刷新看到新增 passed 任务和 UI 提示，原选择与失败记录保留，`children_stopped=true`。
+- B3：2026-11-16 最终历史运行通过，原 ID 见 [运行审计](releases/legacy-0.1.0.md#真实文档运行身份)，真实前端 client／DTO／comparison engine／jsdom UI 经 HTTP dev proxy 联调，mean Recall 为 `1 → 0.666667 → 1`。刷新看到新增 passed 任务和 UI 提示，原选择与失败记录保留，`children_stopped=true`。
 - B4：scope `b239f388-6ef5-401f-879b-e43cf59fb68e` 的报告通过；全部 checks 为 true，frontend_update 与 frontend_recovery 均为 passed，三次变更产生的 command 与 jobs 恰好各 3，固定 config fingerprint 与 dataset 下任务序列为 `passed → failed → passed`，mean Recall 为 `1 → 0.6666667 → 1`。真实前端验收覆盖提交响应丢失、GET 恢复不重复写、凭据不持久化，以及重启后历史失败／Diff／证据回查；driver 另跑已通过且 `children_stopped=true`。
 - 前端 `pnpm verify` 全通过，结果为 `352 passed / 2 skipped`；两个 skipped 是需要联调服务环境的 live acceptance 默认跳过，不是假失败。typecheck、类型漂移、Vitest 和 build 均通过，`pnpm verify` 已包含 mutationtypecheck 与 check:mutations。
-- 发行验证 `scripts/verify_distribution.py --output-dir .konwledge/b4-final-distribution-verified` 已通过 wheel／sdist 隔离安装 smoke；这只是分发验证，不代表已发布，本次也没有公开部署。静态渲染检查显示 `#changes` 初始页面布局正常、无 console errors；恢复入口静态中间状态显示清楚。真实交互验收来自 jsdom + HTTP driver。生产 build 仍有 584.87 kB chunk 体积提醒，属于后续可优化项，不是功能失败。
+- 历史发行验证的原目录与通过记录见 [B4 审计](releases/legacy-0.1.0.md#b4-受控变更)；这只是分发验证，不代表已发布，本次也没有公开部署。静态渲染检查显示 `#changes` 初始页面布局正常、无 console errors；恢复入口静态中间状态显示清楚。真实交互验收来自 jsdom + HTTP driver。生产 build 仍有 584.87 kB chunk 体积提醒，属于后续可优化项，不是功能失败。
 
 ## B2 历史验收记录
 

@@ -8,14 +8,14 @@ U18 为已有知识库提供可选 HTTP 传输，不改变 `0.1.0` 版本号。v
 
 ```bash
 python -m pip install '.[api]'
-# 或
-python -m pip install 'dist/konwledge-0.1.0-py3-none-any.whl[api]'
-knowledge import examples --database .konwledge/knowledge.db
-knowledge serve --database .konwledge/knowledge.db --host 127.0.0.1 --port 8000
+# 新 distribution 尚未发布；当前使用上面的源码安装
+# 未来发布并核验后才可使用：pip install 'knowledge-ykforward[api]==0.1.0'
+knowledge import examples --database .knowledge/knowledge.db
+knowledge serve --database .knowledge/knowledge.db --host 127.0.0.1 --port 8000
 ```
 
 - `[api]` 仅增加 FastAPI、Uvicorn；核心安装不需要它们，`knowledge --version`、`--help`、`serve --help` 可正常运行。
-- 默认库为 `.konwledge/knowledge.db`，可用 `--database`/`-d` 改变；必须是**已有文件**。`serve` 不创建父目录或缺失数据库。SQLite URI 使用 `mode=rw`，校验后文件被移除也不会自动创建空库。
+- 默认库为 `.knowledge/knowledge.db`，可用 `--database`/`-d` 改变；必须是**已有文件**。`serve` 不创建父目录或缺失数据库。SQLite URI 使用 `mode=rw`，校验后文件被移除也不会自动创建空库。
 - `--host` 仅允许 `127.0.0.1`、`::1`、`localhost`。`localhost` 明确映射到 `127.0.0.1`，不通过 DNS 决定绑定地址。拒绝 `0.0.0.0`、其他 IP/主机名；端口范围 `1..65535`。这些校验在打开库之前完成。
 - API 密钥只从环境变量 `KNOWLEDGE_API_KEY` 读取，**没有密钥值 CLI 参数**。建议通过本机凭据管理器/进程环境注入，不把真实值写到 shell 历史、日志或仓库。未设置表示本机无鉴权；显式设置为空或仅含空白时拒绝启动，不会降级为无鉴权。非空值原样匹配，不裁剪。
 - Uvicorn 使用传入的 app 对象阻塞运行，关闭 access log，不自动启动后台任务、reload 或多 worker；退出或失败时释放 engine。参数错误退出 `2`，缺少 extra 或启动/运行失败退出 `1`。
@@ -88,12 +88,12 @@ API 只适用于可信本机环境，不是 TLS 服务、多租户隔离、托�
 
 ### 官方 OpenAI Python SDK
 
-SDK 是客户端工具，不是 Konwledge 运行时依赖。另行安装 `openai`，按本机环境取密钥：
+SDK 是客户端工具，不是 Knowledge 运行时依赖。另行安装 `openai`，按本机环境取密钥：
 
 ```python
 import os
 from openai import OpenAI
-from konwledge.context import ContextPacket
+from knowledge.context import ContextPacket
 
 with OpenAI(
     base_url="http://127.0.0.1:8000/v1",
@@ -116,7 +116,7 @@ with OpenAI(
 ```python
 import os
 from langchain_openai import ChatOpenAI
-from konwledge.context import ContextPacket
+from knowledge.context import ContextPacket
 
 chat = ChatOpenAI(
     model="knowledge-context",

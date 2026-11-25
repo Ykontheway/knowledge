@@ -15,10 +15,10 @@ from langchain_openai import ChatOpenAI
 from openai import BadRequestError, OpenAI
 from pydantic import SecretStr
 
-from konwledge.api import create_app
-from konwledge.application import KnowledgeLibrary
-from konwledge.context import ContextPacket
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.api import create_app
+from knowledge.application import KnowledgeLibrary
+from knowledge.context import ContextPacket
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 KEY = "local-sdk-test-key"
 BASE_URL = "http://127.0.0.1:8000/v1"

@@ -11,9 +11,9 @@ import pytest
 from sqlalchemy import Engine, inspect, text
 from typer.testing import CliRunner
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.cli import app
-from konwledge.domain import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.cli import app
+from knowledge.domain import (
     Document,
     DocumentContentType,
     KnowledgeUnit,
@@ -22,21 +22,21 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.embedding import EmbeddingService, EmbeddingVector, HashEmbeddingProvider
-from konwledge.indexing import IndexingService, InMemoryVectorIndex, LanceVectorIndex
-from konwledge.ingestion import (
+from knowledge.embedding import EmbeddingService, EmbeddingVector, HashEmbeddingProvider
+from knowledge.indexing import IndexingService, InMemoryVectorIndex, LanceVectorIndex
+from knowledge.ingestion import (
     FileIngestionService,
     KnowledgeUnitService,
     TraceableIngestionResult,
     TraceableIngestionService,
     fingerprint_text,
 )
-from konwledge.lifecycle import (
+from knowledge.lifecycle import (
     DocumentDiff,
     UnitChangeKind,
     diff_units,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
@@ -572,7 +572,7 @@ def test_cli_reports_updates_and_history(tmp_path: Path) -> None:
 
 def test_lance_index_supports_get_filters_and_empty_rebuild(tmp_path: Path) -> None:
     pytest.importorskip("lancedb")
-    from konwledge.indexing import VectorRecord
+    from knowledge.indexing import VectorRecord
 
     index = LanceVectorIndex(uri=tmp_path / "lance", dimension=2)
     records = [

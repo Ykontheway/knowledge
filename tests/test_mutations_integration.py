@@ -15,9 +15,9 @@ from sqlalchemy import event, func, inspect, select, text, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.domain import KnowledgeUnitStatus, RevisionEntityType
-from konwledge.mutations.models import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.domain import KnowledgeUnitStatus, RevisionEntityType
+from knowledge.mutations.models import (
     CommandDTO,
     CommandRequest,
     EvaluationStatus,
@@ -26,12 +26,12 @@ from konwledge.mutations.models import (
     PreviewDTO,
     PreviewRequest,
 )
-from konwledge.mutations.router import build_mutation_router
-from konwledge.mutations.safety import load_mutation_scope
-from konwledge.mutations.service import MutationService
-from konwledge.mutations.tables import MutationCommandRow, MutationPreviewRow
-from konwledge.storage import UnitOfWork, create_session_factory, create_sqlite_engine
-from konwledge.storage.tables import (
+from knowledge.mutations.router import build_mutation_router
+from knowledge.mutations.safety import load_mutation_scope
+from knowledge.mutations.service import MutationService
+from knowledge.mutations.tables import MutationCommandRow, MutationPreviewRow
+from knowledge.storage import UnitOfWork, create_session_factory, create_sqlite_engine
+from knowledge.storage.tables import (
     AutoEvaluationJobRow,
     DocumentRow,
     KnowledgeUnitRow,
@@ -731,7 +731,7 @@ def test_get_source_kind_allowlist_runtime(
     kind: str,
     expected: int,
 ) -> None:
-    from konwledge.storage.tables import SourceRow
+    from knowledge.storage.tables import SourceRow
 
     library, _manifest, service = setup
     source = service.list_sources()[0]
@@ -748,7 +748,7 @@ def test_get_source_kind_allowlist_runtime(
 def test_exact_text_size_limit_and_oversized_existing_document(
     setup: tuple[KnowledgeLibrary, Path, MutationService],
 ) -> None:
-    from konwledge.ingestion.normalization import fingerprint_text
+    from knowledge.ingestion.normalization import fingerprint_text
 
     library, _manifest, service = setup
     content = "# Demo\n\nhello "

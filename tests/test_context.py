@@ -9,8 +9,8 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.context import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.context import (
     ContextPacket,
     ContextService,
     ContextSkipReason,
@@ -19,7 +19,7 @@ from konwledge.context import (
     render_context,
     validate_budget,
 )
-from konwledge.domain import (
+from knowledge.domain import (
     Citation,
     Document,
     DocumentContentType,
@@ -28,8 +28,8 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.retrieval import RetrievalHit, RetrievalMode, RetrievalResult
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.retrieval import RetrievalHit, RetrievalMode, RetrievalResult
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 SOURCE_ID = UUID("10000000-0000-0000-0000-000000000001")
 DOCUMENT_ID = UUID("20000000-0000-0000-0000-000000000002")
@@ -309,7 +309,7 @@ def test_evidence_block_validation_and_metadata_mismatch() -> None:
 
 
 def test_context_service_build_orchestration() -> None:
-    from konwledge.retrieval import RetrievalService
+    from knowledge.retrieval import RetrievalService
 
     mock_retrieval = MagicMock(spec=RetrievalService)
     result = make_result(hits=(make_hit(),), missing_vector_ids=(uuid4(),))
@@ -327,7 +327,7 @@ def test_context_service_build_orchestration() -> None:
 
 
 def test_validate_hit_evidence_forged_rejected() -> None:
-    from konwledge.context.citations import CitationEvidenceError
+    from knowledge.context.citations import CitationEvidenceError
 
     hit = make_hit(unit=make_unit(document_id=uuid4()))
     with pytest.raises(CitationEvidenceError, match="document_id"):

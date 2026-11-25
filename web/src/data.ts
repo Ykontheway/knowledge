@@ -8,4 +8,4 @@ import { assertSnapshot, SnapshotIndex } from "./lib/snapshot";
 export const snapshot = assertSnapshot(raw);
 export const index = new SnapshotIndex(snapshot);
 
-export const REPO_URL = "https://github.com/Ykontheway/konwledge";
+export const REPO_URL = "https://github.com/Ykontheway/knowledge";

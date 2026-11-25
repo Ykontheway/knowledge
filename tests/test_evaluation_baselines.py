@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic import ValidationError
 
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     EvaluationItem,
@@ -22,7 +22,7 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.evaluation import (
+from knowledge.evaluation import (
     BaselineCase,
     EvaluationBaseline,
     EvaluationReport,
@@ -34,8 +34,8 @@ from konwledge.evaluation import (
     score_ranked_lineages,
     validate_evaluation_report,
 )
-from konwledge.retrieval import RetrievalMode, RetrievalService
-from konwledge.storage import (
+from knowledge.retrieval import RetrievalMode, RetrievalService
+from knowledge.storage import (
     UnitOfWork,
     create_schema,
     create_session_factory,
@@ -574,8 +574,8 @@ def test_hybrid_missing_ids_and_hit_scores(report: EvaluationReport) -> None:
 
 
 def test_gate_exports_are_exact() -> None:
-    import konwledge.evaluation as evaluation
-    from konwledge.evaluation import gates
+    import knowledge.evaluation as evaluation
+    from knowledge.evaluation import gates
 
     names = (
         "MetricName",

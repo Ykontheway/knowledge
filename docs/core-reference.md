@@ -1,14 +1,14 @@
 # 核心参考
 
-核心 SDK 与 CLI 详细参考，代码和命令从仓库根目录运行，当前安装与运行边界见 [README](../README.md)，架构边界见 [架构](architecture.md)，开发依赖与阅读顺序见 [开发说明](development.md)。英文正文保留技术细节和历史兼容说明；章节开场改为当前能力描述，发行状态以 README 为准。
+核心 SDK 与 CLI 详细参考，代码和命令从仓库根目录运行，当前安装与运行边界见 [README](../README.md)，架构边界见 [架构](architecture.md)，开发依赖与阅读顺序见 [开发说明](development.md)。英文正文保留技术细节与历史能力说明；当前 Python import 为 `knowledge`，CLI 仅 `knowledge`／`knowledge-mcp`，旧别名停止提供。新 distribution `knowledge-ykforward==0.1.0` 尚未发布，源码安装、旧库和目录处理见 [迁移说明](migration-to-knowledge.md)，旧发行证据见 [历史审计](releases/legacy-0.1.0.md)。
 
 ## Public Python API
 
-`KnowledgeLibrary` is the root application facade and is lazily exported, so importing `konwledge` does not eagerly initialize application services or a database:
+`KnowledgeLibrary` is the root application facade and is lazily exported, so importing `knowledge` does not eagerly initialize application services or a database:
 
 ```python
-from konwledge import KnowledgeLibrary, __version__
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge import KnowledgeLibrary, __version__
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 engine = create_sqlite_engine("sqlite+pysqlite:///knowledge.db")
 create_schema(engine)
@@ -20,7 +20,7 @@ packet = library.build_context("deployment", max_units=3)
 
 The wheel and source distribution include a PEP 561 `py.typed` marker so installed consumers can use the inline type annotations.
 
-The established typed models and evaluation helpers remain importable from `konwledge.domain` and `konwledge.evaluation`. Subpackages such as `storage`, `ingestion`, `indexing`, `retrieval`, and `context` expose lower-level composition points used by the facade and tests. At alpha, those lower-level boundaries (and even the core APIs as capabilities are added) may change between minor releases; v0.1.0 does not promise complete backward compatibility.
+The established typed models and evaluation helpers remain importable from `knowledge.domain` and `knowledge.evaluation`. Subpackages such as `storage`, `ingestion`, `indexing`, `retrieval`, and `context` expose lower-level composition points used by the facade and tests. At alpha, those lower-level boundaries (and even the core APIs as capabilities are added) may change between minor releases; v0.1.0 does not promise complete backward compatibility.
 
 For design and project workflow details, see:
 
@@ -33,7 +33,7 @@ For design and project workflow details, see:
 
 ## Domain models
 
-The domain layer exposes five immutable [Pydantic v2](https://docs.pydantic.dev/) models under `konwledge.domain`:
+The domain layer exposes five immutable [Pydantic v2](https://docs.pydantic.dev/) models under `knowledge.domain`:
 
 - `Source` records where imported knowledge originated;
 - `Document` identifies one normalized source document and its checksum;
@@ -50,9 +50,9 @@ The storage layer persists the domain graph with SQLAlchemy 2.x and SQLite. `Sou
 SQLite foreign-key enforcement is enabled for every connection. Tests use an isolated in-memory database and cover roundtrips, updates, deletes, constraint failures, commits, and rollbacks. Create an application database with:
 
 ```python
-from konwledge.storage import create_schema, create_sqlite_engine
+from knowledge.storage import create_schema, create_sqlite_engine
 
-engine = create_sqlite_engine("sqlite:///konwledge.db")
+engine = create_sqlite_engine("sqlite:///knowledge.db")
 create_schema(engine)
 ```
 
@@ -63,8 +63,8 @@ The file loader loads one UTF-8 `.md`, `.markdown`, or `.txt` file from a stored
 `FileIngestionService` returns both the persisted `Document` metadata and the normalized content needed by the U05 splitter. Importing the same source path and normalized content again returns the existing document instead of inserting a duplicate.
 
 ```python
-from konwledge.ingestion import FileIngestionService
-from konwledge.storage import create_session_factory
+from knowledge.ingestion import FileIngestionService
+from knowledge.storage import create_session_factory
 
 session_factory = create_session_factory(engine)
 result = FileIngestionService(session_factory).ingest(source_id)
@@ -78,7 +78,7 @@ The traceable splitter turns normalized document content into persisted `Knowled
 Every unit stores an exact half-open range `[start_char, end_char)`. The invariant `content[start_char:end_char] == unit.text` makes the original location directly recoverable. `TraceableIngestionService` connects U04 ingestion with idempotent unit creation, while an existing document version reuses its stored units.
 
 ```python
-from konwledge.ingestion import (
+from knowledge.ingestion import (
     FileIngestionService,
     KnowledgeUnitService,
     TraceableIngestionService,
@@ -100,7 +100,7 @@ The embedding layer supports offline use. The `EmbeddingProvider` protocol defin
 `EmbeddingService` adds batching, dimension checks, and a provider/model-aware cache key. Caching is opt-in: pass an `InMemoryEmbeddingCache` (or any object with `get`/`set`) to keep repeated calls cheap and idempotent; cache keys compose `(provider_name, model, text)` and remain stable across runs.
 
 ```python
-from konwledge.embedding import (
+from knowledge.embedding import (
     EmbeddingService,
     HashEmbeddingProvider,
     InMemoryEmbeddingCache,
@@ -124,8 +124,8 @@ The vector index turns embeddings into a searchable store. The `VectorIndex` pro
 `IndexingService` wires the embedding service and the vector index together so you can embed and persist `KnowledgeUnit` objects in one call, run top-K searches by raw text, and rebuild the entire index deterministically:
 
 ```python
-from konwledge.embedding import EmbeddingService, HashEmbeddingProvider, InMemoryEmbeddingCache
-from konwledge.indexing import IndexingService, InMemoryVectorIndex
+from knowledge.embedding import EmbeddingService, HashEmbeddingProvider, InMemoryEmbeddingCache
+from knowledge.indexing import IndexingService, InMemoryVectorIndex
 
 embeddings = EmbeddingService(HashEmbeddingProvider(dimension=32), cache=InMemoryEmbeddingCache())
 indexing = IndexingService(
@@ -305,7 +305,7 @@ time rather than backdating them to the TTL deadline. This preserves earlier as-
 No background task runs by itself: schedule the CLI externally if periodic scans are wanted.
 
 ```python
-from konwledge.domain import FreshnessPolicy
+from knowledge.domain import FreshnessPolicy
 
 library.freshness.configure(source_id, FreshnessPolicy(ttl_seconds=30 * 86400))
 preview = library.freshness.scan()  # dry_run=True by default
@@ -382,7 +382,7 @@ no existing columns or demo snapshot schema change. To try the demo conflict:
 
 ```bash
 uv run knowledge demo build
-uv run knowledge conflicts scan -d .konwledge/demo/knowledge.db
+uv run knowledge conflicts scan -d .knowledge/demo/knowledge.db
 ```
 
 This finds exactly the current guide's active `8080` assertion versus the FAQ's stale `8000`
@@ -449,8 +449,8 @@ or backend failures are not silently treated as missing coverage. Callers must u
 embedding provider/model for stored vectors and queries.
 
 ```python
-from konwledge.application import KnowledgeLibrary
-from konwledge.retrieval import RetrievalMode
+from knowledge.application import KnowledgeLibrary
+from knowledge.retrieval import RetrievalMode
 
 # `indexing` is an IndexingService using your provider and a Memory/Lance VectorIndex.
 # Populate it explicitly with index_units/rebuild/apply_diff; import does not auto-index.
@@ -479,7 +479,7 @@ an answer or call an LLM.
 uv run knowledge context "deployment" --max-chars 8000 --max-units 3
 uv run knowledge context "deployment" --top-k 10 --candidate-limit 20 --json
 uv run knowledge context "监听" --at 2026-10-10T12:00:00+08:00 \
-  -d .konwledge/demo/knowledge.db --json
+  -d .knowledge/demo/knowledge.db --json
 uv run knowledge context "order-service" --mode hybrid --demo-vectors --include-stale
 ```
 
@@ -526,7 +526,7 @@ a guarantee that a downstream model will resist prompt injection. Callers still 
 own system instructions and tool authorization boundaries.
 
 ```python
-from konwledge.context import assemble_context, verify_citation
+from knowledge.context import assemble_context, verify_citation
 
 packet = library.build_context("deployment", top_k=10, max_chars=8000, max_units=3)
 print(packet.context_text, packet.used_chars)
@@ -564,14 +564,14 @@ demo first, then import and run its gold set:
 ```bash
 uv run knowledge demo build
 uv run knowledge evaluation import examples/evaluation-demo.json \
-  -d .konwledge/demo/knowledge.db
-uv run knowledge evaluation list -d .konwledge/demo/knowledge.db --json
+  -d .knowledge/demo/knowledge.db
+uv run knowledge evaluation list -d .knowledge/demo/knowledge.db --json
 uv run knowledge evaluation show 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 \
-  -d .konwledge/demo/knowledge.db
+  -d .knowledge/demo/knowledge.db
 uv run knowledge evaluation export 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 \
-  --output exported-evaluation.json -d .konwledge/demo/knowledge.db
+  --output exported-evaluation.json -d .knowledge/demo/knowledge.db
 uv run knowledge evaluation run 52522ebd-b1dc-4ace-824c-f8054c8547af --version 1 \
-  --top-k 5 -d .konwledge/demo/knowledge.db --json
+  --top-k 5 -d .knowledge/demo/knowledge.db --json
 ```
 
 The JSON file is the complete gold snapshot: its set UUID identifies a logical dataset, `version`
@@ -601,7 +601,7 @@ vectors remain visible per case and are never repaired automatically. U15 report
 validated candidate input consumed by U16's file-only comparison and gate commands.
 
 ```python
-from konwledge.evaluation import EvaluationSet
+from knowledge.evaluation import EvaluationSet
 
 created = library.evaluation.import_set(EvaluationSet.model_validate_json(text))
 report = library.evaluation.run(created.dataset.id, version=1, top_k=5)
@@ -618,7 +618,7 @@ source report.
 ```bash
 # Capture a complete candidate report from the U15 runner.
 uv run knowledge evaluation run <set-id> --version 1 --top-k 5 --json \
-  -d .konwledge/demo/knowledge.db > candidate.json
+  -d .knowledge/demo/knowledge.db > candidate.json
 
 # Promote a reviewed healthy report explicitly; existing outputs are never replaced implicitly.
 uv run knowledge evaluation baseline candidate.json --output approved-baseline.json
@@ -680,7 +680,7 @@ or production embedding quality.
 V2 静态演示继续读取 CLI 导出的 JSON snapshot，V1 提供这条数据管线。B2／B3 本机实时视图另用独立 management schema，B3 评测对照与导览不修改 Snapshot V1 或 demo golden。
 
 ```bash
-uv run knowledge demo build            # plays the story into .konwledge/demo/
+uv run knowledge demo build            # plays the story into .knowledge/demo/
 uv run knowledge demo export           # writes demo/snapshot.json and demo/snapshot.schema.json
 uv run knowledge demo export --check   # exit 1 if the committed files are out of date
 ```
@@ -697,7 +697,7 @@ through three versions while an on-call FAQ keeps quoting the old port:
 2026-10-17T15:00:00+08:00 | 确认“健康检查”仍然有效 | refreshed: 健康检查
 2026-10-19T16:00:00+08:00 | 发布《服务部署手册》v3 | changes=+0 ~2 >0 =7 -0 | embedded=2 reused=7 deleted=9
 2026-10-20T11:00:00+08:00 | 标记 FAQ 端口答案过期 | stale: 服务端口是多少？
-Demo library built in .../.konwledge/demo (8 steps, 12 vectors in the index).
+Demo library built in .../.knowledge/demo (8 steps, 12 vectors in the index).
 ```
 
 The v1 -> v2 diff contains all five change kinds, and the final state contains all four statuses.
@@ -744,10 +744,10 @@ pnpm gen:types     # regenerate src/types/snapshot.gen.ts after a schema change
 - **Ranges match the CLI.** Snapshot offsets are Python code points, so the site slices by code
   point, not UTF-16 unit; Vitest checks that every unit's range reproduces its stored text and that
   the segments tile each document exactly.
-- **公开入口使用静态回放预览。** 2026-11-23 已发布 [只读回放页](https://ykontheway.github.io/konwledge/#replay/guide)，不连接 live backend。`.github/workflows/deploy-demo.yml` 为手动 `workflow_dispatch`，`publish` 默认 false，只准备并上传 `replay-preview` artifact；只有显式 true 才允许 Pages publish job。后续发布仍须确认默认分支 workflow dispatch、所选 ref 与 Pages 权限，配置本身不证明部署成功。`web/` 原页面继续承担 Snapshot V1 与本机联调职责；导出、构建及权限边界见 [静态回放预览](replay-preview.md)。
+- **公开入口使用静态回放预览。** 旧预览的 2026-11-23 发布和原地址见 [历史审计](releases/legacy-0.1.0.md#静态回放发布与验收)，不连接 live backend。更名后的地址尚待验证；Pages 仍须手动 dispatch、默认不发布、同次运行验证产物及单独发布授权，实际配置由主 agent 核对。`web/` 保留 Snapshot V1 与本机联调职责；导出、构建及权限边界见 [静态回放预览](replay-preview.md)。
 
 ## License
 
 Licensed under the [Apache License 2.0](../LICENSE).
 
-<!-- 文档校对记录：与 HEAD README 自 Public Python API 至文末的 747 行逐项核对，仅改 14 个技术章节的增量开场及静态预览发布状态，共 15 处差异；所有其余技术正文保留，26 个代码块逐字一致。SDK／CLI、机制、数值、预算和历史证据未删减；docs 内链接及 CONTRIBUTING／CHANGELOG／LICENSE／demo README 的上级路径均已校正，示例命令仍从仓库根目录执行。全页行数含页头和本注释，不等同于技术正文行数。未运行 pytest 或发行验证。 -->
+<!-- 本次更名更新 import、CLI、运行路径和旧审计链接；没有执行示例、pytest 或发行验证，不沿用原代码块逐字一致的校对结论。 -->

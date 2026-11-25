@@ -65,7 +65,7 @@ def test_artifacts_reject_ineffective_core_or_wrong_mcp_range(
     metadata = WHEEL_METADATA.replace(MCP_REQUIREMENT, replacement)
     if kind == "wheel":
         artifact = tmp_path / "bad.whl"
-        write_wheel(artifact, overrides={"konwledge-0.1.0.dist-info/METADATA": metadata})
+        write_wheel(artifact, overrides={"knowledge_ykforward-0.1.0.dist-info/METADATA": metadata})
         with pytest.raises(ValueError, match=message):
             distribution.inspect_wheel(artifact, NAME, VERSION, (RESOURCE,))
     else:
@@ -80,7 +80,7 @@ def test_artifacts_reject_missing_mcp_extra(tmp_path: Path, kind: str) -> None:
     metadata = WHEEL_METADATA.replace("Provides-Extra: mcp\n", "")
     if kind == "wheel":
         artifact = tmp_path / "bad.whl"
-        write_wheel(artifact, overrides={"konwledge-0.1.0.dist-info/METADATA": metadata})
+        write_wheel(artifact, overrides={"knowledge_ykforward-0.1.0.dist-info/METADATA": metadata})
         with pytest.raises(ValueError, match="missing the mcp extra"):
             distribution.inspect_wheel(artifact, NAME, VERSION, (RESOURCE,))
     else:
@@ -116,21 +116,23 @@ def test_sdist_requires_service_protocol_and_installed_smoke(tmp_path: Path, fil
 def test_mcp_module_collection_matches_actual_package() -> None:
     root = distribution.PROJECT_ROOT / "src"
     assert {
-        path.relative_to(root).as_posix() for path in (root / "konwledge/mcp").glob("*.py")
+        path.relative_to(root).as_posix() for path in (root / "knowledge/mcp").glob("*.py")
     } == set(distribution.MCP_MODULES)
 
 
 @pytest.mark.parametrize(
     "entries",
     [
-        ENTRY_POINTS.replace("konwledge-mcp = konwledge.mcp.server:main\n", ""),
-        ENTRY_POINTS.replace("konwledge.mcp.server:main", "konwledge.cli:main"),
-        ENTRY_POINTS + "unexpected = konwledge.cli:main\n",
+        ENTRY_POINTS.replace("knowledge-mcp = knowledge.mcp.server:main\n", ""),
+        ENTRY_POINTS.replace("knowledge.mcp.server:main", "knowledge.cli:main"),
+        ENTRY_POINTS + "unexpected = knowledge.cli:main\n",
     ],
 )
-def test_wheel_requires_exact_three_consoles(tmp_path: Path, entries: str) -> None:
+def test_wheel_requires_exact_two_consoles(tmp_path: Path, entries: str) -> None:
     artifact = tmp_path / "bad.whl"
-    write_wheel(artifact, overrides={"konwledge-0.1.0.dist-info/entry_points.txt": entries})
+    write_wheel(
+        artifact, overrides={"knowledge_ykforward-0.1.0.dist-info/entry_points.txt": entries}
+    )
     with pytest.raises(ValueError, match="entry points mismatch"):
         distribution.inspect_wheel(artifact, NAME, VERSION, (RESOURCE,))
 
@@ -378,7 +380,7 @@ def installed_identity(monkeypatch: pytest.MonkeyPatch) -> None:
     import sys
 
     monkeypatch.delitem(sys.modules, "mcp", raising=False)
-    monkeypatch.delitem(sys.modules, "konwledge.mcp.server", raising=False)
+    monkeypatch.delitem(sys.modules, "knowledge.mcp.server", raising=False)
     monkeypatch.setattr(smoke, "is_installed", lambda _path: True)
     monkeypatch.setattr(importlib.util, "find_spec", lambda _name: None)
 

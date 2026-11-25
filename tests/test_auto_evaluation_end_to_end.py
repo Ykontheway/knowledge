@@ -13,22 +13,22 @@ from fastapi.testclient import TestClient
 from sqlalchemy import update
 from sqlalchemy.engine import Engine
 
-from konwledge.api.app import create_app
-from konwledge.application import ImportReport, KnowledgeLibrary
-from konwledge.auto_evaluation import AutoEvaluationJob, AutoEvaluationStatus
-from konwledge.domain import EvaluationItem, EvaluationSet, FreshnessPolicy
-from konwledge.evaluation import EvaluationBaseline, GatePolicy
-from konwledge.lifecycle import materialize_statuses, publish_document
-from konwledge.quality import QualityPolicy, QualityReport
-from konwledge.retrieval import RetrievalMode
-from konwledge.storage import (
+from knowledge.api.app import create_app
+from knowledge.application import ImportReport, KnowledgeLibrary
+from knowledge.auto_evaluation import AutoEvaluationJob, AutoEvaluationStatus
+from knowledge.domain import EvaluationItem, EvaluationSet, FreshnessPolicy
+from knowledge.evaluation import EvaluationBaseline, GatePolicy
+from knowledge.lifecycle import materialize_statuses, publish_document
+from knowledge.quality import QualityPolicy, QualityReport
+from knowledge.retrieval import RetrievalMode
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.tables import EvaluationSetRow
+from knowledge.storage.tables import EvaluationSetRow
 
 NOW = datetime(2026, 11, 12, 10, 0, tzinfo=UTC)
 ANSWER_TOKEN = "azurequartz"

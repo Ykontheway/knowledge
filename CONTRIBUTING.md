@@ -1,6 +1,8 @@
-# Contributing to Konwledge
+# Contributing to Knowledge
 
-Thank you for contributing. Konwledge is an Apache-2.0, local-first Python project. The current release line is alpha: prefer small, reviewable changes with explicit tests and documentation over broad compatibility assumptions.
+Thank you for contributing. Knowledge is an Apache-2.0, local-first Python project. The current release line is alpha: prefer small, reviewable changes with explicit tests and documentation over broad compatibility assumptions.
+
+新 Python distribution 为 `knowledge-ykforward==0.1.0`，目前未发布，开发仍从源码安装。Python import 为 `knowledge`，CLI 仅 `knowledge`／`knowledge-mcp`；默认运行目录为 `.knowledge/`，旧入口停止提供，旧库与 session 不自动迁移，详见 [迁移说明](docs/migration-to-knowledge.md)。旧发行身份与原验证记录见 [历史审计](docs/releases/legacy-0.1.0.md)，新发行流程由主 agent 验证。
 
 ## Prerequisites
 
@@ -14,8 +16,8 @@ The default test suite is offline and does not require provider credentials. Lan
 ## Set up a checkout
 
 ```bash
-git clone https://github.com/Ykontheway/konwledge.git
-cd konwledge
+git clone https://github.com/Ykontheway/knowledge.git
+cd knowledge
 uv sync --locked --dev
 uv run knowledge --version
 ```
@@ -39,7 +41,7 @@ Before coding, identify the smallest behavior that can be tested and documented.
 - evaluation reports and baselines are validated by recomputation;
 - gates fail closed when evidence is invalid, degraded, mismatched, or uncovered by policy.
 
-The root `KnowledgeLibrary` facade and exports from `konwledge.domain` and `konwledge.evaluation` are the clearest user-facing surfaces. Lower-level modules are still experimental. Because the package is alpha, compatibility is a review consideration rather than a complete backward-compatibility guarantee.
+The root `KnowledgeLibrary` facade and exports from `knowledge.domain` and `knowledge.evaluation` are the clearest user-facing surfaces. Lower-level modules are still experimental. Because the package is alpha, compatibility is a review consideration rather than a complete backward-compatibility guarantee.
 
 ## Branches, commits, and reviews
 
@@ -81,7 +83,7 @@ Provider integrations must keep deterministic offline coverage. A new network pr
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests scripts
-uv run pytest --cov=konwledge --cov-report=term-missing
+uv run pytest --cov=knowledge --cov-report=term-missing
 uv run knowledge demo build --force
 uv run knowledge demo export --check
 uv run pytest tests/test_evaluation_gate_demo.py

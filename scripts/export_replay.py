@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import NoReturn
 
-from konwledge.replay import ReplayError, export_replay, load_validate
+from knowledge.replay import ReplayError, export_replay, load_validate
 
 
 class _Parser(argparse.ArgumentParser):

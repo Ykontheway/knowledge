@@ -1,6 +1,6 @@
 # 只读 MCP 使用说明
 
-B5／U22 **已完成并验证（Unreleased）**，原 ID 不变。默认 MCP 只提供本机 stdio 查询，不开放写工具；版本仍为 `0.1.0` prepared，未发布。Linux 真实 SDK session、完整回归与 wheel／sdist 隔离安装验证均已通过。实现状态与发布状态分开记录，提交以 Git 历史为准；本文不代表已推送、部署或获得生产授权。
+B5／U22 的**更名前实现与历史验收已完成**，原 ID 不变。默认 MCP 只提供本机 stdio 查询，不开放写工具；当前新 distribution `knowledge-ykforward==0.1.0` 为未发布 Alpha 候选，import 为 `knowledge`，CLI 为 `knowledge`／`knowledge-mcp`。Linux 真实 SDK session、完整回归与 wheel／sdist 隔离安装的旧结果见 [审计](releases/legacy-0.1.0.md#b5-原始隔离发行记录)，不能替代新候选验证。本文不代表已推送、部署或获得生产授权；旧入口与目录处理见 [迁移说明](migration-to-knowledge.md)。
 
 B5 默认五工具及下文历史验收保持不变。B6 受控正文更新已完成并验证，只有显式启用 `--controlled` 才增加五个工具，总计十个；人工批准走独立 TTY，MCP 不签发批准。本文的只读、不建表语义均指默认模式；受控启动、批准与原键恢复见 [受控 MCP 正文更新](mcp-controlled.md)，[最终验收](mcp-controlled.md#b6-最终验收已通过)单独记录，不计入 B5 历史结果。
 
@@ -9,7 +9,8 @@ B5 默认五工具及下文历史验收保持不变。B6 受控正文更新已�
 核心安装不需要 MCP SDK，普通 CLI 的 help、version 和已有命令保持独立。运行 MCP 才需要可选 `[mcp]`，extra 与开发组均使用 `mcp>=1.30.0,<2`；核心 Pydantic 仍为 `pydantic>=2.7,<3`，未收紧。
 
 ```bash
-pip install 'konwledge[mcp]'
+# 未来发布并核验后才可使用；当前请用下方源码安装
+pip install 'knowledge-ykforward[mcp]==0.1.0'
 ```
 
 这条命令说明可选 extra 的安装方式，不表示包已发布到 PyPI。当前可从仓库安装：
@@ -32,7 +33,7 @@ uv sync --extra mcp
 
 ```bash
 knowledge mcp serve --database FILE
-konwledge-mcp --database FILE
+knowledge-mcp --database FILE
 ```
 
 `FILE` 由本机操作人员替换为已有 SQLite 数据库文件。两个命令使用相同 stdio 实现，stdin 接收 MCP 消息，stdout 只写协议响应，安全诊断写 stderr。会话结束或 stdin EOF 后释放读取连接、传输和 engine。
@@ -44,7 +45,7 @@ MCP 不监听 HTTP 端口，不提供 SSE、公网服务或 SSO。它与 U18 的
 ```json
 {
   "mcpServers": {
-    "konwledge": {
+    "knowledge": {
       "command": "knowledge",
       "args": [
         "mcp",
@@ -146,6 +147,8 @@ MCP 返回结构化 `blocks`，每块包含完整选段与 ID／hash 锚点，�
 
 ## 最终验证已通过
 
+以下结果属于更名前 B5 历史验收，不是本次更名验证。新 distribution `knowledge-ykforward` 尚未发布，旧 import／CLI 停止提供，迁移见 [说明](migration-to-knowledge.md)。
+
 本轮实测范围是 **Linux 的真实 SDK stdio session**，覆盖初始化、五工具调用、拒绝非法请求、EOF 清理及数据库读取前后不变。macOS 尚未实测。B-R2 的 Linux `/proc`、`subreaper`、`pidfd` 清理依赖保留，本轮不计作 B-R2 平台兼容验收。
 
 主环境使用 SDK `1.30.0`／Pydantic `2.14.1`，最终结果如下；定向测试与全量有重叠，不相加：
@@ -165,19 +168,9 @@ MCP 返回结构化 `blocks`，每块包含完整选段与 ID／hash 锚点，�
 
 ## 隔离发行验证保留原始证据
 
-新版 full 验收 [be248fe7-e37c-4b6a-a0cf-d697a927bd8a](../.konwledge/workbench/be248fe7-e37c-4b6a-a0cf-d697a927bd8a/summary.json) 的 seed／management／evaluation／mutations／distribution 均为 `passed`，各组件 `exit_code=0`、`checks_failed=0`、`cleanup_verified=true`、`timed_out=false`。其中 distribution 的 82 项是 B-R2 既有汇总投影，**不包含 MCP extra，不能当作 MCP 检查数量**。
+历史 full 汇总、原 wheel／sdist 路径、实际依赖版本和 live 停止记录见 [B5 原始隔离发行记录](releases/legacy-0.1.0.md#b5-原始隔离发行记录)。当时 full 各组件 passed，82 项仅 B-R2 汇总投影，**不包含 MCP extra**；MCP 底层共 72 项独立通过（wheel／sdist 各 core-only 6、extra/default 15、min1.30 15），不与上表全量相加。每个 extra lane 的 3 session、18 成功、39 拒绝、63 响应及 EOF 清理保留原统计。
 
-MCP 底层检查见原始 [wheel smoke summary](../.konwledge/workbench/be248fe7-e37c-4b6a-a0cf-d697a927bd8a/distribution/7d01e2b1-2eec-46b4-884d-7c6a4173b973/driver/wheel-smoke-summary.json) 和 [sdist smoke summary](../.konwledge/workbench/be248fe7-e37c-4b6a-a0cf-d697a927bd8a/distribution/7d01e2b1-2eec-46b4-884d-7c6a4173b973/driver/sdist-smoke-summary.json)。两种产物各跑 core-only 6 项、extra/default 15 项、min1.30 15 项，共 **72 项 MCP 检查单独确认通过**。入口与 optional dependency metadata 验证通过，SDK 仅由 extra 引入运行时。
-
-| wheel／sdist 各自的隔离安装 | 实际 SDK | 实际 Pydantic | 结果 |
-| --- | --- | --- | --- |
-| core-only | 未安装 | `2.14.3` | 6 项通过，基本 CLI 独立，缺 extra 安全失败 |
-| extra/default | `1.30.0` | `2.14.3` | 15 项通过 |
-| min1.30 | `1.30.0` | `2.14.3` | 15 项通过 |
-
-隔离安装没有人工 pin Pydantic。每个 extra lane 均记录 3 个 session、18 次成功调用、39 次拒绝、63 个协议响应；数据库 SHA 与 2 个文件读取前后不变，EOF 清理通过。
-
-新版 live demo 的 [readonly 停止记录](../.konwledge/workbench/84efd3b9-8553-449d-8764-9d8ae4787db5/summary.json) 与 [controlled 停止记录](../.konwledge/workbench/d466d8fe-1dc8-4b70-8eab-54edbfdf4693/summary.json) 均为 `stopped`，launcher `exit_code=130`、`cleanup_verified=true`，不计为验收 `passed`。B-R2 旧报告及历史失败记录保留原样。
+旧 live demo 均 `stopped`、launcher `exit_code=130`、`cleanup_verified=true`，不计为验收 `passed`。旧路径及失败记录不搬迁、不改名，不能据此回填新 distribution 的检查结果。
 
 本节仅保留 B5 的 Linux 五工具真实 SDK session 与只读发行历史结果。B6 正文更新已完成并验证，最终结果另列于 [受控 MCP 验收](mcp-controlled.md#b6-最终验收已通过)，不改写 B5 计数。feature 分支提交与推送以 Git 历史为准；未创建 MR／PR、合并 main、创建 tag、发布 Release／PyPI 或公开部署。路线和状态见 [B系列任务与重构路线](integrated-demo-roadmap.md)。
 

@@ -1,6 +1,6 @@
 # 受控 MCP 正文更新
 
-B6 **已完成并验证（Unreleased）**：受控正文更新 MCP 已通过 Linux 主验收。默认 MCP 保持 [B5／U22 已完成的只读验收](mcp-readonly.md#最终验证已通过)范围内的五个只读工具，主验收确认默认模式对知识、command、outbox 与批准审计均为零写入；显式 `--controlled` 后新增五个工具，总计十个。主验收汇总为 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准共 3 次。Linux 真实 SDK session、独立 PTY 批准、完整回归及 wheel／sdist 隔离发行 smoke 均通过，macOS／Windows 未实测。版本仍为 `0.1.0` prepared，未提交或推送，未创建 PR、合并 main、创建 tag、发布 PyPI 或公开部署。
+B6 **在更名前已完成并验证**：受控正文更新 MCP 已通过 Linux 主验收。以下为历史范围，不是本次更名验证。默认 MCP 保持 [B5／U22 已完成的只读验收](mcp-readonly.md#最终验证已通过)范围内的五个只读工具，主验收确认默认模式对知识、command、outbox 与批准审计均为零写入；显式 `--controlled` 后新增五个工具，总计十个。主验收汇总为 36 成功、17 拒绝、61 响应；3 次正文提交产生 3 个 command 与 3 个 job，评测链路为 `passed → failed → passed`，独立 PTY 批准共 3 次。Linux 真实 SDK session、独立 PTY 批准、完整回归及 wheel／sdist 隔离发行 smoke 均通过，macOS／Windows 未实测。该阶段版本为 `0.1.0` prepared，尚未执行提交、推送、PR、main 合并、tag、PyPI 或公开部署。当前新 distribution `knowledge-ykforward==0.1.0` 仍是未发布 Alpha 候选，import 为 `knowledge`，CLI 仅 `knowledge`／`knowledge-mcp`；旧目录与入口处理见 [迁移说明](migration-to-knowledge.md)，历史发行身份见 [B6 审计](releases/legacy-0.1.0.md#b6-原始隔离发行记录)。
 
 ## 只更新隔离演示正文
 
@@ -24,10 +24,10 @@ uv run python scripts/prepare_mutation_demo.py
 ```bash
 knowledge mcp serve --database FILE --controlled --mutation-manifest MANIFEST --actor demo-editor --demo-root ROOT
 # 等价独立 stdio 入口
-konwledge-mcp --database FILE --controlled --mutation-manifest MANIFEST --actor demo-editor --demo-root ROOT
+knowledge-mcp --database FILE --controlled --mutation-manifest MANIFEST --actor demo-editor --demo-root ROOT
 ```
 
-`--demo-root` 默认是当前工作目录下的 `.konwledge/mutation-demo`；从其他目录启动时应显式指定正确根目录。database、manifest、actor、ROOT 都由本机操作人员在 CLI 绑定，工具参数不能输入或更换它们。只读模式不能夹带受控启动参数，B4 bearer key 也不能换取 MCP 写权限。`demo-editor` 是 actor 示例，session role 为 `demo_editor`，capability 仅为 `document.update`。
+`--demo-root` 默认是当前工作目录下的 `.knowledge/mutation-demo`；从其他目录启动时应显式指定正确根目录。database、manifest、actor、ROOT 都由本机操作人员在 CLI 绑定，工具参数不能输入或更换它们。只读模式不能夹带受控启动参数，B4 bearer key 也不能换取 MCP 写权限。`demo-editor` 是 actor 示例，session role 为 `demo_editor`，capability 仅为 `document.update`。
 
 MCP 仍只走 stdio，stdout 只写协议，安全诊断写 stderr。可选依赖仍为 `mcp>=1.30.0,<2`，已测 B5 baseline 是 `1.30.0`；SDK 不进入 core 运行时依赖，B6 不新增 FastAPI 依赖。普通 CLI help／version 和批准 CLI 不需要 SDK，缺 extra 的 MCP 启动安全失败且不接触数据库。
 
@@ -100,6 +100,8 @@ apply 返回未知、stdin EOF、进程退出或响应丢失后，重新连接�
 <a id="b6-最终验收已通过"></a>
 ## B6 最终验收已通过
 
+以下结果属于更名前 B6 历史验收，不是本次更名验证。新 distribution `knowledge-ykforward` 仍是未发布候选；当前 import／CLI 和旧目录处理见 [迁移说明](migration-to-knowledge.md)。
+
 Linux 真实 SDK session、独立 PTY 人工批准、事务提交与原键恢复、完整回归，以及 wheel／sdist 隔离发行 smoke 均已通过。每种发行格式的受控 MCP lane 各通过 17 项检查，均记录十工具、4 条冻结用例、36 次成功调用、17 次拒绝、61 个协议响应、5 个 session、3 次 PTY 批准。3 次正文提交产生 3 个 command、3 个 job 与 3 次 grant 消费，评测链路为 `passed → failed → passed`。调用数与协议响应数按验收报告的独立统计口径记录。
 
 | 检查 | 结果与范围 |
@@ -113,19 +115,7 @@ Linux 真实 SDK session、独立 PTY 人工批准、事务提交与原键恢复
 
 7 项 Python skip 分别为缺 PostgreSQL DSN 的 1 项、未安装 LanceDB 的 2 项、内存 MCP 不适用文件 RO／WAL 的 2 项，以及默认关闭的工作台 live 2 项。显式 live E2E 另跑通过，不改写普通回归计数，也不表示已验证真实 PostgreSQL 或 LanceDB 环境。前端两个默认 live skip 保留；生产 build 的 chunk 体积提醒为非阻断项。
 
-本地原始报告保留在 `.konwledge`，不随 Git 提交：
-
-- [完整工作台汇总](../.konwledge/workbench/8f935dcb-ec6b-4a67-8b56-a02d8c970ce4/summary.json)与其 distribution 组件的 [`wheel-smoke-summary.json`](../.konwledge/workbench/8f935dcb-ec6b-4a67-8b56-a02d8c970ce4/distribution/652e52a2-0561-4279-8e7e-5152062332a7/driver/wheel-smoke-summary.json)、[`sdist-smoke-summary.json`](../.konwledge/workbench/8f935dcb-ec6b-4a67-8b56-a02d8c970ce4/distribution/652e52a2-0561-4279-8e7e-5152062332a7/driver/sdist-smoke-summary.json)。B-R2 的 82 项发行摘要投影不包含 MCP，须单独检查底层 `mcp_controlled_extra`，不能当作 B6 验收数量。
-- [前端、schema 与进程清理审计](../.konwledge/byproducts/b6-final-regression-20261118/regression-audit.json)及同目录日志。live demo 的 [readonly](../.konwledge/workbench/1d01488c-5d7e-4889-a895-52de88faa83f/summary.json)与 [controlled](../.konwledge/workbench/79b9c0c8-9d1e-463a-b726-c14260519f44/summary.json)停止记录均为 `stopped`、exit 130、清理核验通过，不记成评测 passed。
-- 首轮发行失败记录 `.konwledge/b6-distribution-first-verification/failure-summary.json` 保留；TTL 测试时钟修复后的第二轮 wheel／sdist 报告保留在 `.konwledge/b6-distribution-second-verification`，不覆盖失败历史。
-
-收尾隔离发行复核已通过，命令为：
-
-```bash
-uv run --frozen --extra mcp python scripts/verify_distribution.py --output-dir .konwledge/b6-closeout-distribution-verified
-```
-
-本次 [`wheel-smoke-summary.json`](../.konwledge/b6-closeout-distribution-verified/wheel-smoke-summary.json)与 [`sdist-smoke-summary.json`](../.konwledge/b6-closeout-distribution-verified/sdist-smoke-summary.json)均确认受控 lane 的 17 项检查通过，旧 core-only／extra/default／min1.30 lanes 也通过，调用及提交计数与上表一致。收尾隔离环境实际为 SDK `1.30.0`、Pydantic `2.14.4`；上表及 full 联调历史环境为 Pydantic `2.14.3`，没有人工 pin Pydantic。验收后仅补录本段报告引用与实际依赖版本，源码及协议合同未变。
+原始 full 汇总、wheel／sdist smoke、回归审计、live 停止记录、首轮失败与第二轮／收尾发行证据均集中保留在 [B6 原始隔离发行记录](releases/legacy-0.1.0.md#b6-原始隔离发行记录)。旧运行路径不搬迁、不改名。收尾环境为 SDK `1.30.0`、Pydantic `2.14.4`，上表历史 full 环境为 Pydantic `2.14.3`；无人工 pin。这些历史通过结果不代表新 distribution 已完成验证。
 
 默认 MCP 维持 B5 的五个只读工具与零写入结果；显式 `--controlled` 后才开放受控正文更新。sdist 已覆盖本文及受控 smoke／测试文件。B5 历史计数和发行证据保持原范围。macOS／Windows 未实测，B-R2 的 Linux 清理依赖继续单列平台待办，不计作 B6 平台通过。版本仍为 `0.1.0` prepared／Unreleased；feature 分支提交与推送以 Git 历史为准，不代表 PR、main 合并、tag、PyPI 发布或公开部署授权。
 

@@ -369,7 +369,7 @@ class Driver:
             [
                 sys.executable,
                 "-m",
-                "konwledge",
+                "knowledge",
                 "serve",
                 "--database",
                 str(self.database),
@@ -439,7 +439,7 @@ class Driver:
         return self.mutation("documents/" + source["document_id"])
 
     def apply(self, content: str, expected_status: str) -> dict[str, Any]:
-        from konwledge.mutations.models import CommandDTO, PreviewDTO
+        from knowledge.mutations.models import CommandDTO, PreviewDTO
 
         assert self.database
         current = self.current()
@@ -491,7 +491,7 @@ class Driver:
         return command
 
     def context(self, query: str, *, include_stale: bool = False) -> Any:
-        from konwledge.context import ContextPacket
+        from knowledge.context import ContextPacket
 
         result = http(
             self.api_origin,
@@ -506,8 +506,8 @@ class Driver:
         return ContextPacket.model_validate_json(json.dumps(result))
 
     def audit(self, commands: list[dict[str, Any]]) -> None:
-        from konwledge.storage.auto_evaluation import is_knowledge_revision
-        from konwledge.storage.tables import RevisionRow
+        from knowledge.storage.auto_evaluation import is_knowledge_revision
+        from knowledge.storage.tables import RevisionRow
 
         assert self.database
         db = sqlite3.connect(f"{self.database.as_uri()}?mode=ro", uri=True)

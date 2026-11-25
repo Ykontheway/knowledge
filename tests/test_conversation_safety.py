@@ -18,9 +18,9 @@ from pydantic import ValidationError
 from sqlalchemy import Engine, inspect, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from konwledge.api.app import create_app
-from konwledge.application import KnowledgeLibrary
-from konwledge.conversations import (
+from knowledge.api.app import create_app
+from knowledge.application import KnowledgeLibrary
+from knowledge.conversations import (
     CandidateStateError,
     CandidateStatus,
     Conversation,
@@ -28,12 +28,12 @@ from konwledge.conversations import (
     canonical_conversation_json,
     load_conversation_json,
 )
-from konwledge.domain import SourceKind
-from konwledge.domain.conversations import MAX_IDENTIFIER_CHARS, MAX_MESSAGE_CHARS
-from konwledge.embedding import EmbeddingService, EmbeddingVector
-from konwledge.indexing import IndexingService, InMemoryVectorIndex
-from konwledge.retrieval import RetrievalMode
-from konwledge.storage import (
+from knowledge.domain import SourceKind
+from knowledge.domain.conversations import MAX_IDENTIFIER_CHARS, MAX_MESSAGE_CHARS
+from knowledge.embedding import EmbeddingService, EmbeddingVector
+from knowledge.indexing import IndexingService, InMemoryVectorIndex
+from knowledge.retrieval import RetrievalMode
+from knowledge.storage import (
     ImmutableEntityError,
     SessionFactory,
     UnitOfWork,
@@ -41,8 +41,8 @@ from konwledge.storage import (
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.repository import KnowledgeUnitRepository
-from konwledge.storage.tables import Base
+from knowledge.storage.repository import KnowledgeUnitRepository
+from knowledge.storage.tables import Base
 
 NOW = datetime(2026, 11, 11, 12, tzinfo=UTC)
 TABLES = (

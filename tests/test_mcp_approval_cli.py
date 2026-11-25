@@ -14,9 +14,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from konwledge.mcp import approval_cli
-from konwledge.mcp.controlled import open_controlled_runtime
-from konwledge.mcp.controlled_models import ApprovalGrantDTO
+from knowledge.mcp import approval_cli
+from knowledge.mcp.controlled import open_controlled_runtime
+from knowledge.mcp.controlled_models import ApprovalGrantDTO
 from test_mcp_controlled_service import ACTOR, DemoSeed, counts, make_demo, preview
 
 
@@ -90,7 +90,7 @@ def tty_cli(seed: DemoSeed, *, correct: bool) -> tuple[int, str, str]:
         [
             sys.executable,
             "-m",
-            "konwledge.mcp.approval_cli",
+            "knowledge.mcp.approval_cli",
             *arguments(seed, value.preview_id, key),
         ],
         stdin=slave,
@@ -194,7 +194,7 @@ def test_grant_file_safety(
                 directory.chmod(0o755)
             elif bad == "wrongowner":
                 uid = os.getuid()
-                monkeypatch.setattr("konwledge.mcp.approval_cli.os.getuid", lambda: uid + 1)
+                monkeypatch.setattr("knowledge.mcp.approval_cli.os.getuid", lambda: uid + 1)
         before = counts(seed)
         with pytest.raises((ValueError, OSError)):
             approval_cli._write_grant(runtime.service, grant)

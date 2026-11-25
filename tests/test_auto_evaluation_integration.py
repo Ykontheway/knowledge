@@ -7,12 +7,12 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import update
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.auto_evaluation import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.auto_evaluation import (
     AutoEvaluationService,
     AutoEvaluationStatus,
 )
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     EvaluationItem,
@@ -24,16 +24,16 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.evaluation import EvaluationService
-from konwledge.retrieval import RetrievalService
-from konwledge.storage import (
+from knowledge.evaluation import EvaluationService
+from knowledge.retrieval import RetrievalService
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.tables import AutoEvaluationJobRow, RevisionRow
+from knowledge.storage.tables import AutoEvaluationJobRow, RevisionRow
 
 NOW = datetime(2026, 11, 12, 10, 0, tzinfo=UTC)
 SOURCE_ID = UUID("10000000-0000-0000-0000-000000000001")
@@ -340,7 +340,7 @@ def test_metadata_only_does_not_trigger(
 def test_strict_cli_input_validation(session_factory: SessionFactory) -> None:
     from typer.testing import CliRunner
 
-    from konwledge.cli import app
+    from knowledge.cli import app
 
     runner = CliRunner()
     db_path = "test.db"

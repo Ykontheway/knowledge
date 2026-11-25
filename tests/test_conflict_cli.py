@@ -13,10 +13,10 @@ from uuid import uuid4
 import pytest
 from typer.testing import CliRunner, Result
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.cli import app
-from konwledge.domain import Conflict, ConflictStatus
-from konwledge.storage import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.cli import app
+from knowledge.domain import Conflict, ConflictStatus
+from knowledge.storage import (
     SessionFactory,
     create_schema,
     create_session_factory,
@@ -58,7 +58,7 @@ def conflict_cli_corpus(
     session_factory = create_session_factory(engine)
     now = [BASE]
     library = KnowledgeLibrary(session_factory, clock=lambda: now[0])
-    monkeypatch.setattr("konwledge.cli._open_library", lambda _database: library)
+    monkeypatch.setattr("knowledge.cli._open_library", lambda _database: library)
     runner = CliRunner()
 
     left = tmp_path / "left.md"

@@ -14,9 +14,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 from typer.testing import CliRunner
 
-from konwledge.api import server
-from konwledge.cli import app
-from konwledge.storage import create_sqlite_engine
+from knowledge.api import server
+from knowledge.cli import app
+from knowledge.storage import create_sqlite_engine
 
 runner = CliRunner()
 
@@ -119,7 +119,7 @@ def test_explicit_blank_key_is_invalid_before_storage(
 def test_default_database_without_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("KNOWLEDGE_API_KEY", raising=False)
-    database = tmp_path / ".konwledge" / "knowledge.db"
+    database = tmp_path / ".knowledge" / "knowledge.db"
     database.parent.mkdir()
     database.touch()
     called = Mock()
@@ -181,7 +181,7 @@ def test_missing_extra_friendly_before_storage(
     monkeypatch.setattr(builtins, "__import__", block_import)
     result = runner.invoke(app, ["serve", "-d", str(database)])
     assert result.exit_code == 1
-    assert "konwledge[api]" in result.output
+    assert "knowledge-ykforward[api]" in result.output
     assert "private exception details" not in result.output
     opened.assert_not_called()
     assert list(tmp_path.iterdir()) == [database]

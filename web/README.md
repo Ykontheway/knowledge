@@ -11,7 +11,7 @@
 
 ## 兼容入口
 
-包名为 `konwledge-workbench`，现有命令和路径保持兼容。版本快照入口仍为 `#overview`、`#trace`、`#diff`，静态回放使用 `#replay/guide` 等回放路由，本机只读页面使用 `#lifecycle`、`#evaluation`、`#guide`，受控变更使用 `#changes`。
+前端包名为 `knowledge-workbench`，它与 Python distribution `knowledge-ykforward` 是不同的包。Python import 为 `knowledge`，CLI 为 `knowledge`／`knowledge-mcp`，新 distribution 尚未发布，旧入口停止提供；默认运行根改为 `.knowledge/`，旧库与 session 不自动搬迁，见 [迁移说明](../docs/migration-to-knowledge.md)。版本快照入口仍为 `#overview`、`#trace`、`#diff`，静态回放使用 `#replay/guide` 等回放路由，本机只读页面使用 `#lifecycle`、`#evaluation`、`#guide`，受控变更使用 `#changes`。
 
 在 `web/` 中，`pnpm dev` 用于本机开发，`pnpm verify` 用于常规完整验证，`pnpm verify:preview` 用于独立只读构建。该预览会输出到 `dist-preview/`，默认使用 `#replay/guide`，不触发公开发布。快照校验命令 `knowledge demo export --check`、类型生成命令及现有路径名称保持不变；命令和路径中的 `demo` 不作替换。
 

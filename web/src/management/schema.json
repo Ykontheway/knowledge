@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Ykontheway/konwledge/blob/main/web/src/management/schema.json",
+  "$id": "https://github.com/Ykontheway/knowledge/blob/main/web/src/management/schema.json",
   "title": "ManagementApiSchemaBundle",
   "description": "Read-only B1 management API queries and DTOs exported from Python models.",
   "type": "object",

@@ -10,21 +10,21 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import Engine
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.conflicts import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.conflicts import (
     ConflictNotFoundError,
     ConflictService,
     ConflictTransitionError,
 )
-from konwledge.conflicts.rules import (
+from knowledge.conflicts.rules import (
     PORT_PREDICATE,
     RULE_PORT_MISMATCH,
     conflict_key,
     extract_port_assertion,
     port_mismatch_candidates,
 )
-from konwledge.demo import build_demo
-from konwledge.domain import (
+from knowledge.demo import build_demo
+from knowledge.domain import (
     ConflictEvidence,
     ConflictStatus,
     Document,
@@ -37,7 +37,7 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,

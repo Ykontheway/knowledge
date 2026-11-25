@@ -21,7 +21,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from konwledge.mcp.controlled import (
+from knowledge.mcp.controlled import (
     CONTROLLED_TOOL_ANNOTATIONS,
     CONTROLLED_TOOL_INPUTS,
     CONTROLLED_TOOL_OUTPUTS,
@@ -29,8 +29,8 @@ from konwledge.mcp.controlled import (
     McpControlledService,
     open_controlled_runtime,
 )
-from konwledge.mcp.server import TOOL_INPUTS, TOOL_OUTPUTS, create_server
-from konwledge.mcp.service import McpReadOnlyService
+from knowledge.mcp.server import TOOL_INPUTS, TOOL_OUTPUTS, create_server
+from knowledge.mcp.service import McpReadOnlyService
 from test_mcp_controlled_service import ACTOR, DemoSeed, counts, make_demo
 from test_mcp_protocol import (
     SECRET,
@@ -77,7 +77,7 @@ def _options(seed: DemoSeed) -> list[str]:
 def _controlled(
     seed: DemoSeed, *, entry: str = "module", patch: str = ""
 ) -> Iterator[ProtocolClient]:
-    target = "konwledge.cli" if entry == "cli" else "konwledge.mcp.server"
+    target = "knowledge.cli" if entry == "cli" else "knowledge.mcp.server"
     args = ["mcp", "serve"] if entry == "cli" else []
     code = f"""
 {patch}
@@ -259,7 +259,7 @@ def _pty_approval(seed: DemoSeed, value: dict[str, Any], key: str) -> dict[str, 
     code = f"""
 import sys
 sys.modules['mcp'] = None
-from konwledge.cli import main
+from knowledge.cli import main
 raise SystemExit(main({args!r}))
 """
     master, slave = pty.openpty()
@@ -378,7 +378,7 @@ def test_postcommit_failure_unknown_get_recovers_without_apply_retry(
     seed: DemoSeed, failure: str
 ) -> None:
     patch = f"""
-from konwledge.mcp.controlled import McpControlledService
+from knowledge.mcp.controlled import McpControlledService
 original = McpControlledService.apply_document_update
 def fail_after_commit(self, query):
     result = original(self, query)
@@ -416,7 +416,7 @@ McpControlledService.apply_document_update = fail_after_commit
 def test_transport_dropped_after_commit_recovers_original_command_key(seed: DemoSeed) -> None:
     patch = """
 import os
-from konwledge.mcp.controlled import McpControlledService
+from knowledge.mcp.controlled import McpControlledService
 original = McpControlledService.apply_document_update
 def drop_after_commit(self, query):
     original(self, query)
@@ -491,7 +491,7 @@ def test_text_guard_and_invalid_json_before_service(text: Any) -> None:
 @pytest.mark.parametrize("fragment", ["a", "界", '"\\\n'])
 def test_exact_128k_input_json_budget_before_any_mutation(fragment: str) -> None:
     _require_mcp()
-    from konwledge.mcp.server import MAX_WRITE_INPUT_BYTES
+    from knowledge.mcp.server import MAX_WRITE_INPUT_BYTES
 
     ro, controlled = Mock(spec=McpReadOnlyService), Mock(spec=McpControlledService)
     controlled.preview_document_update.side_effect = McpControlledError(
@@ -594,7 +594,7 @@ def test_polluted_errors_safe_and_apply_never_retried(name: str, pollution: str)
 def test_safe_precommit_error_and_logging_never_reflect_tokens(seed: DemoSeed) -> None:
     patch = """
 import logging
-from konwledge.mcp.controlled import McpControlledService, McpControlledError
+from knowledge.mcp.controlled import McpControlledService, McpControlledError
 def invalid(self, query):
     logging.getLogger('controlled-test').error('token %s', query.approval_token)
     raise McpControlledError('mcp_approval_expired', 410)
@@ -643,7 +643,7 @@ def test_invalid_startup_before_database_or_controlled_import(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options: dict[str, Any]
 ) -> None:
     _require_mcp()
-    from konwledge.mcp import server
+    from knowledge.mcp import server
 
     opened = Mock(side_effect=AssertionError("must not open DB"))
     monkeypatch.setattr(server, "create_engine", opened)
@@ -655,7 +655,7 @@ def test_invalid_startup_before_database_or_controlled_import(
 
 @pytest.mark.parametrize("entry", ["module", "cli"])
 def test_no_sdk_controlled_options_no_core_import_or_database(tmp_path: Path, entry: str) -> None:
-    target = "konwledge.cli" if entry == "cli" else "konwledge.mcp.server"
+    target = "knowledge.cli" if entry == "cli" else "knowledge.mcp.server"
     args = ["mcp", "serve"] if entry == "cli" else []
     options = [
         *args,
@@ -672,11 +672,11 @@ import sys
 sys.modules['mcp'] = None
 from {target} import main
 assert main({options!r}) == 1
-assert not any(name.startswith('konwledge.mcp.controlled') for name in sys.modules)
+assert not any(name.startswith('knowledge.mcp.controlled') for name in sys.modules)
 """
     result = _run_python(code, tmp_path)
     assert result.returncode == 0 and result.stdout == ""
-    assert "pip install 'konwledge[mcp]'" in result.stderr
+    assert "pip install 'knowledge-ykforward[mcp]'" in result.stderr
     assert SECRET not in result.stderr and list(tmp_path.iterdir()) == []
 
 
@@ -686,12 +686,12 @@ import os
 import sys
 os.environ['KNOWLEDGE_MUTATION_KEY'] = {SECRET!r}
 os.environ['KNOWLEDGE_MUTATION_ACTOR'] = {ACTOR!r}
-from konwledge.mcp.server import main
-assert not any(name.startswith('konwledge.mcp.controlled') for name in sys.modules)
-sys.modules['konwledge.mcp.controlled'] = None
-sys.modules['konwledge.mutations.service'] = None
+from knowledge.mcp.server import main
+assert not any(name.startswith('knowledge.mcp.controlled') for name in sys.modules)
+sys.modules['knowledge.mcp.controlled'] = None
+sys.modules['knowledge.mutations.service'] = None
 code = main(['--database', sys.argv[1]])
-assert sys.modules['konwledge.mcp.controlled'] is None
+assert sys.modules['knowledge.mcp.controlled'] is None
 raise SystemExit(code)
 """
     before = seed.database.read_bytes()
@@ -715,11 +715,11 @@ def test_cli_help_lazy_without_core_or_sdk(tmp_path: Path, args: list[str]) -> N
         f"""
 import sys
 sys.modules['mcp'] = None
-from konwledge.cli import main
+from knowledge.cli import main
 assert main({args!r}) == 0
-assert 'konwledge.mcp.server' not in sys.modules
-assert 'konwledge.mcp.approval_cli' not in sys.modules
-assert not any(name.startswith('konwledge.mcp.controlled') for name in sys.modules)
+assert 'knowledge.mcp.server' not in sys.modules
+assert 'knowledge.mcp.approval_cli' not in sys.modules
+assert not any(name.startswith('knowledge.mcp.controlled') for name in sys.modules)
 """,
         tmp_path,
     )
@@ -744,7 +744,7 @@ def test_cli_approve_non_tty_or_auto_confirm_denied_without_storage(
         args.append(flag)
     before = seed.database.read_bytes()
     result = subprocess.run(
-        [sys.executable, "-m", "konwledge", *args],
+        [sys.executable, "-m", "knowledge", *args],
         env=_environment(),
         input="APPROVE\n",
         capture_output=True,
@@ -761,8 +761,8 @@ def test_controlled_runtime_and_ro_engine_cleanup_and_stdio_handles(
     seed: DemoSeed, monkeypatch: pytest.MonkeyPatch, stage: str
 ) -> None:
     _require_mcp()
-    from konwledge.mcp import controlled, server
-    from konwledge.storage import create_sqlite_engine
+    from knowledge.mcp import controlled, server
+    from knowledge.storage import create_sqlite_engine
 
     engine = create_sqlite_engine(f"sqlite+pysqlite:///{seed.database.as_posix()}")
     disposed = Mock(wraps=engine.dispose)
@@ -807,8 +807,8 @@ def test_controlled_complete_2m_response_counts_utf8_escaping_and_structured_con
     patch = f"""
 import json
 from mcp import types
-from konwledge.mcp.controlled import McpControlledService
-from konwledge.mcp.server import MAX_TOOL_RESPONSE_BYTES
+from knowledge.mcp.controlled import McpControlledService
+from knowledge.mcp.server import MAX_TOOL_RESPONSE_BYTES
 original = McpControlledService.preview_document_update
 fragment = {fragment!r}
 def sized(self, query):
@@ -869,7 +869,7 @@ def test_official_sdk_validates_controlled_outputs_over_stdio(seed: DemoSeed) ->
 
     parameters = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "konwledge.mcp.server", "--controlled", *_options(seed)],
+        args=["-m", "knowledge.mcp.server", "--controlled", *_options(seed)],
         env=_environment(),
     )
 
@@ -939,9 +939,9 @@ def test_malformed_cli_arguments_fixed_stderr_no_paths_or_storage(
     tmp_path: Path, entry: str, args: list[str]
 ) -> None:
     if entry == "cli":
-        target, prefix = "konwledge.cli", ["mcp", "serve"]
+        target, prefix = "knowledge.cli", ["mcp", "serve"]
     else:
-        target, prefix = "konwledge.mcp.server", []
+        target, prefix = "knowledge.mcp.server", []
     result = _run_python(
         f"from {target} import main; raise SystemExit(main({[*prefix, *args]!r}))", tmp_path
     )
@@ -954,8 +954,8 @@ def test_malformed_cli_arguments_fixed_stderr_no_paths_or_storage(
 def test_cli_and_console_forward_every_option_to_shared_run_server(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, controlled: bool
 ) -> None:
-    from konwledge.cli import main as cli_main
-    from konwledge.mcp import server
+    from knowledge.cli import main as cli_main
+    from knowledge.mcp import server
 
     database, manifest, root = tmp_path / "db", tmp_path / "manifest", tmp_path / "root"
     shared = Mock()

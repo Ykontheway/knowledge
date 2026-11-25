@@ -13,9 +13,9 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import Engine
 
-import konwledge.database_schema.models as schema_models
-from konwledge.application import KnowledgeLibrary
-from konwledge.database_schema import (
+import knowledge.database_schema.models as schema_models
+from knowledge.application import KnowledgeLibrary
+from knowledge.database_schema import (
     DatabaseColumn,
     DatabaseConnectionError,
     DatabaseDialect,
@@ -33,9 +33,9 @@ from konwledge.database_schema import (
     load_database_schema_json,
     render_database_schema,
 )
-from konwledge.domain import KnowledgeUnitStatus, RevisionEntityType, SourceKind
-from konwledge.snapshot import export_snapshot
-from konwledge.storage import (
+from knowledge.domain import KnowledgeUnitStatus, RevisionEntityType, SourceKind
+from knowledge.snapshot import export_snapshot
+from knowledge.storage import (
     DatabaseSchemaSnapshotRepository,
     UnitOfWork,
     create_schema,
@@ -615,7 +615,7 @@ def test_postgresql_missing_extra_error_is_explicit_and_sanitized(
         del args, kwargs
         raise ModuleNotFoundError("psycopg")
 
-    monkeypatch.setattr("konwledge.database_schema.collector.create_engine", missing_driver)
+    monkeypatch.setattr("knowledge.database_schema.collector.create_engine", missing_driver)
     collector = PostgreSQLSchemaCollector(
         f"postgresql+psycopg://alice:{secret}@localhost/db?application_name={secret}"
     )

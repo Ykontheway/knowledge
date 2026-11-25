@@ -7,8 +7,8 @@ from uuid import UUID
 import pytest
 from sqlalchemy import Engine, inspect, text
 
-from konwledge.domain import EvaluationItem, EvaluationSet
-from konwledge.storage import (
+from knowledge.domain import EvaluationItem, EvaluationSet
+from knowledge.storage import (
     ImmutableEntityError,
     SessionFactory,
     UnitOfWork,
@@ -16,8 +16,8 @@ from konwledge.storage import (
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.full_text import create_full_text_schema
-from konwledge.storage.tables import Base, EvaluationSetRow
+from knowledge.storage.full_text import create_full_text_schema
+from knowledge.storage.tables import Base, EvaluationSetRow
 
 SET_ID = UUID("10000000-0000-0000-0000-000000000001")
 LINEAGE_ID = UUID("20000000-0000-0000-0000-000000000002")

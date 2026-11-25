@@ -20,14 +20,14 @@ from unittest.mock import Mock, patch
 from fastapi import FastAPI
 from sqlalchemy import Engine, event
 
-from konwledge import KnowledgeLibrary, __version__
-from konwledge.api import app as app_module
-from konwledge.api import management as management_module
-from konwledge.api import server
-from konwledge.api.app import create_app
-from konwledge.cli import main as cli_main
-from konwledge.context import ContextPacket
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge import KnowledgeLibrary, __version__
+from knowledge.api import app as app_module
+from knowledge.api import management as management_module
+from knowledge.api import server
+from knowledge.api.app import create_app
+from knowledge.cli import main as cli_main
+from knowledge.context import ContextPacket
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 KEY = "isolated-api-smoke-key"
 
@@ -39,7 +39,7 @@ def run_cli(
     expected: int = 0,
 ) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
-        [sys.executable, "-I", "-m", "konwledge", *arguments],
+        [sys.executable, "-I", "-m", "knowledge", *arguments],
         cwd=root,
         input=input_text,
         capture_output=True,
@@ -189,7 +189,7 @@ def verify_management_routes(library: KnowledgeLibrary) -> None:
         status, _ = asyncio.run(request(disabled, method, path))
         assert status == 404
     assert not any(path.startswith("/v1/mutations") for path in disabled.openapi()["paths"])
-    assert not any(name.startswith("konwledge.mutations") for name in sys.modules), (
+    assert not any(name.startswith("knowledge.mutations") for name in sys.modules), (
         "default application eagerly imported mutations"
     )
     with library._session_factory() as session:
@@ -433,7 +433,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     assert __version__ == args.expected_version
     verify_installed()
-    with tempfile.TemporaryDirectory(prefix="konwledge-api-installed-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="knowledge-api-installed-") as temporary:
         verify(Path(temporary))
     print(
         json.dumps(

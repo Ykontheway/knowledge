@@ -123,12 +123,12 @@ def private_json(path: Path, value: Any) -> None:
 
 def prepare_seed(temporary: Path) -> Seed:
     """真正运行四 case quality 后才写 passed marker；不复制库、不伪造验收结果。"""
-    from konwledge import KnowledgeLibrary
-    from konwledge.domain import EvaluationItem, EvaluationSet
-    from konwledge.mutations.tables import create_mutation_schema
-    from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+    from knowledge import KnowledgeLibrary
+    from knowledge.domain import EvaluationItem, EvaluationSet
+    from knowledge.mutations.tables import create_mutation_schema
+    from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
-    root = temporary / ".konwledge" / "mutation-demo"
+    root = temporary / ".knowledge" / "mutation-demo"
     root.mkdir(parents=True, mode=0o700)
     scope = root / str(uuid4())
     scope.mkdir(mode=0o700)
@@ -184,7 +184,7 @@ def prepare_seed(temporary: Path) -> Seed:
         private_json(
             manifest,
             {
-                "kind": "konwledge-mutation-demo-v1",
+                "kind": "knowledge-mutation-demo-v1",
                 "scope_id": scope.name,
                 "database": database.relative_to(scope).as_posix(),
                 "allowed_source_ids": [str(imported.ingestion.document.source_id)],
@@ -261,7 +261,7 @@ def approve_pty(
     """真实 knowledge mcp approve TTY gate；自动输入仅代表 synthetic human-approved 测试。"""
     import pty
 
-    from konwledge.mcp.controlled_models import ApprovalGrantDTO, ApprovalReviewDTO
+    from knowledge.mcp.controlled_models import ApprovalGrantDTO, ApprovalReviewDTO
 
     baseline = knowledge_rows(seed)
     grant_rows = rows(seed)["mcp_approvals"]
@@ -382,7 +382,7 @@ class Gate:
             },
         )
         require(
-            result["serverInfo"] == {"name": "konwledge", "version": self.version},
+            result["serverInfo"] == {"name": "knowledge", "version": self.version},
             "server metadata changed",
         )
         require(
@@ -431,8 +431,8 @@ class Gate:
             )
 
     def call(self, client: Any, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        from konwledge.mcp.controlled_models import CONTROLLED_TOOL_OUTPUTS
-        from konwledge.mcp.server import TOOL_OUTPUTS
+        from knowledge.mcp.controlled_models import CONTROLLED_TOOL_OUTPUTS
+        from knowledge.mcp.server import TOOL_OUTPUTS
 
         result = self.b5.payload(
             client.call(name, arguments), (CONTROLLED_TOOL_OUTPUTS | TOOL_OUTPUTS)[name]
@@ -482,7 +482,7 @@ class Gate:
 def server_command(
     b5: ModuleType, seed: Seed, *, controlled: bool, actor: str = ACTOR, cli: bool = False
 ) -> list[str]:
-    command = [b5.console("knowledge"), "mcp", "serve"] if cli else [b5.console("konwledge-mcp")]
+    command = [b5.console("knowledge"), "mcp", "serve"] if cli else [b5.console("knowledge-mcp")]
     command += ["--database", str(seed.database)]
     if controlled:
         command += [
@@ -519,10 +519,10 @@ def atomic_denials(gate: Gate, request: dict[str, Any]) -> None:
     """在真实 installed B4 提交点注入故障与时间推进，不能先消费批准再另事务写知识。"""
     from sqlalchemy import event
 
-    from konwledge.mcp.controlled import McpControlledError, open_controlled_runtime
-    from konwledge.mcp.controlled_models import ApplyDocumentUpdateInput
-    from konwledge.mcp.controlled_tables import McpApprovalRow
-    from konwledge.storage import UnitOfWork
+    from knowledge.mcp.controlled import McpControlledError, open_controlled_runtime
+    from knowledge.mcp.controlled_models import ApplyDocumentUpdateInput
+    from knowledge.mcp.controlled_tables import McpApprovalRow
+    from knowledge.storage import UnitOfWork
 
     query = ApplyDocumentUpdateInput.model_validate(
         {key: value for key, value in request.items() if key != "_approval_id"}
@@ -575,8 +575,8 @@ def atomic_denials(gate: Gate, request: dict[str, Any]) -> None:
 
 
 def verify_history(seed: Seed, commands: list[dict[str, Any]]) -> dict[str, int]:
-    from konwledge import KnowledgeLibrary
-    from konwledge.storage import create_session_factory, create_sqlite_engine
+    from knowledge import KnowledgeLibrary
+    from knowledge.storage import create_session_factory, create_sqlite_engine
 
     before = rows(seed)
     engine = create_sqlite_engine(f"sqlite+pysqlite:///{seed.database.as_posix()}")
@@ -644,10 +644,10 @@ def run_extra(b5: ModuleType, temporary: Path, version: str) -> dict[str, int]:
     require("mcp_approvals" not in baseline, "default schema contains B6")
     # 真实默认 stdio 进程退出后再断言其没有导入受控模块，非静态代码检查。
     code = (
-        "import sys; from pathlib import Path; from konwledge.mcp.server import run_server; "
+        "import sys; from pathlib import Path; from knowledge.mcp.server import run_server; "
         "run_server(Path(sys.argv[1])); "
-        "assert not any(n.startswith(('konwledge.mcp.controlled',"
-        "'konwledge.mcp.approval_cli','konwledge.mutations')) for n in sys.modules)"
+        "assert not any(n.startswith(('knowledge.mcp.controlled',"
+        "'knowledge.mcp.approval_cli','knowledge.mutations')) for n in sys.modules)"
     )
     with b5.session([sys.executable, "-I", "-c", code, str(seed.database)], temporary) as client:
         gate.initialize(client, controlled=False)
@@ -658,7 +658,7 @@ def run_extra(b5: ModuleType, temporary: Path, version: str) -> dict[str, int]:
     # 控制模块安装身份在显式操作之前逐个验证，缺失/源码回退都失败。
     for name in MODULES:
         module = importlib.import_module(
-            "konwledge.mcp" if name == "__init__" else "konwledge.mcp." + name
+            "knowledge.mcp" if name == "__init__" else "knowledge.mcp." + name
         )
         require(
             module.__file__ is not None and b5.is_installed(Path(module.__file__)),
@@ -865,12 +865,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             b5 = companion()
             sdk = b5.verify_identity(args.expected_version, "extra")
             require(
-                not any(name.startswith("konwledge.mcp.controlled") for name in sys.modules),
+                not any(name.startswith("knowledge.mcp.controlled") for name in sys.modules),
                 "core eagerly loaded controlled",
             )
             for dependency in ("pytest", "ruff", "mypy", "langchain_openai", "fastapi", "psycopg"):
                 require(importlib.util.find_spec(dependency) is None, "dev/API dependency leaked")
-            with tempfile.TemporaryDirectory(prefix="konwledge-controlled-installed-") as temporary:
+            with tempfile.TemporaryDirectory(prefix="knowledge-controlled-installed-") as temporary:
                 previous = os.umask(0o077)
                 try:
                     counts = run_extra(b5, Path(temporary), args.expected_version)

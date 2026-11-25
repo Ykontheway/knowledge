@@ -171,7 +171,7 @@ def private_directory(path: Path) -> None:
 
 def create_session() -> Path:
     shared = reports()  # 共享模块缺失时不留下半成品目录。
-    base = ROOT / ".konwledge" / "workbench"
+    base = ROOT / ".knowledge" / "workbench"
     for candidate in (base, *base.parents):
         if candidate.is_symlink():
             raise RuntimeErrorCode("session_invalid")
@@ -595,7 +595,7 @@ def checked_reference(reference: Any, *, session: Path, component: str) -> Path:
 
 def controlled_scopes() -> frozenset[str]:
     """调用前固定根快照；即使旧目录被 touch 也不能当作本次 prepare 的产物。"""
-    root = ROOT / ".konwledge" / "mutation-demo"
+    root = ROOT / ".knowledge" / "mutation-demo"
     for candidate in (root, *root.parents):
         if candidate.is_symlink():
             raise RuntimeErrorCode("session_invalid")
@@ -623,7 +623,7 @@ def validate_controlled_artifacts(
     }
     manifest, database = paths["manifest"], paths["database"]
     scope = canonical_uuid(manifest.parent.name)
-    parent = ROOT / ".konwledge" / "mutation-demo" / scope
+    parent = ROOT / ".knowledge" / "mutation-demo" / scope
     if (
         manifest != parent / "mutation-manifest.json"
         or database.parent.parent != parent
@@ -912,7 +912,7 @@ def adapter(session_id: str, component: str, invocation_id: str, request: Mappin
     canonical_uuid(invocation_id)
     if component not in COMPONENTS:
         raise RuntimeErrorCode("invalid_arguments")
-    session = ROOT / ".konwledge" / "workbench" / session_id
+    session = ROOT / ".knowledge" / "workbench" / session_id
     reports().validate_session(session)
     invocation = session / component / invocation_id
     private_directory(invocation)

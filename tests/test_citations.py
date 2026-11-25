@@ -5,18 +5,18 @@ import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import UUID, uuid5
 
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import Engine
 
-from konwledge.context.citations import (
+from knowledge.context.citations import (
     CitationEvidenceError,
     citation_from_hit,
     verify_citation,
 )
-from konwledge.domain import (
+from knowledge.domain import (
     Citation,
     Document,
     DocumentContentType,
@@ -25,8 +25,8 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.retrieval.models import RetrievalHit
-from konwledge.storage import (
+from knowledge.retrieval.models import RetrievalHit
+from knowledge.storage import (
     SessionFactory,
     UnitOfWork,
     create_schema,
@@ -316,7 +316,8 @@ def test_citation_id_matches_uuid5_of_canonical_identity_json() -> None:
         "unit_id": str(unit.id),
     }
     canonical_json = json.dumps(identity, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    namespace = uuid5(NAMESPACE_URL, "konwledge:context-citation:v1")
+    # Renaming the import package must not change historical citation identities.
+    namespace = UUID("9cddbb94-e10c-58e0-ade6-80bd14b36f88")
 
     assert citation.id == uuid5(namespace, canonical_json)
 

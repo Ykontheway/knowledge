@@ -7,12 +7,12 @@ compatibility names, not the project's product positioning. Live management reso
 [the static replay bundle](../docs/replay-preview.md) use separate contracts.
 
 ```bash
-uv run knowledge demo build --force   # replay the story into .konwledge/demo/
+uv run knowledge demo build --force   # replay the story into .knowledge/demo/
 uv run knowledge demo export          # rewrite snapshot.json and snapshot.schema.json
 ```
 
 Regenerate both files whenever the story, the corpus, or the snapshot model changes, and bump
-`schema_version` (in `src/konwledge/snapshot/models.py`) for any change that is not an optional
+`schema_version` (in `src/knowledge/snapshot/models.py`) for any change that is not an optional
 addition.
 
 ## Layout (schema v1)

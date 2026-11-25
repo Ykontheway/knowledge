@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner, Result
 
-from konwledge import __version__
-from konwledge.cli import app
+from knowledge import __version__
+from knowledge.cli import app
 
 runner = CliRunner()
 

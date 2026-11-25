@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
-from konwledge.domain import (
+from knowledge.domain import (
     Citation,
     Document,
     DocumentContentType,

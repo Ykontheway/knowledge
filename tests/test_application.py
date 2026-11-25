@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from konwledge.application import ImportPathError, discover_import_files
+from knowledge.application import ImportPathError, discover_import_files
 
 
 def test_discover_import_files_sorts_relative_paths_and_extensions_case_insensitively(

@@ -1,32 +1,32 @@
 # 当前架构
 
-Konwledge 是本地优先的 Knowledge CI 知识生命周期与质量门禁基础设施。它管理本机知识库、版本日志、检索证据和评测结果，不调用 LLM 生成答案。
+Knowledge 是本地优先的 Knowledge CI 知识生命周期与质量门禁基础设施。它管理本机知识库、版本日志、检索证据和评测结果，不调用 LLM 生成答案。
 
-当前版本为 **`0.1.0` prepared alpha**，核心链路与工作台已有实现，尚未正式发行或生产化。适用范围是单机、单库、显式启用的工程场景；生产 SSO／RBAC、托管服务、高可用和部署 SLA 均不在当前承诺内。
+当前 Python distribution `knowledge-ykforward==0.1.0` 为未发布 Alpha 候选，import 为 `knowledge`，CLI 仅 `knowledge`／`knowledge-mcp`；命名和旧目录处理见 [迁移说明](migration-to-knowledge.md)。核心链路与工作台已有实现，尚未生产化。适用范围是单机、单库、显式启用的工程场景；生产 SSO／RBAC、托管服务、高可用和部署 SLA 均不在当前承诺内。
 
-2026-11-23 已上线 [公开静态预览](https://ykontheway.github.io/konwledge/)。它只读取固定合成数据，不代表 HTTP 管理 API、受控写入或 live 公网服务已上线。
+2026-11-23 的旧公开静态预览及原地址见 [历史审计](releases/legacy-0.1.0.md#静态回放发布与验收)。它只读取固定合成数据；更名后的站点尚待重新部署与验证，不能据此声明 HTTP 管理 API、受控写入或 live 公网服务已上线。
 
 ## 分层各自守住边界
 
 | 层 | 当前路径 | 职责与边界 |
 | --- | --- | --- |
-| 应用入口 | `src/konwledge/__init__.py`、`src/konwledge/application.py`、`src/konwledge/cli.py` | `KnowledgeLibrary` 组合服务；CLI 显式发起本地读写 |
-| 领域模型 | `src/konwledge/domain/` | 严格校验来源、文档、单元、revision、引用和评测模型 |
-| 存储与事务 | `src/konwledge/storage/` | SQLite、repository、显式 `UnitOfWork`、FTS5、任务持久化 |
-| 导入 | `src/konwledge/ingestion/` | UTF-8 规范化、可追溯拆分、幂等导入 |
-| 生命周期 | `src/konwledge/lifecycle/` | lineage、Diff、publication、revision、status 与 as-of |
-| 时效 | `src/konwledge/lifecycle/freshness.py`、`src/konwledge/domain/freshness.py` | TTL、来源更新时间策略、显式 stale／refresh；没有独立 `freshness/` 包 |
-| 冲突 | `src/konwledge/conflicts/` | 保存带证据的冲突候选，供人工审核，不自动判定事实真伪 |
-| 检索 | `src/konwledge/retrieval/` | 资格过滤、lexical／vector／hybrid、RRF 与降级诊断 |
-| 向量准备 | `src/konwledge/embedding/`、`src/konwledge/indexing/` | provider、缓存、索引适配与版本更新；真实 provider 由调用方配置 |
-| 上下文 | `src/konwledge/context/` | whole-unit 选择、精确引用、字符预算与可选 token 预算 |
-| 固定评测 | `src/konwledge/evaluation/`、`src/konwledge/quality/` | 不可变数据集、report、baseline、compare、回归 gate 与绝对质量验收 |
-| 自动评测 | `src/konwledge/auto_evaluation/` | 显式 enable、配置绑定、同事务 outbox、提交后同步评测、lease／retry／recover |
-| 对话与数据库结构 | `src/konwledge/conversations/`、`src/konwledge/database_schema/` | 对话候选人工审核；SQLite／PostgreSQL 只捕获 schema，不读取业务行 |
-| HTTP 与管理投影 | `src/konwledge/api/` | loopback 上下文入口、认证后的只读 management、严格 DTO |
-| 受控命令 | `src/konwledge/mutations/` | B4 scope／actor、preview、command、幂等提交与未知结果回查 |
-| MCP | `src/konwledge/mcp/` | B5 默认只读 stdio；B6 显式 controlled、带外批准与 grant 消费 |
-| 快照与回放 | `src/konwledge/snapshot/`、`src/konwledge/replay/` | 固定快照契约、公开合成 replay bundle 与文件校验 |
+| 应用入口 | `src/knowledge/__init__.py`、`src/knowledge/application.py`、`src/knowledge/cli.py` | `KnowledgeLibrary` 组合服务；CLI 显式发起本地读写 |
+| 领域模型 | `src/knowledge/domain/` | 严格校验来源、文档、单元、revision、引用和评测模型 |
+| 存储与事务 | `src/knowledge/storage/` | SQLite、repository、显式 `UnitOfWork`、FTS5、任务持久化 |
+| 导入 | `src/knowledge/ingestion/` | UTF-8 规范化、可追溯拆分、幂等导入 |
+| 生命周期 | `src/knowledge/lifecycle/` | lineage、Diff、publication、revision、status 与 as-of |
+| 时效 | `src/knowledge/lifecycle/freshness.py`、`src/knowledge/domain/freshness.py` | TTL、来源更新时间策略、显式 stale／refresh；没有独立 `freshness/` 包 |
+| 冲突 | `src/knowledge/conflicts/` | 保存带证据的冲突候选，供人工审核，不自动判定事实真伪 |
+| 检索 | `src/knowledge/retrieval/` | 资格过滤、lexical／vector／hybrid、RRF 与降级诊断 |
+| 向量准备 | `src/knowledge/embedding/`、`src/knowledge/indexing/` | provider、缓存、索引适配与版本更新；真实 provider 由调用方配置 |
+| 上下文 | `src/knowledge/context/` | whole-unit 选择、精确引用、字符预算与可选 token 预算 |
+| 固定评测 | `src/knowledge/evaluation/`、`src/knowledge/quality/` | 不可变数据集、report、baseline、compare、回归 gate 与绝对质量验收 |
+| 自动评测 | `src/knowledge/auto_evaluation/` | 显式 enable、配置绑定、同事务 outbox、提交后同步评测、lease／retry／recover |
+| 对话与数据库结构 | `src/knowledge/conversations/`、`src/knowledge/database_schema/` | 对话候选人工审核；SQLite／PostgreSQL 只捕获 schema，不读取业务行 |
+| HTTP 与管理投影 | `src/knowledge/api/` | loopback 上下文入口、认证后的只读 management、严格 DTO |
+| 受控命令 | `src/knowledge/mutations/` | B4 scope／actor、preview、command、幂等提交与未知结果回查 |
+| MCP | `src/knowledge/mcp/` | B5 默认只读 stdio；B6 显式 controlled、带外批准与 grant 消费 |
+| 快照与回放 | `src/knowledge/snapshot/`、`src/knowledge/replay/` | 固定快照契约、公开合成 replay bundle 与文件校验 |
 | 界面 | `web/` | 复用读 DTO 的工作台与静态回放；受控页面单独处理写命令状态 |
 
 各入口复用核心事实，但 CLI、HTTP、management、MCP 和 replay 保留独立的认证、传输及失败恢复语义。
@@ -157,17 +157,12 @@ B6 只有显式 `--controlled` 才增加五个工具，总计十个；新增会�
 
 ## 静态回放共用读模型
 
-`src/konwledge/replay/` 用固定公开合成语料生成 bundle，复用 management 的同一 DTO read model 与历史导航；`web/` 的 `#replay/*` 只读取静态 `replay.json`，不访问用户业务库。
+`src/knowledge/replay/` 用固定公开合成语料生成 bundle，复用 management 的同一 DTO read model 与历史导航；`web/` 的 `#replay/*` 只读取静态 `replay.json`，不访问用户业务库。
 
-回放不轮询新任务，不把 DTO href 当成 live 网络请求，加载失败也没有 live fallback。公开页面已于 2026-11-23 上线，包发行、管理服务部署和受控写权限仍各自需要审批。
+回放不轮询新任务，不把 DTO href 当成 live 网络请求，加载失败也没有 live fallback。旧公开页面的 2026-11-23 上线结果见 [历史审计](releases/legacy-0.1.0.md#静态回放发布与验收)，更名后的地址尚待验证；新包发行、管理服务部署和受控写权限仍各自需要审批。
 
 ## 继续阅读
 
 [开发说明](development.md)解释能力依赖与代码阅读；[核心参考](core-reference.md)保留 SDK／CLI 细节。事务与接口细节见[自动评测](auto-evaluation.md)、[管理 API](management-api.md)、[受控命令](controlled-mutations.md)、[只读 MCP](mcp-readonly.md)、[受控 MCP](mcp-controlled.md)和[静态回放](replay-preview.md)。
 
-<!-- 文档校对记录
-本次仅压缩 architecture 的校对记录，正文只做结构与表述整理，不改分层、事务、资格、引用和批准边界。
-关键机制、路径、命令与时序语义未变，技术片段和表格保持原意。
-已做中文半角标点机械扫描，结果为 0；代码、命令、路径、URL 中的半角语法按规则豁免。
-本记录只覆盖文档校对范围，不代表代码验证、发布或部署结论。
--->
+<!-- 本次更名更新 import、CLI、运行路径和历史审计链接；分层、事务、资格、引用与批准边界保留，没有执行代码验证或部署。 -->

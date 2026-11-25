@@ -26,9 +26,9 @@ from uuid import UUID
 import pytest
 from sqlalchemy import URL, update
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
-from konwledge.storage.tables import DocumentRow, KnowledgeUnitRow, SourceRow
+from knowledge.application import KnowledgeLibrary
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.storage.tables import DocumentRow, KnowledgeUnitRow, SourceRow
 
 PROJECT = Path(__file__).resolve().parents[1]
 SECRET = "private_exception_DSN_locator_metadata_do_not_echo"
@@ -66,8 +66,8 @@ def _run_python(code: str, cwd: Path) -> subprocess.CompletedProcess[str]:
 
 def _command(entry: str, database: Path) -> list[str]:
     if entry == "cli":
-        return [sys.executable, "-m", "konwledge", "mcp", "serve", "--database", str(database)]
-    return [sys.executable, "-m", "konwledge.mcp.server", "--database", str(database)]
+        return [sys.executable, "-m", "knowledge", "mcp", "serve", "--database", str(database)]
+    return [sys.executable, "-m", "knowledge.mcp.server", "--database", str(database)]
 
 
 @dataclass
@@ -113,7 +113,7 @@ class ProtocolClient:
                 "clientInfo": {"name": "protocol-test", "version": "1.0"},
             },
         )
-        assert response["result"]["serverInfo"] == {"name": "konwledge", "version": "0.1.0"}
+        assert response["result"]["serverInfo"] == {"name": "knowledge", "version": "0.1.0"}
         assert "tools" in response["result"]["capabilities"]
         self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         return response
@@ -237,7 +237,7 @@ def _payload(result: dict[str, Any]) -> dict[str, Any]:
 def test_pyproject_mcp_extra_and_entrypoint_are_isolated() -> None:
     project = tomllib.loads((PROJECT / "pyproject.toml").read_text())["project"]
     assert project["optional-dependencies"]["mcp"] == ["mcp>=1.30.0,<2"]
-    assert project["scripts"]["konwledge-mcp"] == "konwledge.mcp.server:main"
+    assert project["scripts"]["knowledge-mcp"] == "knowledge.mcp.server:main"
     assert not any(dependency.startswith("mcp") for dependency in project["dependencies"])
 
 
@@ -252,7 +252,7 @@ def test_initialize_list_all_five_calls_eof_and_hash_unchanged(store: Store, ent
         from jsonschema import Draft202012Validator
         from mcp import types
 
-        from konwledge.mcp.server import TOOL_OUTPUTS
+        from knowledge.mcp.server import TOOL_OUTPUTS
 
         schemas = {}
         for tool in tools:
@@ -362,8 +362,8 @@ def test_prints_logs_and_unexpected_exceptions_never_pollute_protocol(store: Sto
     code = f"""
 import logging
 import sys
-from konwledge.mcp.server import main
-from konwledge.mcp.service import McpReadError, McpReadOnlyService
+from knowledge.mcp.server import main
+from knowledge.mcp.service import McpReadError, McpReadOnlyService
 secret = {SECRET!r}
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger("noisy-service")
@@ -461,12 +461,12 @@ def test_no_sdk_safe_stderr_exit_one_without_storage(
     before = _fingerprint(database)
     if entry == "cli":
         invocation = (
-            "from konwledge.cli import main; "
+            "from knowledge.cli import main; "
             "raise SystemExit(main(['mcp', 'serve', '--database', 'missing.db']))"
         )
     else:
         invocation = (
-            "from konwledge.mcp.server import main; "
+            "from knowledge.mcp.server import main; "
             "raise SystemExit(main(['--database', 'missing.db']))"
         )
     code = f"""
@@ -476,7 +476,7 @@ sys.modules["mcp"] = None
 """
     result = _run_python(code, tmp_path)
     assert result.returncode == 1 and result.stdout == ""
-    assert "pip install 'konwledge[mcp]'" in result.stderr
+    assert "pip install 'knowledge-ykforward[mcp]'" in result.stderr
     assert "Traceback" not in result.stderr and str(tmp_path) not in result.stderr
     assert _fingerprint(database) == before
 
@@ -491,10 +491,10 @@ def test_cli_help_version_lazy_without_any_optional_sdk(
 import sys
 for name in ("mcp", "fastapi", "uvicorn", "openai", "langchain_openai", "lancedb"):
     sys.modules[name] = None
-from konwledge.cli import main
-assert "konwledge.mcp.server" not in sys.modules
+from knowledge.cli import main
+assert "knowledge.mcp.server" not in sys.modules
 assert main({arguments!r}) == 0
-assert "konwledge.mcp.server" not in sys.modules
+assert "knowledge.mcp.server" not in sys.modules
 """
     result = _run_python(code, tmp_path)
     assert result.returncode == 0, result.stderr
@@ -505,7 +505,7 @@ def test_engine_disposed_on_eof_and_logging_restored(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _require_mcp()
-    from konwledge.mcp import server
+    from knowledge.mcp import server
 
     engine = create_sqlite_engine(URL.create("sqlite+pysqlite", database=str(store.path)))  # type: ignore[arg-type]
     disposed = Mock(wraps=engine.dispose)
@@ -532,7 +532,7 @@ def test_startup_and_disposal_errors_safe_and_release_engine(
     store: Store, monkeypatch: pytest.MonkeyPatch, stage: str
 ) -> None:
     _require_mcp()
-    from konwledge.mcp import server
+    from knowledge.mcp import server
 
     engine = create_sqlite_engine(URL.create("sqlite+pysqlite", database=str(store.path)))  # type: ignore[arg-type]
     disposed = Mock(wraps=engine.dispose)
@@ -612,8 +612,8 @@ def test_unicode_query_reaching_handler_is_safe_invalid_arguments(bad_value: str
     import anyio
     from mcp import types
 
-    from konwledge.mcp.server import create_server
-    from konwledge.mcp.service import McpReadOnlyService
+    from knowledge.mcp.server import create_server
+    from knowledge.mcp.service import McpReadOnlyService
 
     service = Mock(spec=McpReadOnlyService)
     server = create_server(service)
@@ -682,8 +682,8 @@ def test_sdk_parser_rejects_escaped_surrogate_without_reflecting_input(store: St
 def test_invalid_output_unicode_and_nonfinite_json_are_safe(store: Store, invalid: str) -> None:
     code = f"""
 import sys
-from konwledge.mcp.server import main
-from konwledge.mcp.service import McpReadOnlyService
+from knowledge.mcp.server import main
+from knowledge.mcp.service import McpReadOnlyService
 original = McpReadOnlyService.search
 def invalid_output(self, query):
     result = original(self, query)
@@ -727,8 +727,8 @@ import hashlib
 import json
 import sys
 from mcp import types
-from konwledge.mcp.server import main, MAX_TOOL_RESPONSE_BYTES
-from konwledge.mcp.service import McpReadOnlyService
+from knowledge.mcp.server import main, MAX_TOOL_RESPONSE_BYTES
+from knowledge.mcp.service import McpReadOnlyService
 original = McpReadOnlyService.get_evidence
 fragment = {fragment!r}
 def sized(self, query):

@@ -1,5 +1,5 @@
 [project]
-name = "konwledge"
+name = "knowledge-ykforward"
 version = "0.1.0"
 description = "A local-first knowledge lifecycle and evaluation toolkit."
 readme = "README.md"
@@ -42,13 +42,12 @@ tokens = [
 ]
 
 [project.urls]
-Repository = "https://github.com/Ykontheway/konwledge"
-Issues = "https://github.com/Ykontheway/konwledge/issues"
+Repository = "https://github.com/Ykontheway/knowledge"
+Issues = "https://github.com/Ykontheway/knowledge/issues"
 
 [project.scripts]
-knowledge = "konwledge.cli:main"
-konwledge = "konwledge.cli:main"
-konwledge-mcp = "konwledge.mcp.server:main"
+knowledge = "knowledge.cli:main"
+knowledge-mcp = "knowledge.mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -72,7 +71,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/konwledge"]
+packages = ["src/knowledge"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
@@ -82,7 +81,7 @@ pythonpath = ["."]
 
 [tool.coverage.run]
 branch = true
-source = ["konwledge"]
+source = ["knowledge"]
 
 [tool.coverage.report]
 show_missing = true

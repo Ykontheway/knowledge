@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     EvaluationItem,
@@ -15,15 +15,15 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.domain.models import KnowledgeUnitStatus
-from konwledge.evaluation import (
+from knowledge.domain.models import KnowledgeUnitStatus
+from knowledge.evaluation import (
     EvaluationReport,
     aggregate_metrics,
     baseline_from_report,
     score_ranked_lineages,
     validate_evaluation_report,
 )
-from konwledge.evaluation.gates import (
+from knowledge.evaluation.gates import (
     GatePolicy,
     GateResult,
     GateRule,
@@ -32,9 +32,9 @@ from konwledge.evaluation.gates import (
     dump_gate_policy,
     evaluate_gate,
 )
-from konwledge.evaluation.models import EvaluationCaseResult
-from konwledge.retrieval import RetrievalMode
-from konwledge.retrieval.models import RetrievalHit, RetrievalResult
+from knowledge.evaluation.models import EvaluationCaseResult
+from knowledge.retrieval import RetrievalMode
+from knowledge.retrieval.models import RetrievalHit, RetrievalResult
 
 NOW = datetime(2026, 11, 10, 10, tzinfo=UTC)
 SET_ID = UUID(int=101)

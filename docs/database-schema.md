@@ -2,7 +2,7 @@
 
 U20 把 SQLite 或 PostgreSQL 的结构元数据保存为不可变版本，并把当前版本物化为可检索的 knowledge units。捕获过程只读取 catalog，不复制业务行，也不会调用 LLM。
 
-版本号仍是 `0.1.0`，U20 处于 Unreleased 状态。
+U20 是更名前的能力编号；当前新 Python distribution `knowledge-ykforward==0.1.0` 仍为未发布候选，import 为 `knowledge`，CLI 为 `knowledge`／`knowledge-mcp`。旧库与运行目录的处理见 [迁移说明](migration-to-knowledge.md)，原开发状态见 [历史审计](releases/legacy-0.1.0.md#u20-数据库结构)。
 
 ## 安装
 
@@ -50,7 +50,7 @@ export KNOWLEDGE_CAPTURE_DSN='postgresql+psycopg://capture_role:password@127.0.0
 uv run knowledge database capture-postgres \
   --dsn-env KNOWLEDGE_CAPTURE_DSN \
   --name "Application public schema" \
-  --schema public --json -d .konwledge/knowledge.db
+  --schema public --json -d .knowledge/knowledge.db
 ```
 
 环境变量名必须匹配 `[A-Za-z_][A-Za-z0-9_]*`。程序完成其他输入校验后才读取 DSN；输出、错误、来源 URI 和默认 `Source.metadata` 都不保存或打印 URL、用户名、密码及查询参数。请不要把真实凭据写进 shell history、文档、日志或仓库。
@@ -62,14 +62,14 @@ PostgreSQL 角色应只具备连接目标数据库、使用目标 schema 和读�
 捕获结果里的 `source_id` 用于后续只读命令：
 
 ```bash
-uv run knowledge database list --json -d .konwledge/knowledge.db
-uv run knowledge database history <source-uuid> --json -d .konwledge/knowledge.db
+uv run knowledge database list --json -d .knowledge/knowledge.db
+uv run knowledge database history <source-uuid> --json -d .knowledge/knowledge.db
 uv run knowledge database show <source-uuid> --version 2 --json \
-  -d .konwledge/knowledge.db
+  -d .knowledge/knowledge.db
 uv run knowledge database export <source-uuid> --version 2 \
-  --output schema-v2.json -d .konwledge/knowledge.db
+  --output schema-v2.json -d .knowledge/knowledge.db
 uv run knowledge database diff <source-uuid> \
-  --from-version 1 --to-version 2 --json -d .konwledge/knowledge.db
+  --from-version 1 --to-version 2 --json -d .knowledge/knowledge.db
 ```
 
 `export` 默认拒绝覆盖已有文件，只有显式传入 `--overwrite` 才会替换。省略 `--output` 时，规范 JSON 写到 stdout。`show --json` 返回带捕获时间和 document ID 的完整记录；`export` 只返回可移植 snapshot。

@@ -24,15 +24,15 @@ U19（Unreleased）把原始对话作为不可变版本保存。导入只做保�
 ## 导入、查看与导出
 
 ```bash
-knowledge conversation import examples/conversation-demo.json -d .konwledge/knowledge.db
+knowledge conversation import examples/conversation-demo.json -d .knowledge/knowledge.db
 cat examples/conversation-demo.json | knowledge conversation import - --json \
-  -d .konwledge/knowledge.db
-knowledge conversation list --json -d .konwledge/knowledge.db
-knowledge conversation show synthetic-demo-001 --json -d .konwledge/knowledge.db
-knowledge conversation show synthetic-demo-001 --version 1 -d .konwledge/knowledge.db
-knowledge conversation history synthetic-demo-001 --json -d .konwledge/knowledge.db
+  -d .knowledge/knowledge.db
+knowledge conversation list --json -d .knowledge/knowledge.db
+knowledge conversation show synthetic-demo-001 --json -d .knowledge/knowledge.db
+knowledge conversation show synthetic-demo-001 --version 1 -d .knowledge/knowledge.db
+knowledge conversation history synthetic-demo-001 --json -d .knowledge/knowledge.db
 knowledge conversation export synthetic-demo-001 --version 1 \
-  --output exported-conversation.json -d .konwledge/knowledge.db
+  --output exported-conversation.json -d .knowledge/knowledge.db
 ```
 
 `show` 和 `export` 省略 `--version` 时取最新版本。`export` 输出可再次导入的规范 JSON；目标文件已存在时必须显式加 `--overwrite`。同一 ID 与版本重复导入相同内容是幂等操作，换成不同内容会失败。
@@ -43,17 +43,17 @@ knowledge conversation export synthetic-demo-001 --version 1 \
 
 ```bash
 # 默认只列 pending；--status all 取消状态过滤。
-knowledge candidate list --json -d .konwledge/knowledge.db
+knowledge candidate list --json -d .knowledge/knowledge.db
 knowledge candidate list --status approved --conversation-id synthetic-demo-001 \
-  --version 1 -d .konwledge/knowledge.db
-knowledge candidate list --status all -d .konwledge/knowledge.db
-knowledge candidate show <candidate-uuid> --json -d .konwledge/knowledge.db
-knowledge candidate history <candidate-uuid> --json -d .konwledge/knowledge.db
+  --version 1 -d .knowledge/knowledge.db
+knowledge candidate list --status all -d .knowledge/knowledge.db
+knowledge candidate show <candidate-uuid> --json -d .knowledge/knowledge.db
+knowledge candidate history <candidate-uuid> --json -d .knowledge/knowledge.db
 
 knowledge candidate approve <candidate-uuid> --reviewer alice@example.com \
-  --reason "已对照来源" -d .konwledge/knowledge.db
+  --reason "已对照来源" -d .knowledge/knowledge.db
 knowledge candidate reject <candidate-uuid> --reviewer alice@example.com \
-  --reason "内容不准确" -d .konwledge/knowledge.db
+  --reason "内容不准确" -d .knowledge/knowledge.db
 ```
 
 `--reviewer` 是调用者填写的审计归属，不是身份认证。批准理由可省略；拒绝理由必填且不能是空白。命令不会交互式询问缺失参数。

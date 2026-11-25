@@ -329,7 +329,7 @@ def mutation_demo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path
     from scripts import prepare_mutation_demo
 
     monkeypatch.setattr(prepare_mutation_demo, "ROOT", tmp_path)
-    root = tmp_path / ".konwledge" / "mutation-demo"
+    root = tmp_path / ".knowledge" / "mutation-demo"
     root.mkdir(parents=True, mode=0o700)
     scope_id = str(uuid4())
     parent = root / scope_id
@@ -364,7 +364,7 @@ def mutation_demo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path
     manifest.write_text(
         json.dumps(
             {
-                "kind": "konwledge-mutation-demo-v1",
+                "kind": "knowledge-mutation-demo-v1",
                 "scope_id": scope_id,
                 "database": database.relative_to(parent).as_posix(),
                 "allowed_source_ids": [str(UUID(source_id))],

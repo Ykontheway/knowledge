@@ -12,13 +12,13 @@ import pytest
 from sqlalchemy import text
 from typer.testing import CliRunner, Result
 
-from konwledge import cli
-from konwledge.application import KnowledgeLibrary
-from konwledge.domain import EvaluationItem
-from konwledge.embedding import EmbeddingService, HashEmbeddingProvider
-from konwledge.evaluation import EvaluationReport, EvaluationSet, dump_evaluation_set
-from konwledge.indexing import IndexingService, InMemoryVectorIndex
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge import cli
+from knowledge.application import KnowledgeLibrary
+from knowledge.domain import EvaluationItem
+from knowledge.embedding import EmbeddingService, HashEmbeddingProvider
+from knowledge.evaluation import EvaluationReport, EvaluationSet, dump_evaluation_set
+from knowledge.indexing import IndexingService, InMemoryVectorIndex
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 runner = CliRunner()
 

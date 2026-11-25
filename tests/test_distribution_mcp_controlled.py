@@ -56,7 +56,7 @@ def safe_summary() -> dict[str, Any]:
 
 
 def test_explicit_runtime_and_sdist_contract() -> None:
-    assert tuple(f"konwledge/mcp/{name}.py" for name in smoke.MODULES) == distribution.MCP_MODULES
+    assert tuple(f"knowledge/mcp/{name}.py" for name in smoke.MODULES) == distribution.MCP_MODULES
     assert len(distribution.MCP_MODULES) == 9
     assert distribution.MCP_CONTROLLED_CHECKS == smoke.CHECKS
     assert {
@@ -73,7 +73,7 @@ def test_explicit_runtime_and_sdist_contract() -> None:
 @pytest.mark.parametrize("module", smoke.MODULES)
 @pytest.mark.parametrize("kind", ["wheel", "sdist"])
 def test_each_b6_module_is_required(tmp_path: Path, module: str, kind: str) -> None:
-    packaged = f"konwledge/mcp/{module}.py"
+    packaged = f"knowledge/mcp/{module}.py"
     if kind == "wheel":
         artifact = tmp_path / "bad.whl"
         write_wheel(artifact, omit=(packaged,))
@@ -103,7 +103,7 @@ def test_no_dev_group_becomes_runtime(tmp_path: Path, dependency: str, kind: str
     metadata = WHEEL_METADATA + f"Requires-Dist: {dependency}\n"
     if kind == "wheel":
         artifact = tmp_path / "bad.whl"
-        write_wheel(artifact, overrides={"konwledge-0.1.0.dist-info/METADATA": metadata})
+        write_wheel(artifact, overrides={"knowledge_ykforward-0.1.0.dist-info/METADATA": metadata})
         with pytest.raises(ValueError, match="SDK/test runtime"):
             distribution.inspect_wheel(artifact, NAME, VERSION, (RESOURCE,))
     else:
@@ -210,7 +210,7 @@ def test_seed_actual_quality_pinned_fresh_private_b4(seed: smoke.Seed, tmp_path:
     assert (
         seed.database
         == tmp_path
-        / ".konwledge"
+        / ".knowledge"
         / "mutation-demo"
         / seed.manifest.parent.name
         / "seed"
@@ -236,7 +236,7 @@ def test_seed_cannot_forge_passed_marker_on_quality_failure(
 ) -> None:
     from types import SimpleNamespace
 
-    from konwledge.quality import QualityService
+    from knowledge.quality import QualityService
 
     monkeypatch.setattr(
         QualityService, "run", lambda *_args, **_kwargs: SimpleNamespace(passed=False)
@@ -273,8 +273,8 @@ def test_snapshot_detects_grant_knowledge_outbox_and_new_tables(
 
 def test_real_pty_helper_and_atomic_quality_sequence(seed: smoke.Seed) -> None:
     """验证 smoke helper 自身真实 TTY/事务流程；不代替隔离 wheel/sdist 验收。"""
-    from konwledge.mcp.controlled import open_controlled_runtime
-    from konwledge.mcp.controlled_models import ApplyDocumentUpdateInput, PreviewDocumentUpdateInput
+    from knowledge.mcp.controlled import open_controlled_runtime
+    from knowledge.mcp.controlled_models import ApplyDocumentUpdateInput, PreviewDocumentUpdateInput
 
     gate = smoke.Gate(b5, seed, VERSION)
     commands: list[dict[str, Any]] = []

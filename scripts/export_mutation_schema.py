@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaMode
 
-from konwledge.mutations.models import (
+from knowledge.mutations.models import (
     CommandDTO,
     CommandRequest,
     DocumentDTO,

@@ -26,7 +26,7 @@ from uuid import UUID, uuid4
 from scripts.live_workbench import child_environments, cleanup, spawn, wait_backend, wait_web
 from scripts.real_knowledge_acceptance import ROOT, run_acceptance
 
-DEFAULT_OUTPUT_DIR = Path(".konwledge/workbench-evaluation-acceptance")
+DEFAULT_OUTPUT_DIR = Path(".knowledge/workbench-evaluation-acceptance")
 DEFAULT_VITEST_FILE = Path("src/evaluation/live-acceptance.test.ts")
 FOLLOWUP_ANCHOR = "一次通过只证明该任务的固定评测时间与知识指纹，不保证未来变更仍然通过。"
 FOLLOWUP_NOTE = "隔离工作台演示备注：允许通过刷新观察新任务，不自动归因到页面上看到的差异。"

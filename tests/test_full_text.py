@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import OperationalError
 
-from konwledge.domain import (
+from knowledge.domain import (
     Document,
     DocumentContentType,
     KnowledgeUnit,
@@ -19,19 +19,19 @@ from konwledge.domain import (
     Source,
     SourceKind,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     UnitOfWork,
     create_schema,
     create_session_factory,
     create_sqlite_engine,
 )
-from konwledge.storage.database import SessionFactory
-from konwledge.storage.full_text import (
+from knowledge.storage.database import SessionFactory
+from knowledge.storage.full_text import (
     FullTextRepository,
     create_full_text_schema,
     fts_document,
 )
-from konwledge.storage.tables import Base
+from knowledge.storage.tables import Base
 
 NOW = datetime(2026, 11, 9, 12, 0, tzinfo=UTC)
 SOURCE_ID = UUID("10000000-0000-0000-0000-000000000001")

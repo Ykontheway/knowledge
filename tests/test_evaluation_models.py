@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
-from konwledge.domain import EvaluationItem, EvaluationSet, dump_evaluation_set
+from knowledge.domain import EvaluationItem, EvaluationSet, dump_evaluation_set
 
 ID = "case-1"
 SET_ID = UUID("10000000-0000-0000-0000-000000000001")

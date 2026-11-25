@@ -15,9 +15,9 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import Engine
 
-import konwledge.database_schema.models as schema_models
-from konwledge.application import KnowledgeLibrary
-from konwledge.database_schema import (
+import knowledge.database_schema.models as schema_models
+from knowledge.application import KnowledgeLibrary
+from knowledge.database_schema import (
     DatabaseColumn,
     DatabaseDialect,
     DatabaseNamespace,
@@ -34,7 +34,7 @@ from konwledge.database_schema import (
     load_database_schema_json,
     render_database_schema,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     DatabaseSchemaSnapshotRepository,
     UnitOfWork,
     create_schema,
@@ -347,7 +347,7 @@ def test_failure_after_publication_still_rolls_back_all_local_writes(
         raise RuntimeError("failure after publication")
 
     monkeypatch.setattr(
-        "konwledge.database_schema.service.materialize_statuses", fail_materialization
+        "knowledge.database_schema.service.materialize_statuses", fail_materialization
     )
     with pytest.raises(RuntimeError, match="after publication"):
         service.capture_sqlite(target, title="atomic")

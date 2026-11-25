@@ -1,10 +1,10 @@
 # 静态回放预览
 
-静态只读预览已于 **2026-11-23** 发布：[Knowledge CI 工作台](https://ykontheway.github.io/konwledge/#replay/guide)。它展示固定公开合成语料产生的真实评测记录，不连接用户业务库或实时后端，也不开放写工具。包版本仍为 `0.1.0` prepared alpha，未正式发行；当前架构见 [架构说明](architecture.md)，开发依赖见 [开发说明](development.md)。
+Knowledge 的静态回放展示固定公开合成语料产生的真实评测记录，不连接用户业务库或实时后端，也不开放写工具。新 distribution `knowledge-ykforward==0.1.0` 仍是未发布 Alpha 候选。2026-11-23 旧静态预览的原 URL、发布提交和线上验收见 [历史审计](releases/legacy-0.1.0.md#静态回放发布与验收)；更名后的站点尚待重新部署与验证。当前架构见 [架构说明](architecture.md)，开发依赖见 [开发说明](development.md)。
 
 ## 导出只使用固定合成语料
 
-实现位于 `src/konwledge/replay/{bundle,corpus,files,producer}.py`，仓库入口为 [scripts/export_replay.py](../scripts/export_replay.py)。导出器只在工具自建的 `.konwledge/replay/<UUID>` 私有 scope 内生成固定、可公开的合成语料，通过正式 `KnowledgeLibrary` SDK 发布知识，并由自动评测 outbox 产生真实任务与持久化报告。它不读取用户业务库，也不开放通用业务库导出。
+实现位于 `src/knowledge/replay/{bundle,corpus,files,producer}.py`，仓库入口为 [scripts/export_replay.py](../scripts/export_replay.py)。导出器只在工具自建的 `.knowledge/replay/<UUID>` 私有 scope 内生成固定、可公开的合成语料，通过正式 `KnowledgeLibrary` SDK 发布知识，并由自动评测 outbox 产生真实任务与持久化报告。它不读取用户业务库，也不开放通用业务库导出。
 
 从仓库根目录检查现有文件：
 
@@ -59,16 +59,7 @@ Page = {items: [...], total: 全部条目数, limit: 100, offset: 0}
 
 不要把外层字段改名为 `items`，也不要把这些 Page 改成数组。回放包保存全部条目，`total` 必须等于 `items.length`；前端静态 transport 再按请求分页。
 
-当前仓库文件的安全元数据已核对，未复制原始证据全文：
-
-| 项目 | 值 |
-| --- | --- |
-| schema／mode | `1`／`replay` |
-| `generated_at` | `2026-11-20T08:32:21.682543Z` |
-| 文件大小 | `263215` bytes |
-| SHA-256 | `9cd0af3875b768b3a50326fc386452fcb88bf11af8ad58ef64f0499fc4a35d05` |
-| jobs／revisions／documents | `3`／`16`／`4` |
-| lineages／units／evidence／diffs | `3`／`12`／`12`／`16` |
+历史固定回放文件的 `generated_at`、bytes／SHA256 和原资源数量见 [文件身份审计](releases/legacy-0.1.0.md#静态回放发布与验收)。当前文件身份须在每次发布前实际检查，不在本页给新候选预填 hash。
 
 三阶段按 `story` 的角色 ID 识别，不按 jobs 数组位置推断。任务为 `passed → failed → passed`，共用同一 dataset id／version／hash 和 config generation／fingerprint，固定 4 条 cases；mean Recall 为 `1 → 2/3 → 1`。质量失败码为 `QUALITY_GATE_FAILED`，失败知识已经提交，评测不回滚提交，也不自动接受 baseline。
 
@@ -133,9 +124,7 @@ preview mode 的空 hash 默认进入 `#replay/guide`，菜单隐藏受控变更
 - 默认分支中已有允许 `workflow_dispatch` 的对应 workflow，选定 ref 包含本轮实现与审核后的回放文件。GitHub 的 dispatch 入口通常要求默认分支已有 workflow；仅向 feature 分支推送新 workflow，不能保证新的名称或 UI 输入参数已经出现。首次发布已验证现有入口可用，后续发布仍须核对默认分支定义与选定 ref，不自动代办 main 变更。
 - 本轮最终复核记录齐备，并取得单独的公开发布授权。部署后再根据 Actions 的实际结果核验站点地址与子路径加载。
 
-首次发布使用 feature 分支提交 `2ed4f9acda77118c582be709a681d51b34dffb56`，对应 [Actions 运行 45105672969](https://github.com/Ykontheway/konwledge/actions/runs/45105672969)。首次尝试的 prepare 通过，但 publish 被仅允许 main 的环境规则拒绝；保留 main 规则并只加入当前 feature 分支后，重跑失败的 publish 成功，没有合并或修改 main。
-
-线上核验确认根页面与 17 个资源均返回 `200`，与验收构建逐字节一致；回放文件大小和 SHA-256 与本页记录一致，完整 bundle 校验通过。导览、评测对照和手输 `#changes` 的阻断页均正常呈现，捕获的控制台日志为空；管理和写 API 路径返回 `404`。这些是静态加载与呈现检查，不代替真实浏览器交互、移动端或生产服务验收。
+首次发布的原源码提交、Actions URL、环境规则拒绝与重跑结果、旧地址的逐字节核验均见 [静态回放发布审计](releases/legacy-0.1.0.md#静态回放发布与验收)。不更换历史 URL 或补造新 run。更名后的 base path 与公开地址需由主 agent／维护者在另获授权的发布中验证；本次没有新部署或 main 合并。
 
 当前文案整理后的源码仍须经新的发布操作才会更新公开页面。准备构建、上传 artifact、创建 PR 和公开部署是不同状态，不能相互代替。
 
@@ -164,15 +153,11 @@ uv run python scripts/export_mutation_schema.py --check
 | 回放预览专项 | `pnpm verify:preview` 通过，91 项测试通过，独立 replay build 成功 |
 | 构建产物检查 | 17 个允许资源，3 个任务，回放 263215 bytes 与源码逐字节一致 |
 | 真实 wheel／sdist 隔离发行 | 两种格式均通过；`replay_core` 为 3 jobs／16 diffs，既有 MCP 默认／最低 SDK／受控 lanes 继续通过 |
-| 本机静态 HTTP | 59 项通过；根路径及 `/konwledge/` 子路径资源逐字节一致；API 路径 404，POST 405 |
+| 本机静态 HTTP（历史） | 59 项通过；原来的子路径加载结果与原始文件审计见 [旧记录](releases/legacy-0.1.0.md#静态回放发布与验收)，不宣称新子路径已验证；API 404，POST 405 |
 | 静态页面呈现 | 导览、两组对照、生命周期、历史证据和写入口阻断页共 6 次检查通过，捕获的控制台日志为空；临时服务已清理 |
 
 Python 7 项 skip 保留既有可选 PostgreSQL、LanceDB、内存 MCP 文件特性及未显式启用的工作台 live 用例范围；前端 2 项也是需真实本机服务的既有 live 用例。本轮没有启动这些可选服务，不把 skip 写成通过。build 的约 606 kB JS chunk 提醒仍为非阻断优化项。静态呈现检查没有提供精确视口尺寸或截图路径，未做移动端及真实浏览器交互验收；完整导航由真实数据的 jsdom 整合测试覆盖。
 
-原始证据留在本机 `.konwledge`，不随 Git 提交：[`acceptance-report.json`](../.konwledge/byproducts/replay-preview/acceptance-report.json)、[`http-checks.json`](../.konwledge/byproducts/replay-preview/http-checks.json)、[`html_vision.original.log`](../.konwledge/byproducts/replay-preview/html_vision.original.log)，以及发行目录 [`.konwledge/replay-preview-final-distribution`](../.konwledge/replay-preview-final-distribution)。首轮完整回归暴露的两项旧发行编排测试未适配新 `replay_core` 摘要，已补齐隔离解释器与摘要断言；没有放宽实际发行校验。上述结果是发布前的本机验收，不与首次线上发布的检查数量相加；线上发布记录见“发布操作与已上线记录”。
+原本机证据路径和发行目录见 [旧审计记录](releases/legacy-0.1.0.md#静态回放发布与验收)，不搬到新目录，不随 Git 提交。首轮完整回归暴露的两项旧发行编排测试当时未适配 `replay_core` 摘要，后续仅补隔离解释器与摘要断言，没有放宽发行校验。上述历史本机结果不与首次线上发布数量相加，也不是本次更名后的重测。
 
-<!-- 文档校对记录
-本次补录首次发布和线上核验，保留回放实现阶段的历史验收；新源码文案尚未重新部署。
-机械扫描命中 1 处半角标点，位于 Page 结构代码块，按代码语法豁免；中文正文有效命中为 0，元话语及破折号为 0。
-固定数据、命令、DTO、安全限制与提交后评测关系未变，部署事实与后续发布权限分开说明。
--->
+<!-- 本次更名更新源码路径、运行根目录和旧发布审计链接；本文保留历史指标，没有执行导出、构建、代码测试或部署。 -->

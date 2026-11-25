@@ -10,8 +10,8 @@ import pytest
 from sqlalchemy import Engine
 from sqlalchemy.exc import IntegrityError
 
-from konwledge.domain import Document, DocumentContentType, Source, SourceKind
-from konwledge.ingestion import (
+from knowledge.domain import Document, DocumentContentType, Source, SourceKind
+from knowledge.ingestion import (
     FileIngestionService,
     SourceNotFoundError,
     TextFileLoader,
@@ -20,7 +20,7 @@ from konwledge.ingestion import (
     fingerprint_text,
     normalize_text,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     DocumentRepository,
     SessionFactory,
     UnitOfWork,

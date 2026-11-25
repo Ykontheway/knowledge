@@ -33,11 +33,11 @@ def verify_installed(expected_version: str) -> tuple[str, str]:
     psycopg = importlib.import_module("psycopg")
     psycopg_pq = importlib.import_module("psycopg.pq")
 
-    import konwledge
+    import knowledge
 
-    require(konwledge.__version__ == expected_version, "installed Konwledge version mismatch")
+    require(knowledge.__version__ == expected_version, "installed Knowledge version mismatch")
     require(
-        importlib.metadata.version("konwledge") == expected_version,
+        importlib.metadata.version("knowledge-ykforward") == expected_version,
         "installed metadata version mismatch",
     )
     psycopg_version = importlib.metadata.version("psycopg")
@@ -50,7 +50,7 @@ def verify_installed(expected_version: str) -> tuple[str, str]:
     implementation: str = psycopg_pq.__impl__
     require(implementation == "binary", "psycopg is not using its binary implementation")
 
-    for module in (konwledge, psycopg):
+    for module in (knowledge, psycopg):
         filename = module.__file__
         if filename is None:
             raise AssertionError(f"installed module has no file: {module.__name__}")
@@ -67,7 +67,7 @@ def verify_installed(expected_version: str) -> tuple[str, str]:
 
 
 def verify_collector_without_connection() -> None:
-    from konwledge.database_schema import (
+    from knowledge.database_schema import (
         DatabaseConnectionError,
         PostgreSQLSchemaCollector,
         SchemaCollector,
@@ -110,7 +110,7 @@ def verify_collector_without_connection() -> None:
         )
         return engine
 
-    with patch("konwledge.database_schema.collector.create_engine", create_synthetic_engine):
+    with patch("knowledge.database_schema.collector.create_engine", create_synthetic_engine):
         try:
             collector.capture()
         except DatabaseConnectionError as error:

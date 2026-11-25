@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from konwledge.embedding import (
+from knowledge.embedding import (
     EmbeddingProvider,
     EmbeddingService,
     EmbeddingVector,

@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner, Result
 
-from konwledge.cli import app
-from konwledge.conversations import (
+from knowledge.cli import app
+from knowledge.conversations import (
     ConversationImportResult,
     StoredConversation,
     load_conversation_json,

@@ -19,17 +19,17 @@ from uuid import UUID
 
 import jsonschema
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.demo import build_demo
-from konwledge.domain import EvaluationSet, KnowledgeUnitStatus
-from konwledge.evaluation import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.demo import build_demo
+from knowledge.domain import EvaluationSet, KnowledgeUnitStatus
+from knowledge.evaluation import (
     EvaluationBaseline,
     EvaluationReport,
     baseline_from_report,
     dump_baseline,
     validate_evaluation_report,
 )
-from konwledge.evaluation.gates import (
+from knowledge.evaluation.gates import (
     GatePolicy,
     GateResult,
     MetricName,
@@ -37,8 +37,8 @@ from konwledge.evaluation.gates import (
     dump_gate_policy,
     evaluate_gate,
 )
-from konwledge.retrieval import RetrievalMode
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.retrieval import RetrievalMode
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 REPO = Path(__file__).resolve().parents[1]
 BASELINE = REPO / "examples" / "evaluation-baseline.json"
@@ -95,7 +95,7 @@ def _policy() -> GatePolicy:
 
 def _cli(*arguments: str, exit_code: int = 0) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
-        [sys.executable, "-m", "konwledge", *arguments],
+        [sys.executable, "-m", "knowledge", *arguments],
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -233,6 +233,14 @@ def test_committed_policy_is_default_strict_with_same_time_and_passes(tmp_path: 
     assert all(check.passed is not False for check in result.checks)
     assert {check.metric for check in result.checks if check.item_id is None} == set(MetricName)
     assert all(delta.delta in (None, 0.0) for delta in comparison.deltas)
+
+
+def test_python_quality_job_keeps_non_color_environment_for_all_steps() -> None:
+    """pytest 与发行 smoke 共享 job 级非彩色环境，不依赖本机终端。"""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    quality = text.split("\n  quality:\n", 1)[1].split("\n  postgres:\n", 1)[0]
+    configuration = quality.split("\n    steps:\n", 1)[0]
+    assert "    env:\n      NO_COLOR: '1'\n      TERM: dumb\n" in configuration
 
 
 def test_workflow_keeps_strict_gate_and_report_only_always_artifacts() -> None:

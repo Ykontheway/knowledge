@@ -12,9 +12,9 @@ import jsonschema
 import pytest
 from typer.testing import CliRunner
 
-from konwledge.application import KnowledgeLibrary
-from konwledge.cli import app
-from konwledge.demo import (
+from knowledge.application import KnowledgeLibrary
+from knowledge.cli import app
+from knowledge.demo import (
     DEMO_STEPS,
     DemoBuild,
     DemoWorkspaceError,
@@ -24,12 +24,12 @@ from konwledge.demo import (
     corpus_text,
     export_demo,
 )
-from konwledge.demo.builder import DEMO_NAMESPACE, MARKER
-from konwledge.demo.scenario import FAQ, GUIDE, DemoStep, ImportFile
-from konwledge.domain import KnowledgeUnitStatus
-from konwledge.ingestion import normalize_text
-from konwledge.lifecycle import UnitChangeKind
-from konwledge.snapshot import (
+from knowledge.demo.builder import DEMO_NAMESPACE, MARKER
+from knowledge.demo.scenario import FAQ, GUIDE, DemoStep, ImportFile
+from knowledge.domain import KnowledgeUnitStatus
+from knowledge.ingestion import normalize_text
+from knowledge.lifecycle import UnitChangeKind
+from knowledge.snapshot import (
     SCHEMA_VERSION,
     LibrarySnapshot,
     SourceView,
@@ -38,7 +38,7 @@ from konwledge.snapshot import (
     export_snapshot,
     snapshot_json_schema,
 )
-from konwledge.storage import (
+from knowledge.storage import (
     SessionFactory,
     create_schema,
     create_session_factory,

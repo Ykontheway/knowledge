@@ -1,6 +1,6 @@
 # 后端验收
 
-本次补齐 U14～U16 的默认验收，保留现有 Demo、JSON 基线和 Snapshot V1。新增内容仍是 Unreleased，不提升版本，也不发布、部署或开发 MCP。
+本页保留 U14～U16 的验收约定，现有 Demo、JSON 基线和 Snapshot V1 契约不变。原开发与发布状态见 [历史审计](releases/legacy-0.1.0.md#后端验收自动评测与真实文档)。当前新 distribution `knowledge-ykforward==0.1.0` 为未发布候选；下列命令供后续验证，不代表本次更名已测试、发布或部署。
 
 ## Token 预算按真实 tokenizer 计数
 
@@ -9,7 +9,7 @@
 ```bash
 uv sync --locked --dev --extra tokens
 uv run knowledge context "deployment" --max-tokens 2048 \
-  --token-encoding cl100k_base --json -d .konwledge/knowledge.db
+  --token-encoding cl100k_base --json -d .knowledge/knowledge.db
 ```
 
 SDK 使用 `library.build_context(query, max_tokens=2048)`，也可向 `assemble_context` 或 `library.context.build` 传入符合 `TokenCounter` 协议的精确计数器。SDK 自定义计数器需要同时填写准确的 `token_encoding` 标签，不应把字符或字节计数用于模型 Token 预算。
@@ -21,7 +21,7 @@ tiktoken 首次加载编码表可能下载公开分词表。可预热 `TIKTOKEN_
 ## 独立基准覆盖 30 条用例
 
 ```bash
-uv run knowledge quality acceptance --report .konwledge/quality-acceptance.json
+uv run knowledge quality acceptance --report .knowledge/quality-acceptance.json
 # CI 也可调用以下脚本；与 CLI 使用同一份打包语料和 runner。
 uv run python scripts/quality_acceptance.py
 ```
@@ -50,7 +50,7 @@ uv run python scripts/quality_acceptance.py
 knowledge quality run --set-id <set-id> --version 1 \
   --baseline-json approved-baseline.json \
   --regression-policy-json regression-policy.json \
-  --report .konwledge/quality-report.json -d .konwledge/knowledge.db
+  --report .knowledge/quality-report.json -d .knowledge/knowledge.db
 ```
 
 没有回归基线时可省略两个参数。质量命令通过返回 `0`，有效门禁失败返回 `1`，非法输入返回 `2`；自动评测变更命令的未通过退出码为 `3`。报告文件默认拒绝覆盖。基线和策略从不被 runner 自动改写。
@@ -67,7 +67,7 @@ knowledge quality run --set-id <set-id> --version 1 \
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src tests scripts
-uv run pytest --cov=konwledge --cov-report=term-missing
+uv run pytest --cov=knowledge --cov-report=term-missing
 uv run knowledge demo export --check
 uv run python scripts/verify_distribution.py
 ```

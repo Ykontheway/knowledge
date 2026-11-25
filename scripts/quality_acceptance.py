@@ -9,15 +9,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-from konwledge.cli import _atomic_write
-from konwledge.quality import QualityReport
-from konwledge.quality.acceptance import (
+from knowledge.cli import _atomic_write
+from knowledge.quality import QualityReport
+from knowledge.quality.acceptance import (
     PerformanceResult,
     populate_corpus,
     run_performance,
     run_quality,
 )
-from konwledge.storage import create_schema, create_session_factory, create_sqlite_engine
+from knowledge.storage import create_schema, create_session_factory, create_sqlite_engine
 
 
 def _payload(quality: QualityReport, performance: PerformanceResult) -> dict[str, object]:
@@ -57,7 +57,7 @@ def main() -> int:
     try:
         if arguments.report is not None and arguments.report.exists():
             raise FileExistsError("report output already exists; choose a new path")
-        with tempfile.TemporaryDirectory(prefix="konwledge-quality-") as directory:
+        with tempfile.TemporaryDirectory(prefix="knowledge-quality-") as directory:
             database = Path(directory) / "acceptance.db"
             engine = create_sqlite_engine(f"sqlite+pysqlite:///{database.as_posix()}")
             try:

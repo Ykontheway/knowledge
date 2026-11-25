@@ -56,7 +56,7 @@ uv run python scripts/workbench.py demo --mode readonly
 uv run python scripts/workbench.py demo --web-port 5176 --api-port 8016
 ```
 
-本轮 readonly live 证据见 [`.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json`](../.konwledge/workbench/9beb853b-909a-4165-86b7-5b59574baac7/summary.json)。该次运行以 `Ctrl+C` 收尾，summary 顶层状态为 `stopped`，launcher `exit_code=130`，清理核验为 `true`。这表示启动、停止和清理按设计工作，不表示评测 passed，也不表示验收 failed。
+本轮 readonly live 证据见 [B-R2 原 readonly 停止记录](releases/legacy-0.1.0.md#b-r2-统一入口)。该次运行以 `Ctrl+C` 收尾，summary 顶层状态为 `stopped`，launcher `exit_code=130`，清理核验为 `true`。这表示启动、停止和清理按设计工作，不表示评测 passed，也不表示验收 failed。
 
 readonly demo 的 live 复核只做 HTTP GET：
 
@@ -71,11 +71,11 @@ readonly demo 的 live 复核只做 HTTP GET：
 uv run python scripts/workbench.py demo --mode controlled --actor demo-editor
 ```
 
-controlled 模式调用原 `scripts/prepare_mutation_demo.py`，继续使用固定私有根 `ROOT/.konwledge/mutation-demo/<scope-id>/`。统一入口自己传递这次准备出来的 database 和 manifest，不接受外部 database、manifest、路径、DSN 或 key。
+controlled 模式调用原 `scripts/prepare_mutation_demo.py`，继续使用固定私有根 `ROOT/.knowledge/mutation-demo/<scope-id>/`。统一入口自己传递这次准备出来的 database 和 manifest，不接受外部 database、manifest、路径、DSN 或 key。
 
 `--actor` 没有默认值。只有 `--mode controlled` 才接受它，且必须显式传入。示例里的 `demo-editor` 只是本机演示 actor；session role 仍是 `demo_editor`，两者不是同一个字段，也不代表生产认证、SSO 或 RBAC。
 
-本轮 controlled live 证据见 [`.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json`](../.konwledge/workbench/17cf59ec-b616-47ee-8f52-5b79ea8824f4/summary.json)。该次运行同样以 `Ctrl+C` 收尾，summary 顶层状态为 `stopped`；`prepare_controlled` 先到 `ready`，launcher `exit_code=130`，清理核验为 `true`。这次复核仍只做 HTTP GET，不执行 preview 或 command。
+本轮 controlled live 证据见 [B-R2 原 controlled 停止记录](releases/legacy-0.1.0.md#b-r2-统一入口)。该次运行同样以 `Ctrl+C` 收尾，summary 顶层状态为 `stopped`；`prepare_controlled` 先到 `ready`，launcher `exit_code=130`，清理核验为 `true`。这次复核仍只做 HTTP GET，不执行 preview 或 command。
 
 controlled demo 已验证的边界：
 
@@ -145,7 +145,7 @@ uv run python scripts/workbench.py accept --suite readonly --timeout 900
 - launcher 退出码记录为 `130`
 - 父进程退出码是 `1`
 - `stopped` 不是评测 `passed`，也不是把演示说成验收成功
-- 清理必须能核验；本轮两次 demo 都是 `cleanup_verified=true`，端口关闭，没有 orphan
+- 旧 B-R2 两次 demo 的 `cleanup_verified=true`、端口关闭与无 orphan 结论见 [原运行审计](releases/legacy-0.1.0.md#b-r2-统一入口)，不作为本次更名验证
 
 一旦出现下面任意情况，父编排都不会汇总成 pass：
 
@@ -157,45 +157,19 @@ uv run python scripts/workbench.py accept --suite readonly --timeout 900
 
 ## summary、receipt 和报告引用
 
-每次有效的 `demo`／`accept` 调用都会新建 `ROOT/.konwledge/workbench/<uuid>/summary.json`。父编排只汇总本次 session 的白名单字段，例如组件状态、退出码、checks、任务序列、清理结果和 repo-relative 报告路径。
+每次有效的 `demo`／`accept` 调用都会新建 `ROOT/.knowledge/workbench/<uuid>/summary.json`。父编排只汇总本次 session 的白名单字段，例如组件状态、退出码、checks、任务序列、清理结果和 repo-relative 报告路径。
 
 B4 是固定私有根的例外：本次 scope 的 `b4-acceptance-report.json` 仍可能位于 session 外，但只能通过本次 receipt 引用，不能借历史 scope 的通过报告来回填结果。
 
-## 已验证 summary
+## 已验证 summary（历史）
 
-readonly 验收通过，summary 为 [`.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json`](../.konwledge/workbench/7014a5a8-5dda-4406-b159-592d5620ab0b/summary.json)：
+B-R2 原 readonly／full 通过汇总、较早通过及首次 `report_invalid` 失败均见 [B-R2 原运行审计](releases/legacy-0.1.0.md#b-r2-统一入口)。历史 full 各组件 `passed`、exit 0、checks_failed 0、cleanup_verified true，distribution 82 项与 wheel／sdist smoke 通过；8 个必需文件纳入检查。旧路径保持原样，不把原 summary 迁到新目录来证明新候选通过。
 
-- `suite=readonly`
-- seed、management、evaluation 的 `exit_code` 都是 `0`
-- `checks_failed` 都是 `0`
-- `cleanup_verified=true`
-- 没有 timeout
-- evaluation 的 `frontend_status=passed`
-- seed 保留 `passed → failed → passed` 的 jobs 序列和 `1 → 2/3 → 1` 的 Recall 轨迹
+## B-R2 历史复核记录
 
-full + distribution 验收通过，最新 summary 为 [`.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json`](../.konwledge/workbench/ef8c8448-e402-4951-8324-44579ce0045b/summary.json)：
-
-- `suite=full`
-- seed、management、evaluation、mutations、distribution 全部 `status=passed`
-- 所有组件 `exit_code=0`、`checks_failed=0`、`cleanup_verified=true`
-- management、evaluation、mutations、distribution 都是独立汇总，不共用 driver 结果
-- evaluation、mutations 的 `frontend_status=passed`
-- distribution `checks_passed=82`，wheel／sdist 两份 smoke summary 都在本次 session 内
-- `WORKBENCH_SDIST_FILES` 要求的 8 个必需文件已纳入发行校验
-- 没有 timeout
-
-较早一次 full + distribution 通过记录 [`.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json`](../.konwledge/workbench/2297462f-6e76-4207-abc0-8d4b8e625ba3/summary.json) 保留为历史通过记录。
-
-首次 full summary [`.konwledge/workbench/559fcce3-a270-4739-80e8-ebe3598bd044/summary.json`](../.konwledge/workbench/559fcce3-a270-4739-80e8-ebe3598bd044/summary.json) 保留为历史失败记录：当时 distribution 因 `report_invalid` 被正确判成 `failed`。后续修复只把 summary 投影收紧到 known schema，没有放宽原 driver 或业务安全校验。
-
-## 本轮复核记录
-
-- `tests/test_workbench_demo_live.py` 默认 2 个用例 skip；显式设置 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 后，统一入口 E2E 为 2 passed（41.21s）
-- 本轮 `ruff check .` 通过，`ruff format --check .` 为 218 files；`mypy src tests scripts` 通过，覆盖 192 sources
-- Python `pytest -q` 为 1902 passed、5 skipped；其中 3 个是既有可选用例，另 2 个是需要显式 `KNOWLEDGE_WORKBENCH_DEMO_LIVE=1` 的 demo live 用例默认 skip
-- management／mutation 两份 schema `--check` 保持不变
-- 前端 `pnpm verify` 为 430 passed、2 skipped，typecheck、mutationtypecheck、类型漂移、Vitest 和 build 全通过
-- `WORKBENCH_SDIST_FILES` 现含入口脚本 3 项、测试 4 项、文档 1 项，共 8 个必需文件；缺任一项都会拒绝发行验证
+- 当时 Python `pytest -q` 为 1902 passed、5 skipped；前端 430 passed、2 skipped。
+- 显式 Linux live E2E 为 2 passed（41.21s），普通回归的 2 个 live skip 不改写为通过。
+- Ruff check 通过，format 218 files，mypy 192 sources，两份 schema 字节不变；这些结果不属于本次更名验证。
 
 ## 原脚本继续独立使用
 

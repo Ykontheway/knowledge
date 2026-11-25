@@ -1,5 +1,5 @@
 {
-  "name": "konwledge-workbench",
+  "name": "knowledge-workbench",
   "private": true,
   "version": "0.0.0",
   "description": "Knowledge CI 多模式工作台，用于查看知识生命周期、追溯历史证据和对照检索质量。支持版本快照、静态回放与本机只读管理服务；受控更新默认关闭，以服务端授权为准。",
